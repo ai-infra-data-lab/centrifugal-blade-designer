@@ -1,0 +1,300 @@
+{
+  "schema_version": "0.3",
+  "geometry": {
+    "r_le": 100.0,
+    "r_te": 160.0,
+    "theta_le_deg": 11,
+    "vane_count": 20
+  },
+  "blade_angle": {
+    "points": [
+      {
+        "m_blade_norm": 0.0,
+        "value": 65.0
+      },
+      {
+        "m_blade_norm": 0.25,
+        "value": 62.0
+      },
+      {
+        "m_blade_norm": 0.5,
+        "value": 58.0
+      },
+      {
+        "m_blade_norm": 0.75,
+        "value": 54.0
+      },
+      {
+        "m_blade_norm": 1.0,
+        "value": 50.0
+      }
+    ]
+  },
+  "thickness": {
+    "points": [
+      {
+        "m_blade_norm": 0.0,
+        "value": 1.0
+      },
+      {
+        "m_blade_norm": 0.35,
+        "value": 4.0
+      },
+      {
+        "m_blade_norm": 1.0,
+        "value": 1.0
+      }
+    ]
+  },
+  "edges": {
+    "le_type": "circular",
+    "le_ellipse_ratio": 1.0,
+    "te_type": "circular",
+    "te_ellipse_ratio": 1.0
+  },
+  "output_points": {
+    "le_points": 21,
+    "ps_points": 101,
+    "te_points": 21,
+    "ss_points": 101
+  },
+  "export": {
+    "significant_digits": 6,
+    "repeat_first_point": false
+  },
+  "surface_mapping": "auto",
+  "hub": {
+    "start_z": 0.0,
+    "start_r": 50.0,
+    "start_angle_deg": 0.0,
+    "segments": [
+      {
+        "length": 25
+      },
+      {
+        "radius": 30,
+        "sweep_deg": 90,
+        "clockwise": false
+      },
+      {
+        "length": 55
+      }
+    ],
+    "export_points": 501
+  },
+  "shroud": {
+    "start_z": 0,
+    "start_r": 65,
+    "start_angle_deg": 0,
+    "segments": [
+      {
+        "length": 25
+      },
+      {
+        "radius": 15,
+        "sweep_deg": 90,
+        "clockwise": false
+      },
+      {
+        "length": 55
+      }
+    ],
+    "export_points": 501
+  },
+  "sections": [
+    {
+      "span": 0.0,
+      "blade_angle": {
+        "points": [
+          {
+            "m_blade_norm": 0.0,
+            "value": 65.0
+          },
+          {
+            "m_blade_norm": 0.25,
+            "value": 62.0
+          },
+          {
+            "m_blade_norm": 0.5,
+            "value": 58.0
+          },
+          {
+            "m_blade_norm": 0.75,
+            "value": 54.0
+          },
+          {
+            "m_blade_norm": 1.0,
+            "value": 50.0
+          }
+        ]
+      },
+      "thickness": {
+        "points": [
+          {
+            "m_blade_norm": 0.0,
+            "value": 1.0
+          },
+          {
+            "m_blade_norm": 0.35,
+            "value": 4.0
+          },
+          {
+            "m_blade_norm": 1.0,
+            "value": 1.0
+          }
+        ]
+      },
+      "edge_parameters": {
+        "le_type": "circular",
+        "le_ellipse_ratio": 1.0,
+        "te_type": "circular",
+        "te_ellipse_ratio": 1.0
+      }
+    },
+    {
+      "span": 0.37,
+      "blade_angle": {
+        "points": [
+          {
+            "m_blade_norm": 0.0,
+            "value": 65.0
+          },
+          {
+            "m_blade_norm": 0.25,
+            "value": 47
+          },
+          {
+            "m_blade_norm": 0.5,
+            "value": 58.0
+          },
+          {
+            "m_blade_norm": 0.75,
+            "value": 54.0
+          },
+          {
+            "m_blade_norm": 1.0,
+            "value": 50.0
+          }
+        ]
+      },
+      "thickness": {
+        "points": [
+          {
+            "m_blade_norm": 0.0,
+            "value": 1.0
+          },
+          {
+            "m_blade_norm": 0.35,
+            "value": 4.0
+          },
+          {
+            "m_blade_norm": 1.0,
+            "value": 1.0
+          }
+        ]
+      },
+      "edge_parameters": {
+        "le_type": "circular",
+        "le_ellipse_ratio": 1.0,
+        "te_type": "circular",
+        "te_ellipse_ratio": 1.0
+      }
+    },
+    {
+      "span": 1.0,
+      "blade_angle": {
+        "points": [
+          {
+            "m_blade_norm": 0.0,
+            "value": 65.0
+          },
+          {
+            "m_blade_norm": 0.25,
+            "value": 62.0
+          },
+          {
+            "m_blade_norm": 0.5,
+            "value": 58.0
+          },
+          {
+            "m_blade_norm": 0.75,
+            "value": 54.0
+          },
+          {
+            "m_blade_norm": 1.0,
+            "value": 50.0
+          }
+        ]
+      },
+      "thickness": {
+        "points": [
+          {
+            "m_blade_norm": 0.0,
+            "value": 1.0
+          },
+          {
+            "m_blade_norm": 0.35,
+            "value": 4.0
+          },
+          {
+            "m_blade_norm": 1.0,
+            "value": 1.0
+          }
+        ]
+      },
+      "edge_parameters": {
+        "le_type": "circular",
+        "le_ellipse_ratio": 1.0,
+        "te_type": "circular",
+        "te_ellipse_ratio": 1.0
+      }
+    }
+  ],
+  "turbogrid": {
+    "geometry_unit": "MM",
+    "rotation_axis": "Z",
+    "hub_curve_filename": "hub.curve",
+    "shroud_curve_filename": "shroud.curve",
+    "profile_curve_filename": "profile.curve",
+    "leading_edge_type": "auto",
+    "trailing_edge_type": "auto"
+  },
+  "blade_le_fraction": 0.173456789012345,
+  "blade_te_fraction": 0.812345678901234,
+  "flow_path": {
+    "stations": [
+      {
+        "kind": "INLET",
+        "m_flow_norm": 0.0
+      },
+      {
+        "kind": "IMP_LE",
+        "m_flow_norm": 0.173456789012345
+      },
+      {
+        "kind": "IMP_TE",
+        "m_flow_norm": 0.812345678901234
+      },
+      {
+        "kind": "DIF_LE",
+        "m_flow_norm": 0.9
+      },
+      {
+        "kind": "DIF_TE",
+        "m_flow_norm": 0.96
+      },
+      {
+        "kind": "OUTLET",
+        "m_flow_norm": 1.0
+      }
+    ],
+    "align_blade_stations_to_crossflow": true
+  },
+  "resolution": {
+    "profile_points": 2001,
+    "edge_points": 401,
+    "wall_points": 8001,
+    "mean_points": 4001,
+    "area_points": 501
+  }
+}

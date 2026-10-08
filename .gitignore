@@ -1,0 +1,23 @@
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Development-only/generated files
+.venv-linux/
+venv/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+pytest-of-*/
+artifacts/
+build/
+dist/
+*.egg-info/
+.env
+.env.*
+!.env.example
+# User working input/output (fixtures remain tracked)
+/blade.json
+/blade.csv

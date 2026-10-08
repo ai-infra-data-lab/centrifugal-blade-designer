@@ -1,0 +1,15 @@
+# Development rules
+- Work on this blade-designer project only; the parent Git repository also contains an unrelated ledger app.
+- Read FEATURES.md, relevant modules, specifications and tests before editing.
+- Preserve existing GUI actions, layout, calculations, defaults and JSON/CSV/TurboGrid compatibility unless the user explicitly requests a change.
+- Make the smallest change needed; do not regenerate the application or refactor unrelated code.
+- Keep geometry and numerical calculations independent of Qt and external file formats.
+- Never replace numerical references merely to make tests pass. Distinguish analytic checks from historical regression fixtures.
+- Add meaningful tests for changed behavior; run related tests and the full regression for GUI, geometry or serialization changes.
+- Use the selected project .venv: python tools/run_tests.py (or pass individual test paths).
+- Report failures and environment errors separately. Never call untested behavior verified.
+- Review Git status and diffs after changes; preserve all existing uncommitted work.
+- Update FEATURES.md and relevant documentation when behavior or verification status changes.
+- Report changed files, purpose, test results and unverified manual checks.
+- Use one feature or fix per branch/work unit. Do not commit, push, change remotes, delete user data or use destructive Git commands without the appropriate user authorization.
+- Detailed setup, Git workflow and manual checks: docs/DEVELOPMENT.md. Architecture: docs/ARCHITECTURE.md.

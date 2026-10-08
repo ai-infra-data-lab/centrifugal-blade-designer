@@ -1,0 +1,153 @@
+from dataclasses import asdict, fields
+from pathlib import Path
+from enum import Enum
+import json
+import os
+import tempfile
+from ..models.parameters import (BladeParameters, GeometryParameters, BladeAngleParameters,
+    ThicknessParameters, DistributionPoint, EdgeParameters, EdgeType, OutputPointParameters,
+    ExportParameters, SurfaceMapping, BladeSection, TurboGridParameters, RotationDirection)
+from ..models.meridional import MeridionalCurveParameters,LineSegmentParameters,ArcSegmentParameters
+from ..models.resolution import GeometryResolutionParameters
+from ..models.flow_path import FlowPathParameters, ComponentStation, StationType
+from .blade_edge_migration import migrate_v03_blade_edges
+from ..models.blade_edge import BladeEdgePosition,BladeRowEdgeParameters
+from .project_migration import migrate_v01_to_v02,migrate_v02_to_v03,migrate_v03_flow_path
+from ..models.validation import validate_parameters, ValidationLevel
+
+
+def _check(params: BladeParameters) -> None:
+    errors = [i for i in validate_parameters(params) if i.level == ValidationLevel.ERROR]
+    if errors:
+        raise ValueError("; ".join(f"{i.field}: {i.message}" for i in errors))
+    from ..geometry.geometry_3d import generate_impeller
+    generate_impeller(params)
+    from ..geometry.designer import BladeDesigner
+    BladeDesigner().generate_diffuser(params)
+    if (params.sections[0].blade_angle,params.sections[0].thickness,params.sections[0].edge_parameters)!=(params.blade_angle,params.thickness,params.edges):
+        raise ValueError("Legacy diffuser fields must match the Hub section.")
+    settings=params.turbogrid
+    if settings.rotation_axis not in ('X','Y','Z') or settings.geometry_unit not in ('MM','CM','M'):
+        raise ValueError("Unknown TurboGrid axis or unit.")
+    if any(v not in ("auto","EllipseEnd","CutOffEnd","SquareEnd") for v in (settings.leading_edge_type,settings.trailing_edge_type)):
+        raise ValueError("Unknown TurboGrid edge type.")
+
+
+def save_project(path: str | Path, params: BladeParameters) -> None:
+    _check(params)
+    text = json.dumps({"schema_version": "0.3", **asdict(params)}, ensure_ascii=False,
+                      indent=2, allow_nan=False, default=lambda value: value.value if isinstance(value, Enum) else value)
+    path = Path(path)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as stream:
+            temporary = stream.name
+            stream.write(text + "\n")
+        os.replace(temporary, path)
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def _group(data: dict, name: str, cls: type) -> object:
+    values = data.get(name)
+    if not isinstance(values, dict) or set(values) != {f.name for f in fields(cls)}:
+        raise ValueError(f"Invalid or missing fields in {name}.")
+    return cls(**values)
+
+
+def migrate_v01(data: dict) -> BladeParameters:
+    return _decode_v03(migrate_v03_blade_edges(migrate_v03_flow_path(migrate_v02_to_v03(migrate_v01_to_v02(data)))))
+
+
+def _curve(values):
+    if not isinstance(values,dict) or set(values)!={f.name for f in fields(MeridionalCurveParameters)}:
+        raise ValueError("Invalid meridional curve fields.")
+    curve=MeridionalCurveParameters(**values)
+    curve.segments=[]
+    for segment in values['segments']:
+        if set(segment)=={'length'}:curve.segments.append(LineSegmentParameters(**segment))
+        elif set(segment)=={'radius','sweep_deg','clockwise'}:curve.segments.append(ArcSegmentParameters(**segment))
+        else:raise ValueError("Invalid meridional segment fields.")
+    return curve
+
+
+def load_project(path: str | Path) -> BladeParameters:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("Project must be a JSON object.")
+    version = data.get("schema_version")
+    if version == "0.1":data=migrate_v01_to_v02(data);version="0.2"
+    if version == "0.2":data=migrate_v02_to_v03(data);version="0.3"
+    if version != "0.3":raise ValueError(f"Unsupported schema_version: {version!r}")
+    return _decode_v03(migrate_v03_blade_edges(migrate_v03_flow_path(data)))
+
+
+def _decode_v03(data):
+    try:
+        params = BladeParameters(
+            geometry=_group(data, "geometry", GeometryParameters),
+            blade_angle=_group(data, "blade_angle", BladeAngleParameters),
+            thickness=_group(data, "thickness", ThicknessParameters),
+            edges=_group(data, "edges", EdgeParameters),
+            output_points=_group(data, "output_points", OutputPointParameters),
+            export=_group(data, "export", ExportParameters),
+            surface_mapping=SurfaceMapping(data["surface_mapping"]),
+            rotation_direction=RotationDirection(data.get("rotation_direction","ccw")))
+        for distribution in (params.blade_angle, params.thickness):
+            distribution.points = [DistributionPoint(**p) for p in distribution.points]
+        params.edges.le_type = EdgeType(params.edges.le_type)
+        params.edges.te_type = EdgeType(params.edges.te_type)
+        legacy=(params.blade_angle,params.thickness,params.edges)
+        if not isinstance(data.get("sections"),list):raise ValueError("Schema 0.3 requires a section list.")
+        if "sections" in data:
+            params.sections = []
+            for section in data["sections"]:
+                angle = BladeAngleParameters([DistributionPoint(**p) for p in section["blade_angle"]["points"]])
+                thickness = ThicknessParameters([DistributionPoint(**p) for p in section["thickness"]["points"]])
+                edge = EdgeParameters(**section["edge_parameters"])
+                edge.le_type,edge.te_type = EdgeType(edge.le_type),EdgeType(edge.te_type)
+                params.sections.append(BladeSection(section["span"],angle,thickness,edge))
+            if params.sections:
+                hub=params.sections[0]
+                if (hub.blade_angle,hub.thickness,hub.edge_parameters)!=legacy:
+                    raise ValueError("Legacy diffuser fields must match the Hub section in schema 0.3.")
+                params.sections[0].blade_angle = params.blade_angle
+                params.sections[0].thickness = params.thickness
+                params.sections[0].edge_parameters = params.edges
+        from copy import deepcopy
+        if "diffuser_profile" in data:
+            values=data["diffuser_profile"]
+            if not isinstance(values,dict) or set(values)!={f.name for f in fields(BladeSection)}:
+                raise ValueError("Invalid diffuser profile fields.")
+            angle=BladeAngleParameters([DistributionPoint(**v) for v in values["blade_angle"]["points"]])
+            thickness=ThicknessParameters([DistributionPoint(**v) for v in values["thickness"]["points"]])
+            edges=EdgeParameters(**values["edge_parameters"])
+            edges.le_type,edges.te_type=EdgeType(edges.le_type),EdgeType(edges.te_type)
+            if values["span"]!=0:raise ValueError("The radial diffuser profile requires span 0.")
+            params.diffuser_profile=BladeSection(0.,angle,thickness,edges)
+        else:
+            # Earlier projects used Hub distributions for both components.
+            params.diffuser_profile=deepcopy(params.sections[0])
+        params.hub=_curve(data['hub']);params.shroud=_curve(data['shroud'])
+
+        params.turbogrid=_group(data,'turbogrid',TurboGridParameters)
+        params.blade_le_fraction=data['blade_le_fraction'];params.blade_te_fraction=data['blade_te_fraction']
+        if "flow_path" in data:
+            if set(data["flow_path"])!={"stations","align_blade_stations_to_crossflow"} or not isinstance(data["flow_path"]["stations"],list):
+                raise ValueError("Invalid flow path fields.")
+            if any(set(station)!={"kind","m_flow_norm"} for station in data["flow_path"]["stations"]):
+                raise ValueError("Invalid component station fields.")
+            params.flow_path=FlowPathParameters([ComponentStation(StationType(v["kind"]),v["m_flow_norm"]) for v in data["flow_path"]["stations"]],data["flow_path"].get("align_blade_stations_to_crossflow",True))
+            if params.blade_le_fraction != data['blade_le_fraction'] or params.blade_te_fraction != data['blade_te_fraction']:
+                raise ValueError("Legacy LE/TE aliases disagree with component stations.")
+        if "resolution" in data:params.resolution=_group(data,"resolution",GeometryResolutionParameters)
+        for key in ('impeller_edges','diffuser_edges'):
+            row=_group(data,key,BladeRowEdgeParameters)
+            row.leading_edge=_group(data[key],'leading_edge',BladeEdgePosition)
+            row.trailing_edge=_group(data[key],'trailing_edge',BladeEdgePosition)
+            setattr(params,key,row)
+        _check(params)
+        return params
+    except (TypeError, KeyError, AttributeError) as exc:
+        raise ValueError(f"Malformed v0.3 project: {exc}") from exc
