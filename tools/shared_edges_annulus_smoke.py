@@ -30,7 +30,12 @@ def main():
     assert p.diffuser_profile.edge_parameters.le_type == EdgeType.CIRCULAR
     w.save_to_path(output / "shared_edges.json"); assert load_project(output / "shared_edges.json") == p
     def capture(widget, filename):
-        w.tabs.setCurrentWidget(widget); w.fit_view(); app.processEvents()
+        if widget is w.annulus_plot:
+            w.annulus_2d.setChecked(True)
+            w.tabs.setCurrentIndex(next(i for i in range(w.tabs.count()) if w.tabs.tabText(i) == "Full Annulus"))
+        else:
+            w.tabs.setCurrentWidget(widget)
+        w.fit_view(); app.processEvents()
         assert w.grab().save(str(output / filename))
     w.tabs.setCurrentIndex(2); capture(w.tabs.currentWidget(), "impeller_shared_edges.png")
     assert not w.tabs.isTabVisible(w.tabs.indexOf(w.curvature_plot))
@@ -38,8 +43,9 @@ def main():
     w.section_selector.combo.setCurrentIndex(1); w.projection.setCurrentText("XZ")
     capture(w.annulus_plot, "impeller_annulus_tip_xz.png")
     w.view_mode.setCurrentIndex(1); capture(w.annulus_plot, "diffuser_annulus_xy.png")
-    assert w.tabs.isTabVisible(w.tabs.indexOf(w.curvature_plot))
-    capture(w.curvature_plot, "diffuser_curvature.png")
+    assert not w.tabs.isTabVisible(w.tabs.indexOf(w.curvature_plot))
+    dialog = w.show_analysis_view("Diffuser Curvature"); app.processEvents()
+    assert dialog.grab().save(str(output / "diffuser_curvature.png")); dialog.close()
     assert all(hashlib.sha256(p.read_bytes()).hexdigest() == digest for p, digest in originals.items())
     (output / "result.json").write_text(json.dumps({
         "result": "PASS", "shared_impeller_edges": "PASS", "independent_diffuser_edges": "PASS",

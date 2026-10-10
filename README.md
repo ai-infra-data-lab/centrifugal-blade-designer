@@ -1,5 +1,7 @@
 # Centrifugal Compressor Blade Designer v0.3
 
+v0.3.0最終版の保存先: [アプリ専用の非公開GitHubリポジトリ](https://github.com/ai-infra-data-lab/centrifugal-blade-designer)。自動回帰318件成功。実ディスプレイの変更後操作とTurboGrid実機Importは未確認です。
+
 ## 継続開発環境（2026-10-08）
 
 既存GUI・計算コードは変更せず、Windows版VS Codeから開発・検証する設定を追加しました。
@@ -52,24 +54,59 @@ PyVista/VTK/OpenGLは不要です。Geometry EngineはQtへ依存しません。
 
 ## GUI
 
-左側にBlade Viewを常時表示し、右側にSection SelectorとEditorを配置しています。
+### 左側の編集対象・複数翼列（2026-10-10）
 
-- Editor: Blade Angle / Thickness / LE・TE / Meridional / Output。
-- 下部Context View: Meridional / Flow Area / Metrics / 3D Preview。上下の境界をドラッグして表示領域を調整できます。
-- 通常EditorからDiffuser GeometryとOptimizationのタブを削除。Full Annulusは選択したImpeller/Diffuserを表示し、ImpellerではHub/Tip断面とXY/XZ/YZ投影にも追従します。Diffuser CurvatureはDiffuser選択時のみ表示します。ディフューザのR LE / R TEはDiffuser選択時のOutputに表示します。
+左の縦パネルで「子午面 / Meridional」または「翼 / Blade Rows」配下の翼列を選択します。
+左に選択パネル、中央上段に2D表示、中央下段に3D表示、右にEditorを配置しています。中央の上下境界をドラッグして表示高さを調整できます。下部Contextのタブパネルはありません。
+中央はタブや子午面の選択にかかわらず、選択翼列の翼形状を表示します。子午面を選ぶと右にMeridionalだけを表示し、子午面形状・所属翼列・翼端を編集できます。
+翼列のタブはBlade Angle / Thickness / LE / TE / Full Annulusです（LE / TEは1タブ）。角度・厚さの分布グラフと入力表は右側で操作します。
+Full Annulusタブの「2D Full Annulus」「3D Full Annulus」で、中央上段・下段をそれぞれ単翼／全周表示へ切り替えます。上部Viewグループにも同じ切り替えがあります。翼枚数は選択翼列の設定に追従し、切り替えだけでは設計値やカメラを変更しません。全体を収める場合はView → Fit Viewを使用します。表示設定はJSONの設計値には保存しません。
+中央表示と右Editorの境界をドラッグして幅を調整できます。編集欄はスクロールし、対象切替でウィンドウの高さは変更しません。起動サイズは利用可能な画面サイズ内に収めます。
+Component Stationsの編集表と子午面上部のStation値一覧は表示しません。Blade Edgesの翼端編集は使用できます。既存JSONのStation値は保存・読込とFlow Area計算の互換性のため保持します。
+上部はProject / Edit / View / Rotation / Exportに整理しています。View → Output Settingsで出力設定、ViewメニューでFlow Area / Metrics / 3D Preview / Diffuser Curvatureを別ウィンドウに開けます。Copy Hub→Tip / Tip→Hubボタンはありません。
+下段の3Dは選択中の翼列に追従し、左ドラッグで回転、右ドラッグで移動、ホイールで拡大縮小できます。Impellerは既存のSpan付き3Dワイヤーフレーム、Diffuserは既存の2D輪郭をXYZ空間のZ=0平面で表示します。DiffuserのSpan・3D押し出し形状はまだ定義していません。Viewの従来3D Previewは引き続きImpeller解析表示です。
+
+#### 子午面区間の所属と翼列別出力範囲
+
+子午面を選び、Hub / Shroudそれぞれの直線・円弧の表で「所属翼列 / Blade Row」を選びます。1区間につき1翼列を割り当てます。曲線上にも翼列ごとの色と名前・区間番号を表示します。壁面形状は共有のまま、所属だけを指定します。区間の追加・削除・順番変更に所属も追従し、Undo/RedoとJSON保存に対応します。翼列削除ではその所属を解除し、Undoで復元します。
+
+TurboGrid出力は選択Impellerの所属区間にHub/Shroudの出力範囲を限定します。Hub・Shroud両方で連続した区間を割り当て、LE/TEと翼輪郭全体を含めてください。飛び飛びの所属、片側だけの割り当て、翼が範囲外の場合は出力前にエラーを表示し、既存出力を変更しません。点数・単位・座標系・翼輪郭ファイル形式は従来と同じです。
+
+割り当てを一切使っていない旧プロジェクトは従来どおり全流路を出力します。JSONの直線・円弧に任意の`blade_row`を保存し、未割り当ての旧データには追加キーを出しません。Diffuserの所属も保存できますが、既存Diffuser CSVは翼輪郭用で壁面を含まないため、この割り当てではCSV輪郭を切り詰めません。区間途中での境界指定・同一区間の複数翼列への割り当ては今回の実装に含みません。
+
+手動確認: Hub/Shroudで翼列を割り当て、色・名前を確認し、翼列切替と下段3D操作、Undo/Redo、JSON再読込、選択Impellerの壁面出力端点を確認してください。実画面での操作とTurboGrid実機Importは未確認です。
+
+- 「追加 / Add Row」を押し、画面で名前と「インペラ / Impeller」または「静翼 / Diffuser」を指定して「追加 / Add」を押します。名前の前後の空白は除去し、空白だけの名前では追加できません。キャンセルでは設計を変更しません。同じ種類の既存翼列をコピーして作成し、追加後の編集は元の翼列に反映しません。
+- 各翼列の角度・厚さ・LE/TE形状・翼枚数・翼端位置・回転方向・出力設定を独立して編集・保存できます。ImpellerはHub/Tip・中間Span、Diffuserは従来の2D形状です。
+- 「Delete Row」で選択翼列を削除します。少なくとも1翼列を残します。「Move Up / Down」は一覧・保存順序だけを変更し、翼端位置やComponent Stationは自動変更しません。
+- 追加・削除・並べ替えと数値編集はUndo/Redoに対応します。翼列の選択だけでは履歴を追加しません。
+- Hub/Shroud壁面、Component Stations、内部計算解像度はプロジェクト共通です。翼列を切り替えても壁面編集を保持します。
+- CSVは選択中のDiffuser、TurboGridは選択中のImpellerを書き出します。複数翼列を一括で書き出す機能はありません。
+- 初期表示・旧JSONでは従来のImpeller/Diffuserを表示します。左パネルで翼列を選択するか翼列管理ボタンを使うと複数翼列管理に移ります。対象切替のプログラムAPIは保持しています。
+- JSON schema 0.3に任意の`blade_rows`と`active_blade_row`を追加します。旧0.1/0.2/0.3は引き続き読み込めます。翼列管理を使わない従来プロジェクトは追加フィールドなしで保存します。複数翼列の情報を保持するには、この機能に対応した版で編集してください。
+
+手動確認: 追加画面で名前・インペラ/静翼を指定して追加、空白名とキャンセル、右の入力欄・グラフ操作、中央の翼形状が維持されること、2D/3Dの独立したFull Annulus切り替え、Station表がないこと、子午面→翼列切替、別々の角度・翼枚数・翼端位置の編集、順番変更、削除とUndo、別名JSON保存・再読込、選択翼列の書き出しを確認してください。実画面での追加操作は未確認です。変更前のF5起動はユーザー確認済みです。
+
+中央に翼形状、右側にSection SelectorとEditorを配置しています。右側上部の「翼枚数 / Blade Count」で選択翼列の枚数を変更できます。各翼列で独立し、2D/3Dの全周表示・隣接翼・設計指標へ反映します。Undo/Redo・JSON保存に対応し、子午面選択時は隠れます。
+
+F5・`main.py`の起動とProject → Newは、ユーザー指定の`blade_v03.json`からコピーした`blade_designer/defaults/default_project.json`を使用します。元のユーザーJSONは変更しません。New・起動直後は未保存の新規プロジェクトとして扱い、Saveで保存先を選びます。`--project`で指定したJSONは起動時のデフォルトより優先します。通常の編集・保存でデフォルト用JSONは書き換えません。
+
+- Editor: 子午面選択時はMeridional、翼列選択時はBlade Angle / Thickness / LE・TE / Full Annulus。
+- 下部Context Viewは削除しました。解析表示と出力設定は上部Viewメニューから開きます。
+- 通常EditorにDiffuser GeometryとOptimizationのタブはありません。Full Annulusは選択したImpeller/Diffuserを表示し、ImpellerではHub/Tip断面とXY/XZ/YZ投影にも追従します。Diffuser CurvatureはViewメニューから開きます。ディフューザのR LE / R TEはDiffuser選択時のOutput Settingsに表示します。
 - 最適化は `main.py --mode optimization` またはModeメニューのOpen Optimization Mode in Separate Windowで別ウィンドウとして起動します。Modeメニューでは現在の設計をコピーします。候補の適用・Undo・保存はそのウィンドウだけへ反映されます。通常Editorの設計へ自動適用しません。
-- ToolbarのImpeller / Diffuserで表示と編集対象を切り替えます。角度・厚さ・LE/TE設定は対象ごとに独立しています。右側のEditingラベルで現在の対象を確認できます。
+- 左の翼列一覧で表示と編集対象を切り替えます。角度・厚さ・LE/TE設定は対象ごとに独立しています。右側のEditingラベルで現在の対象を確認できます。
 - ImpellerではSection SelectorでHub/Tip/中間Spanを選び、ProjectionでXY / XZ / YZを切り替えます。Diffuserは従来の2D XY表示で、Section Selectorを隠し、ProjectionはXY固定です。インペラへ戻るとその投影方向を復元します。
 - 形状更新は既存Plot ItemのsetDataで行います。起動・New・Open・Fit View以外では自動Fitしません。
 - 3Dは左ドラッグで回転、右ドラッグでPan、ホイールでZoom。形状変更でcamera_positionを維持します。
 - 角度・厚さはHub/Tipを同じグラフへ常時表示し、それぞれの表・Add/Delete・操作点から切り替えずに直接編集します。Hubは水色の中心点、Tipはオレンジ色の外側の輪です。同一座標でも両方を個別にドラッグできます。中間Spanも同じグラフへ追加します。Section SelectorはBlade ViewとFull Annulusの断面選択に使用します。ImpellerのLE/TE形状タイプ・楕円比は全断面で共通です。Add Spanで任意の内部断面を追加できます。Hub/Tipは削除できません。
-- Hub → Tip / Tip → Hubは分布と端部設定をコピーします。Span値を維持します。
+- Hub → Tip / Tip → HubのGUIボタンは削除しました。従来のプログラムAPIは互換性のため保持します。
 - AngleとThicknessは同一ControlPointEditorです。表編集、Add/Delete、マーカーのDragができます。端点位置は0/1固定、端点の削除は禁止です。
 - 通常は編集から150ms後に再計算します。Drag中は50ms間隔を目安に更新し、リリース時にも再計算します。無効入力では最後の有効形状を残して理由を表示します。
 - MeridionalではHub/Shroudを同時表示し、Start Z/R/angle、Line Length、Arc Radius/Sweep/CW・CCWを編集します。Add Line/Add Arc/Delete/Move Up/Move Downを使用できます。
-- OutputでLE/PS/TE/SS点数、有効桁、Component IMP_LE/TE、TurboGrid単位・回転軸・ファイル名・端部設定を編集します。翼端の壁面位置はMeridionalのBlade Edges表で編集します。
-- Blade CountはOutputのVane Countと共有します。
-- ToolbarのDiffuser CSVは従来の2D座標形式です。Impellerの3D座標はTurboGrid Exportで出力します。
+- View → Output SettingsでLE/PS/TE/SS点数、有効桁、Component IMP_LE/TE、TurboGrid単位・回転軸・ファイル名・端部設定を編集します。翼端の壁面位置はMeridionalのBlade Edges表で編集します。
+- Blade Countは右側上部の「翼枚数 / Blade Count」で設定し、出力に使う枚数と共有します。
+- ExportメニューのDiffuser CSVは従来の2D座標形式です。Impellerの3D座標はTurboGrid Exportで出力します。
 - 画面下にValidation/Statusを表示します。Throat/Curvature/SolidityとOptimizationの形状判定は既存Diffuser 2Dの値です。
 
 ## 子午面・座標定義
@@ -123,7 +160,7 @@ Throat最小位置がLE上にあっても拒否・警告理由にしません。
 
 INLET < IMP_LE < IMP_TE < DIF_LE < DIF_TE < OUTLETを保存します。
 領域はInlet / Impeller / Vaneless Diffuser・Gap / Vaned Diffuser / Outletです。
-Meridional EditorのStation Tableで編集し、Context Viewで境界と全ラベルを確認できます。
+Component Stationsは既存JSONとの互換性およびFlow Area計算用に保持します。Meridional EditorのStation TableとStation値一覧は画面から撤去しました。翼端の位置はBlade Edgesで編集します。
 IMP_LE/TEと従来のblade_le_fraction/blade_te_fractionは同じ値を参照する互換aliasです。
 
 流路全体の平均流路距離:
@@ -218,7 +255,7 @@ OS標準ファイルダイアログの人による操作とTurboGrid実機Import
 5. 3D Previewを回転/Zoom/Panし、編集後もカメラが維持されることを確認。
 6. 無効Radius/Length/Sweepと交差を入力し、最後の有効形状とErrorを確認。
 7. Flow Areaを選択してマウスを動かし、MeridionalのCross-flow lineと情報を確認。MeridionalのStation選択でArea Markerが連動することを確認。
-8. Component IMP_LE/TE・DIF_LE/TEを変更し、Station順序違反でError、正常入力で面積比が更新されることを確認。翼位置は独立して保持されます。
+8. MeridionalのComponent Stations編集表が表示されないこと、Blade Edgesを編集しても保存・再読込で既存Station値が保持されることを確認。
 9. TurboGrid Exportし、実機で4ファイルをImportして上述の方向とGeometry Errorを確認。
 
 ## 既知の制限・次版

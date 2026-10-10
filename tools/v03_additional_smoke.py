@@ -26,8 +26,8 @@ def main():
     originals={p:hashlib.sha256(p.read_bytes()).hexdigest() for p in (ROOT/"blade.json",ROOT/"blade.csv") if p.exists()}
     w=MainWindow();w.resize(1440,1060);w.show();app.processEvents();w.fit_view();app.processEvents()
     report={"gui_size":[w.width(),w.height()],"blade_width":w.blade_plot.width(),"editor_width":w.tabs.width()}
-    def screenshot(name):
-        app.processEvents();assert w.grab().save(str(out/(name+".png")))
+    def screenshot(name,widget=None):
+        app.processEvents();assert (widget or w).grab().save(str(out/(name+".png")))
     screenshot("default")
     before=deepcopy(w.get_parameters());original=w.impeller_geometry.sections[0].camber.xyz.copy()
     rotation_view=np.array(w.blade_plot.getViewBox().viewRange())
@@ -56,10 +56,10 @@ def main():
         section.thickness.points[1].value=4+2*span
         p.sections.append(section)
     w.set_parameters(p);w.update_geometry();w.fit_view();app.processEvents()
-    w.tabs.setCurrentIndex(3);w.tabs.widget(3).ensureWidgetVisible(w.meridional_editor.blade_edges)
-    w.context_tabs.setCurrentIndex(0);screenshot("independent_edges")
-    w.context_tabs.setCurrentIndex(3);w.vertical_splitter.setSizes([440,450]);app.processEvents();w.preview_3d.fit_view()
-    screenshot("five_span_wireframe")
+    w._select_meridional();w.tabs.widget(3).ensureWidgetVisible(w.meridional_editor.blade_edges)
+    screenshot("independent_edges")
+    wireframe_dialog=w.show_analysis_view("3D Preview");app.processEvents();w.preview_3d.fit_view()
+    screenshot("five_span_wireframe",wireframe_dialog)
     assert len(w.preview_3d.spanwise_lines)==244
     assert all(len(line.xyz)==5 for line in w.preview_3d.spanwise_lines)
     report["spanwise_correspondence"]={"lines":244,"sections":5,"segments":["LE","PS","TE","SS"]}
@@ -74,7 +74,7 @@ def main():
     assert load_project(out/"five_span_v03.json")==w.get_parameters()
     export_turbogrid(out/"five_span_ccw_case",w.get_parameters())
     w.reverse_rotation();export_turbogrid(out/"five_span_cw_case",w.get_parameters())
-    screenshot("five_span_cw_wireframe")
+    screenshot("five_span_cw_wireframe",wireframe_dialog)
     report["save_load_and_four_file_exports"]="PASS"
     for name,reference in (("old_v03_flow_path","old_v03_profiles"),("flow_path_before_additional","flow_path_before_additional")):
         g=generate_impeller(load_project(ROOT/"tests/fixtures"/(name+".json")))

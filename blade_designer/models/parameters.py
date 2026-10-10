@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from copy import deepcopy
@@ -134,6 +135,8 @@ class BladeParameters:
     diffuser_edges: BladeRowEdgeParameters = field(default_factory=default_diffuser_edges)
     flow_path: FlowPathParameters | None = None
     resolution: GeometryResolutionParameters = field(default_factory=GeometryResolutionParameters)
+    blade_rows: list[BladeRow] | None = None
+    active_blade_row: str | None = None
 
     def __post_init__(self):
         if self.flow_path is None:
@@ -169,3 +172,11 @@ class BladeParameters:
             sections=self.__dict__.get("sections")
             if sections:setattr(sections[0],aliases[name],value)
         object.__setattr__(self,name,value)
+
+
+@dataclass
+class BladeRow:
+    identifier: str
+    name: str
+    kind: str
+    parameters: BladeParameters

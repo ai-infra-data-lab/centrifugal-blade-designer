@@ -16,7 +16,16 @@ from .project_migration import migrate_v01_to_v02,migrate_v02_to_v03,migrate_v03
 from ..models.validation import validate_parameters, ValidationLevel
 
 
-def _check(params: BladeParameters) -> None:
+def _check(params: BladeParameters, check_ownership=True) -> None:
+    from ..models.blade_rows import validate_rows, row_parameters
+    validate_rows(params)
+    if check_ownership and params.blade_rows is None and any(segment.blade_row is not None for curve in (params.hub,params.shroud) for segment in curve.segments):
+        raise ValueError("Meridional ownership requires a blade row list.")
+    for row in params.blade_rows or []:
+        try:
+            _check(row_parameters(params, row), check_ownership=False)
+        except ValueError as exc:
+            raise ValueError(f"{row.name}: {exc}") from exc
     errors = [i for i in validate_parameters(params) if i.level == ValidationLevel.ERROR]
     if errors:
         raise ValueError("; ".join(f"{i.field}: {i.message}" for i in errors))
@@ -35,7 +44,19 @@ def _check(params: BladeParameters) -> None:
 
 def save_project(path: str | Path, params: BladeParameters) -> None:
     _check(params)
-    text = json.dumps({"schema_version": "0.3", **asdict(params)}, ensure_ascii=False,
+    payload = asdict(params)
+    def omit_unassigned(value):
+        if isinstance(value, dict):
+            if value.get("blade_row", False) is None:
+                value.pop("blade_row")
+            for child in value.values(): omit_unassigned(child)
+        elif isinstance(value, list):
+            for child in value: omit_unassigned(child)
+    omit_unassigned(payload)
+    if params.blade_rows is None:
+        payload.pop("blade_rows")
+        payload.pop("active_blade_row")
+    text = json.dumps({"schema_version": "0.3", **payload}, ensure_ascii=False,
                       indent=2, allow_nan=False, default=lambda value: value.value if isinstance(value, Enum) else value)
     path = Path(path)
     temporary = None
@@ -66,8 +87,11 @@ def _curve(values):
     curve=MeridionalCurveParameters(**values)
     curve.segments=[]
     for segment in values['segments']:
-        if set(segment)=={'length'}:curve.segments.append(LineSegmentParameters(**segment))
-        elif set(segment)=={'radius','sweep_deg','clockwise'}:curve.segments.append(ArcSegmentParameters(**segment))
+        if segment.get('blade_row') is not None and (not isinstance(segment['blade_row'], str) or not segment['blade_row']):
+            raise ValueError("Invalid meridional blade row identifier.")
+        keys=set(segment)-{'blade_row'}
+        if keys=={'length'}:curve.segments.append(LineSegmentParameters(**segment))
+        elif keys=={'radius','sweep_deg','clockwise'}:curve.segments.append(ArcSegmentParameters(**segment))
         else:raise ValueError("Invalid meridional segment fields.")
     return curve
 
@@ -83,7 +107,7 @@ def load_project(path: str | Path) -> BladeParameters:
     return _decode_v03(migrate_v03_blade_edges(migrate_v03_flow_path(data)))
 
 
-def _decode_v03(data):
+def _decode_v03(data, row_snapshot=False):
     try:
         params = BladeParameters(
             geometry=_group(data, "geometry", GeometryParameters),
@@ -147,7 +171,20 @@ def _decode_v03(data):
             row.leading_edge=_group(data[key],'leading_edge',BladeEdgePosition)
             row.trailing_edge=_group(data[key],'trailing_edge',BladeEdgePosition)
             setattr(params,key,row)
-        _check(params)
+        if data.get("blade_rows") is not None:
+            from ..models.parameters import BladeRow
+            if not isinstance(data["blade_rows"], list):
+                raise ValueError("Invalid blade row list.")
+            params.blade_rows = []
+            for row in data["blade_rows"]:
+                if not isinstance(row, dict) or set(row) != {"identifier", "name", "kind", "parameters"}:
+                    raise ValueError("Invalid blade row fields.")
+                values = row["parameters"]
+                if not isinstance(values, dict) or values.get("blade_rows") is not None or values.get("active_blade_row") is not None:
+                    raise ValueError("Nested blade row lists are forbidden.")
+                params.blade_rows.append(BladeRow(row["identifier"], row["name"], row["kind"], _decode_v03(values, row_snapshot=True)))
+        params.active_blade_row = data.get("active_blade_row")
+        _check(params, check_ownership=not row_snapshot)
         return params
     except (TypeError, KeyError, AttributeError) as exc:
         raise ValueError(f"Malformed v0.3 project: {exc}") from exc

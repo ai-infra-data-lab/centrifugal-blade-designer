@@ -74,12 +74,13 @@ def drag(w,plot,start,finish):
 def test_real_drag_is_one_undo_command(window,kind):
     w=window
     if kind=="blade_edge":
-        w.context_tabs.setCurrentIndex(0);plot=w.context_meridional.plot
-        item=w.context_meridional.edge_handles[0];pos=item.pos[0].copy();target=pos+np.array([4.,2.])
+        w._select_meridional();plot=w.meridional_editor.plot
+        w.tabs.currentWidget().ensureWidgetVisible(w.meridional_editor.context)
+        item=w.meridional_editor.context.edge_handles[0];pos=item.pos[0].copy();target=pos+np.array([4.,2.])
     else:
         w.tabs.setCurrentIndex(0 if kind=="angle" else 1)
         editor=w.angle_editor if kind=="angle" else w.thickness_editor;plot=editor.plot
-        point=editor.get_points()[1];pos=np.array([point.m_blade_norm,point.value]);target=pos+[.035,.25]
+        point=editor.get_points()[1];pos=np.array([point.m_blade_norm,point.value]);target=pos+[.15,1.]
     QTest.qWait(100)
     def screen(p):return plot.mapFromScene(plot.getViewBox().mapViewToScene(QPointF(*p)))
     before=deepcopy(w.get_parameters());count=w.undo_stack.count()

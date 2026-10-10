@@ -64,14 +64,16 @@ def test_diffuser_curvature_hidden_and_diffuser_edges_remain_independent(window)
     assert not w.tabs.isTabVisible(index)
     original = deepcopy(w.get_parameters().sections)
     w.view_mode.setCurrentIndex(1)
-    assert w.tabs.isTabVisible(index)
-    w.tabs.setCurrentIndex(index)
+    assert not w.tabs.isTabVisible(index)
+    dialog = w.show_analysis_view("Diffuser Curvature")
+    assert w.curvature_plot.isVisible()
     combo = w.panel.controls["te_type"]
     combo.setCurrentIndex(combo.findData(EdgeType.CUTOFF)); w.update_geometry()
     assert w.get_parameters().sections == original
     assert w.get_parameters().diffuser_profile.edge_parameters.te_type == EdgeType.CUTOFF
     w.view_mode.setCurrentIndex(0)
-    assert not w.tabs.isTabVisible(index) and w.tabs.currentWidget() is not w.curvature_plot
+    assert all(w.tabs.tabText(i) != "Diffuser Curvature" for i in range(w.tabs.count()) if w.tabs.isTabVisible(i))
+    dialog.close()
 
 
 @pytest.mark.parametrize("plane", ["XY", "XZ", "YZ"])
@@ -107,17 +109,15 @@ def test_annulus_rotates_selected_impeller_in_xyz_before_projection(window, plan
 
 
 @pytest.mark.parametrize("hub_to_tip", [True, False])
-def test_copy_buttons_only_copy_distributions_and_support_undo(window, hub_to_tip):
+def test_copy_api_only_copies_distributions_and_buttons_removed(window, hub_to_tip):
     w = window
     w.angle_editor.series[0].table.cellWidget(1, 1).setValue(41)
     w.angle_editor.series[1].table.cellWidget(1, 1).setValue(35)
     w.thickness_editor.series[0].table.cellWidget(1, 1).setValue(5)
     w.thickness_editor.series[1].table.cellWidget(1, 1).setValue(6)
     w.commit_edit(); before = deepcopy(w.get_parameters())
-    button = next(b for b in w.section_selector.findChildren(QPushButton)
-                  if b.text() == ("Copy Hub → Tip" if hub_to_tip else "Copy Tip → Hub"))
-    assert "angle and thickness" in button.toolTip()
-    button.click(); after = w.get_parameters()
+    assert not any("Copy" in b.text() for b in w.section_selector.findChildren(QPushButton))
+    w.copy_section(hub_to_tip); after = w.get_parameters()
     source, target = (0, 1) if hub_to_tip else (1, 0)
     assert after.sections[target].blade_angle == before.sections[source].blade_angle
     assert after.sections[target].thickness == before.sections[source].thickness

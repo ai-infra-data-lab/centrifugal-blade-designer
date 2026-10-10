@@ -10,6 +10,7 @@ import numpy as np
 from .csv_export import format_number
 from ..geometry.meridional_segments import sample_meridional
 from ..geometry.geometry_3d import generate_impeller
+from ..geometry.row_domain import export_wall_intervals
 from ..models.parameters import EdgeType
 
 REFERENCE_URL="https://ansyshelp.ansys.com/public/Views/Secured/Doc_Assets/v261/TurboGrid/stator.zip"
@@ -46,14 +47,19 @@ def _coordinates(xyz,digits,markers=None):
 
 
 def export_turbogrid(case_directory,params):
+    from ..models.blade_rows import validate_rows
+    validate_rows(params)
+    if params.blade_rows is not None and next(row for row in params.blade_rows if row.identifier == params.active_blade_row).kind != "impeller":
+        raise ValueError("Select an Impeller blade row for TurboGrid export.")
     geometry=generate_impeller(params)
     settings=params.turbogrid;digits=params.export.significant_digits
     filenames=[settings.hub_curve_filename,settings.shroud_curve_filename,settings.profile_curve_filename,"BladeGen.inf"]
     if len(set(name.lower() for name in filenames))!=4 or any(not name or Path(name).name!=name or any(c in name for c in '\\/:\r\n') for name in filenames):
         raise ValueError("TurboGrid filenames must be distinct simple filenames.")
     contents={}
-    for wall,p,name in ((geometry.hub,params.hub,filenames[0]),(geometry.shroud,params.shroud,filenames[1])):
-        zr=sample_meridional(wall,np.linspace(0,wall.length,p.export_points))
+    intervals = export_wall_intervals(params, geometry)
+    for (wall,p,name),(start,end) in zip(((geometry.hub,params.hub,filenames[0]),(geometry.shroud,params.shroud,filenames[1])), intervals):
+        zr=sample_meridional(wall,np.linspace(start,end,p.export_points))
         xyz=np.column_stack((zr[:,1],np.zeros(len(zr)),zr[:,0]))
         contents[name]=_coordinates(_external_xyz(xyz,settings),digits)
     profiles=[]

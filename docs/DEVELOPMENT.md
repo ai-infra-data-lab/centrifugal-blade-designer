@@ -49,7 +49,8 @@ VS CodeのTest Explorer内でのクリック実行は手動確認対象です。
 
 ## 5. Gitで確認して記録
 
-現状は親リポジトリmasterにコミットなし、追跡ファイルなし、remoteなしです。今回の作業ではstage/commit/pushやbranch変更を行いません。
+初回コミットは`16ebf3707ca22d8ab4e8283c8eda0c41809584ae`で、このアプリの156ファイルだけを記録しました。親リポジトリには家計簿の未追跡ファイルもあるため、対象ファイルを明示して記録します。
+v0.3.0最終版の保存先は、アプリ専用の非公開リポジトリ `https://github.com/ai-infra-data-lab/centrifugal-blade-designer` です。GitHubではアプリのファイルをリポジトリ直下に置きます。既存ローカルcheckoutと親のGit履歴は維持し、`git subtree split --prefix=centrifugal_blade_designer`でアプリ部分の履歴だけを書き出します。親リポジトリ全体をこの保存先へpushしないでください。
 
 親フォルダから:
 
@@ -58,22 +59,22 @@ git status --short
 git status --short -- centrifugal_blade_designer
 git ls-files --others --exclude-standard -- centrifugal_blade_designer
 # 初回は未追跡ファイルなのでgit diffだけでは内容が出ない。VS Codeで各ファイルを開く。
-# 下記のStage/Commitはレビューと自動・手動検証の後、ユーザーが実行する手順。
-git add -- centrifugal_blade_designer
+# Stage/Commit/Pushは対象を確認し、ユーザーの許可を得て実行。
+# 実際の変更一覧に合わせ、各ファイル名を明示する。一括追加しない。
+git add -- centrifugal_blade_designer/main.py centrifugal_blade_designer/README.md
 git diff --cached --stat
 git diff --cached --check
 git diff --cached -- centrifugal_blade_designer
-git commit -m "chore: establish blade designer development baseline"
+git commit -m "fix: describe the verified blade designer change"
 # 最初のコミット後、1機能1ブランチ:
 git switch -c feature/short-description
 ```
 
-.gitignoreは.venv・cache・artifacts・一時ファイル・blade.json/csvを除外し、test fixturesとIDE設定を含めます。
+.gitignoreは.venv・cache・artifacts・一時ファイル・blade.json/csv・ユーザー原本blade_v03.jsonを除外し、test fixturesとIDE設定、アプリ内defaults/default_project.jsonを含めます。
 一括git add .で親フォルダの家計簿を混ぜない。Staged Changesを確認してからコミット。Gitの署名・user.name/emailは本人の設定を使い、こちらで推測しない。
-初回正式baselineはWindowsの手動チェックも終えてから記録してください。以後は1機能/修正ごとに独立して記録します。
+以後は1機能/修正ごとに独立して記録します。自動テストと実画面の手動チェックは区別し、未確認の操作を検証済みとして記録しないでください。
 
-GitHubはremote未設定。所有者・公開範囲・対象を確認してからリポジトリ作成/remote設定/Pushを承認してください。今回は外部への送信を行いません。
-独立したGitHubリポジトリへ移す必要がある場合は、親リポジトリとの切り離しと移動方法を別の作業として提案してください。
+既存親checkoutのremote設定は変更せず、アプリ部分の書き出しコミットを専用リポジトリURLへ明示してpushします。アップロード対象のコミットとタグを確認し、private設定を維持します。将来、専用リポジトリを別の場所へcloneする場合も、既存checkout・ユーザーデータを移動・削除しないでください。
 
 ## 6. Codexへの依頼例
 

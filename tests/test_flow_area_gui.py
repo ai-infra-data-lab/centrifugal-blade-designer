@@ -24,7 +24,7 @@ def test_area_cursor_links_and_view_preservation():
     assert w.output_editor.controls["blade_le_fraction"].value()==.2
     for plot,ranges in zip(plots,before):np.testing.assert_allclose(plot.viewRange(),ranges)
     assert w.flow_area_widget.table.item(1,2).text()=="1"
-    assert w.blade_plot.isVisible()
+    assert w.central_views.isVisible()
     previous=w.impeller_geometry
     w.meridional_editor.station_table.cellWidget(3,1).setValue(.8)
     w.update_geometry()

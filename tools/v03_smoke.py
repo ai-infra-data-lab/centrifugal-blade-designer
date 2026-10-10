@@ -26,14 +26,25 @@ def main():
     originals={p:hashlib.sha256(p.read_bytes()).hexdigest() for p in (ROOT/"blade.json",ROOT/"blade.csv") if p.exists()}
     w=MainWindow();w.show();app.processEvents();w.fit_view();app.processEvents()
     report={"gui_width":w.width(),"blade_width":w.blade_plot.width(),"editor_width":w.tabs.width()}
-    assert w.blade_plot.width()>w.width()*.5
+    assert w.central_views.isVisible() and w.central_views.width()>0
     for name,index in (("blade_angle",0),("meridional",3),("output",4),("le_te",2)):
+        if name=="meridional":w._select_meridional()
+        elif name=="output":
+            dialog=w.show_output_settings();app.processEvents()
+            assert dialog.grab().save(str(output/(name+".png")));dialog.close();continue
+        else:
+            w._editing_meridional=False;w._configure_editor_tabs()
         w.tabs.setCurrentIndex(index);app.processEvents()
         assert w.grab().save(str(output/(name+".png")))
     for label,index in (("context_meridional",0),("flow_area",1),("metrics",2),("preview_3d",3)):
-        w.context_tabs.setCurrentIndex(index);app.processEvents()
+        if index==0:
+            w._select_meridional();dialog=w
+        else:
+            dialog=w.show_analysis_view({1:"Flow Area",2:"Metrics",3:"3D Preview"}[index])
+        app.processEvents()
         if index==1:w.flow_area_widget.select_position(.5)
-        assert w.grab().save(str(output/(label+".png")))
+        assert dialog.grab().save(str(output/(label+".png")))
+        if dialog is not w:dialog.close()
     assert not w.flow_area_result.errors
     report["named_station_area_mm2"]={k:s.gross_area for k,s in w.flow_area_result.named_stations.items()}
     p=w.get_parameters()
@@ -46,8 +57,8 @@ def main():
     for span in (.25,.5,.75):w.add_span_section(span)
     assert len(w.impeller_geometry.sections)==5
     export_turbogrid(output/"five_span_case",w.get_parameters())
-    w.context_tabs.setCurrentIndex(3);w.fit_view();app.processEvents()
-    w.grab().save(str(output/"five_span_preview.png"))
+    dialog=w.show_analysis_view("3D Preview");w.fit_view();app.processEvents()
+    dialog.grab().save(str(output/"five_span_preview.png"));dialog.close()
     if (ROOT/"blade.json").exists():
         w.load_from_path(ROOT/"blade.json")
         save_project(output/"legacy_migrated_v03.json",w.get_parameters())

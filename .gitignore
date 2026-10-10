@@ -21,3 +21,4 @@ dist/
 # User working input/output (fixtures remain tracked)
 /blade.json
 /blade.csv
+/blade_v03.json

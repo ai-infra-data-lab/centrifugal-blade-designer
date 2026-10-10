@@ -18,6 +18,7 @@ class MeridionalEditor(QWidget):
     parametersChanged = Signal()
     stationsChanged = Signal()
     editFinished = Signal()
+    ownershipChanged = Signal()
 
     def __init__(self):
         super().__init__()
@@ -25,6 +26,8 @@ class MeridionalEditor(QWidget):
         self.flow_path=FlowPathParameters()
         self._loading=False
         self.curves=[MeridionalCurveParameters(),default_shroud()]
+        self.blade_rows = []
+        self.ownership_items = []
         layout=QVBoxLayout(self)
         self.selector=QComboBox();self.selector.addItems(["Hub","Shroud"])
         layout.addWidget(self.selector)
@@ -34,7 +37,8 @@ class MeridionalEditor(QWidget):
             box=CompactDoubleSpinBox();box.setDecimals(12);box.setRange(-1e9,1e9)
             self.start_controls[name]=box;form.addRow(label,box)
             box.valueChanged.connect(lambda value,key=name:self._start_changed(key,value))
-        self.table=QTableWidget(0,5);self.table.setHorizontalHeaderLabels(["Type","Length","Radius","Sweep [deg]","Direction"])
+        self.table=QTableWidget(0,6);self.table.setHorizontalHeaderLabels(["Type","Length","Radius","Sweep [deg]","Direction","所属翼列 / Blade Row"])
+        self.table.horizontalHeader().moveSection(5, 1)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setMinimumHeight(170);layout.addWidget(self.table)
@@ -42,11 +46,12 @@ class MeridionalEditor(QWidget):
         for label,callback in (("Add Line",lambda:self.add_segment(False)),("Add Arc",lambda:self.add_segment(True)),
                 ("Delete",self.delete_segment),("Move Up",lambda:self.move_segment(-1)),("Move Down",lambda:self.move_segment(1))):
             button=QPushButton(label);button.clicked.connect(callback);row.addWidget(button)
-        layout.addWidget(QLabel("Component Stations — Normalized Flow Meridional"))
-        self.station_table=QTableWidget(6,2)
+        # Retain the legacy station API/data for project and Flow Area compatibility.
+        # The station editor is no longer part of the visible GUI.
+        self.station_table=QTableWidget(6,2,self)
         self.station_table.setHorizontalHeaderLabels(["Station","m_flow_norm"])
         self.station_table.setMaximumHeight(210)
-        layout.addWidget(self.station_table)
+        self.station_table.hide()
         self.set_stations(self.flow_path)
         from .blade_edge_editor import BladeEdgeEditor
         self.blade_edges=BladeEdgeEditor();layout.addWidget(self.blade_edges)
@@ -83,6 +88,37 @@ class MeridionalEditor(QWidget):
 
     def get_curves(self): return deepcopy(self.curves)
 
+    def set_blade_rows(self, rows):
+        choices = [(row.identifier, row.name) for row in rows]
+        if choices == self.blade_rows: return
+        self.blade_rows = choices
+        self._populate()
+        self.update_preview()
+
+    def _ownership_changed(self, row, identifier):
+        if self._loading: return
+        self.curves[self.selector.currentIndex()].segments[row].blade_row = identifier
+        self.ownershipChanged.emit()
+        self._changed()
+        self.editFinished.emit()
+
+    def _show_ownership(self, geometries):
+        from ..geometry.meridional_segments import evaluate_segment
+        for item in self.ownership_items: self.plot.removeItem(item)
+        self.ownership_items = []
+        colors = ("#89ef85", "#f896c6", "#b4a3ff", "#f6e16a", "#79baff")
+        names = {identifier: (name, colors[i % len(colors)]) for i, (identifier, name) in enumerate(self.blade_rows)}
+        for curve, geometry in zip(self.curves, geometries):
+            for i, (definition, segment) in enumerate(zip(curve.segments, geometry.segments)):
+                if definition.blade_row is None: continue
+                name, color = names.get(definition.blade_row, (definition.blade_row, "#ff6666"))
+                points = evaluate_segment(segment, np.linspace(0, segment.length, 33))
+                line = self.plot.plot(points[:,0], points[:,1], pen=pg.mkPen(color, width=4))
+                line.setToolTip(f"{name} • segment {i + 1}")
+                text = pg.TextItem(f"{name} [{i + 1}]", color=color, anchor=(0,1))
+                text.setPos(*points[len(points)//2]);self.plot.addItem(text, ignoreBounds=True)
+                self.ownership_items.extend((line, text))
+
     def set_curves(self,hub,shroud):
         self.curves=deepcopy([hub,shroud]);self._populate();self.update_preview()
 
@@ -107,6 +143,12 @@ class MeridionalEditor(QWidget):
                 direction=QComboBox();direction.addItems(["CCW","CW"]);direction.setCurrentIndex(int(seg.clockwise))
                 direction.currentIndexChanged.connect(lambda value,i=row:self._segment_changed(i,"clockwise",bool(value)))
                 self.table.setCellWidget(row,4,direction)
+            owner=QComboBox();owner.addItem("未割り当て / Unassigned", None)
+            for identifier,name in self.blade_rows: owner.addItem(name, identifier)
+            owner.setCurrentIndex(max(0, owner.findData(seg.blade_row)))
+            owner.setToolTip("This complete line/arc belongs to the selected blade row's export domain.")
+            owner.currentIndexChanged.connect(lambda index,i=row,box=owner:self._ownership_changed(i,box.currentData()))
+            self.table.setCellWidget(row,5,owner)
         self.table.resizeColumnsToContents();self._loading=False
 
     def _start_changed(self,key,value):
@@ -138,6 +180,7 @@ class MeridionalEditor(QWidget):
     def update_preview(self):
         try:
             geometry=[generate_meridional(p) for p in self.curves];validate_flow_path(*geometry)
+            self._show_ownership(geometry)
             from types import SimpleNamespace
             g=SimpleNamespace(hub=geometry[0],shroud=geometry[1])
             self.context.update_geometry(g,self.flow_path,self.mean_points)

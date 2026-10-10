@@ -33,9 +33,9 @@ def window(app):
 
 def test_default_tabs_and_updates(window):
     assert window.geometry is not None
-    assert [window.tabs.tabText(i) for i in range(window.tabs.count())] == ["Blade Angle","Thickness","LE / TE","Meridional","Output","Full Annulus","Diffuser Curvature"]
-    assert [window.context_tabs.tabText(i) for i in range(4)] == ["Meridional","Flow Area","Metrics","3D Preview"]
-    assert window.blade_plot.isVisible()
+    assert [window.tabs.tabText(i) for i in range(window.tabs.count()) if window.tabs.isTabVisible(i)] == ["Blade Angle","Thickness","LE / TE","Full Annulus"]
+    assert not window.context_tabs.isVisible()
+    assert window.central_views.currentWidget() is window.blade_plot
     assert window.blade_plot.getViewBox().state["aspectLocked"] == 1
     window.panel.controls["r_te"].setValue(170)
     QTest.qWait(400)
@@ -84,7 +84,8 @@ def test_real_graph_drag_events(window,app,editor_name,tab):
     def screen(m,v):
         return e.plot.mapFromScene(e.plot.getViewBox().mapViewToScene(QPointF(m,v)))
     start = screen(p.m_norm,p.value)
-    finish = screen(p.m_norm+.035,p.value+.25)
+    # Right-side graph is narrower; exceed Qt's pixel drag threshold.
+    finish = screen(p.m_norm+.15,p.value+1.)
     QTest.mouseMove(viewport,start)
     QTest.qWait(30)
     QTest.mousePress(viewport,Qt.MouseButton.LeftButton,Qt.KeyboardModifier.NoModifier,start)

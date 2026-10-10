@@ -13,17 +13,17 @@ def test_camera_and_section_gui():
  w.preview_3d.camera_position['scale']=25
  w.preview_3d.camera_position['pan']=np.array([3.,4.])
  before=deepcopy(w.preview_3d.camera_position)
- w.context_tabs.setCurrentIndex(3);app.processEvents()
+ preview_dialog=w.show_analysis_view("3D Preview");app.processEvents()
  hub=w.impeller_geometry.sections[0].camber.xyz.copy()
  w.section_selector.combo.setCurrentIndex(1)
  w.angle_editor.table.cellWidget(1,1).setValue(30)
  w.update_geometry()
  np.testing.assert_allclose(w.impeller_geometry.sections[0].camber.xyz,hub)
  for key,value in before.items():np.testing.assert_allclose(w.preview_3d.camera_position[key],value)
- w.context_tabs.setCurrentIndex(1);app.processEvents()
+ area_dialog=w.show_analysis_view("Flow Area");app.processEvents()
  w.meridional_editor.station_table.cellWidget(1,1).setValue(.18)
  w.update_geometry()
- w.context_tabs.setCurrentIndex(3);app.processEvents()
+ preview_dialog.show();app.processEvents()
  for key,value in before.items():np.testing.assert_allclose(w.preview_3d.camera_position[key],value)
  assert w.get_parameters().sections[1].blade_angle.points[1].value==30
  w.copy_section(True)
@@ -35,7 +35,7 @@ def test_camera_and_section_gui():
  w.add_span_section(.5);assert [s.span for s in w.get_parameters().sections]==[0,.5,1]
  w.delete_span_section();assert [s.span for s in w.get_parameters().sections]==[0,1]
  w.delete_span_section();assert len(w.get_parameters().sections)==2
- w.close();w.timer.stop()
+ preview_dialog.close();area_dialog.close();w.close();w.timer.stop()
 
 
 def test_gui_turbogrid_export_uses_current_tip_and_save_load(tmp_path,monkeypatch):

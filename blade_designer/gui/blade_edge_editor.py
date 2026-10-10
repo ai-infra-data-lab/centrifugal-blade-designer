@@ -11,7 +11,7 @@ class BladeEdgeEditor(QWidget):
 
     def __init__(self):
         super().__init__();layout=QVBoxLayout(self)
-        layout.addWidget(QLabel("Blade Edges — independent of Component Stations\nValues: normalized physical distance along each wall"))
+        layout.addWidget(QLabel("Blade Edges\nValues: normalized physical distance along each wall"))
         self.table=QTableWidget(2,5);self.table.setHorizontalHeaderLabels(["Row","Hub LE","Shroud LE","Hub TE","Shroud TE"])
         self.table.setMaximumHeight(125);layout.addWidget(self.table);self.controls={}
         for row,key in enumerate(("impeller_edges","diffuser_edges")):

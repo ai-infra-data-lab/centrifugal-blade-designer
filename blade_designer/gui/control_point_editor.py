@@ -39,6 +39,14 @@ class DraggablePoints(pg.GraphItem):
             event.acceptDrags(Qt.MouseButton.LeftButton)
             event.acceptClicks(Qt.MouseButton.LeftButton)
 
+    def mouseClickEvent(self, event: object) -> None:
+        points = self.scatter.pointsAt(event.pos())
+        if event.button() == Qt.MouseButton.LeftButton and points:
+            self.editor.table.selectRow(int(points[0].data()))
+            event.accept()
+        else:
+            event.ignore()
+
     def mouseDragEvent(self, event: object) -> None:
         if event.button() != Qt.MouseButton.LeftButton:
             event.ignore()
