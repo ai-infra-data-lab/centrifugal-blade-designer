@@ -68,16 +68,34 @@ class ContextMeridional(QWidget):
 
     def update_blade_edges(self,geometry,parameters):
         from ..geometry.blade_edge import edge_endpoints
+        groups=([(row.identifier,row.name,getattr(row.parameters,row.kind+"_edges")) for row in parameters.blade_rows]
+                if parameters.blade_rows is not None else [(key,name,getattr(parameters,key))
+                for key,name in (("impeller_edges","Impeller"),("diffuser_edges","Diffuser"))])
+        self.update_edge_groups(geometry,groups)
         stations=list(StationType)
-        for item in self.edge_handles:
-            edges=getattr(parameters,item.key)
-            item.update_edge(edges,geometry.hub,geometry.shroud)
-            kind=StationType(("IMP" if item.key=="impeller_edges" else "DIF")+"_"+("LE" if item.side=="leading_edge" else "TE"))
-            points=edge_endpoints(getattr(edges,item.side),geometry.hub,geometry.shroud)
-            # Visible row boundaries follow tilted blade edges; area station
-            # positions and their independent parameters remain untouched.
-            self.boundaries[stations.index(kind)].setData(points[:,0],points[:,1])
+        for key,prefix in (("impeller_edges","IMP"),("diffuser_edges","DIF")):
+            for side,suffix in (("leading_edge","LE"),("trailing_edge","TE")):
+                points=edge_endpoints(getattr(getattr(parameters,key),side),geometry.hub,geometry.shroud)
+                self.boundaries[stations.index(StationType(prefix+"_"+suffix))].setData(points[:,0],points[:,1])
         self.legend.setToolTip("Scalar Component Stations are used for Flow Area. Visible IMP/DIF boundaries follow the independent blade edges.")
+
+    def update_edge_groups(self,geometry,groups):
+        from .blade_edge_handles import BladeEdgeHandles
+        desired=[(key,side) for key,name,edges in groups for side in ("leading_edge","trailing_edge")]
+        existing={(item.key,item.side):item for item in self.edge_handles}
+        for key,item in list(existing.items()):
+            if key not in desired:
+                self.plot.plotItem.legend.removeItem(item.legend_item)
+                for graphic in (item.legend_item,item.label,item):self.plot.removeItem(graphic)
+                item.deleteLater();del existing[key]
+        colors=("#89ef85","#f6e16a","#f896c6","#b4a3ff","#79baff","#f69f70")
+        handles=[]
+        for index,(key,name,edges) in enumerate(groups):
+            for offset,side in enumerate(("leading_edge","trailing_edge")):
+                item=existing.get((key,side))
+                if item is None:item=BladeEdgeHandles(self,key,side,colors[(2*index+offset)%len(colors)])
+                item.set_name(name);item.update_edge(edges,geometry.hub,geometry.shroud);handles.append(item)
+        self.edge_handles=handles
 
 
     def show_crossflow(self,station):

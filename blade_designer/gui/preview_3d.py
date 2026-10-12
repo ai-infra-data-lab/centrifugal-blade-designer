@@ -1,11 +1,11 @@
-"""Software-rendered orthographic wireframe; works without VTK/OpenGL."""
-from copy import deepcopy
+"""Software-rendered revolved walls and blade wireframe, without VTK/OpenGL."""
 import numpy as np
 from PySide6.QtCore import Qt,QPointF
 from PySide6.QtGui import QPainter,QPen,QColor,QPolygonF
 from PySide6.QtWidgets import QWidget,QCheckBox,QHBoxLayout,QVBoxLayout
 from ..geometry.wireframe import build_spanwise_wireframe
 from ..geometry.annulus import rotate_xy
+from ..geometry.revolved_surface import revolve_wall
 
 
 class Preview3D(QWidget):
@@ -14,6 +14,8 @@ class Preview3D(QWidget):
         self.camera_position={"azimuth":-45.,"elevation":25.,"scale":160.,"center":np.zeros(3),"pan":np.zeros(2)}
         self.lines={};self.spanwise_lines=[];self._last=None
         self.base_lines = {};self.full_annulus = False;self.blade_count = 1
+        self.surfaces = {}
+        self._line_blade_counts = {}
         self.model_label = "3D"
         self.visibility_controls={}
         layout=QVBoxLayout(self);row=QHBoxLayout();layout.addLayout(row);layout.addStretch()
@@ -23,29 +25,67 @@ class Preview3D(QWidget):
         row.addStretch()
 
 
-    def update_geometry(self,geometry):
+    def update_geometry(self,geometry,wall_chunks=None):
         self.model_label = "3D • Impeller"
+        lines,spanwise=self._profile_lines(geometry)
+        chunks={name:[getattr(geometry,name)] for name in ("hub","shroud")} if wall_chunks is None else wall_chunks
+        lines.update(self._wall_lines(chunks))
+        self.surfaces=self._wall_surfaces(geometry,chunks)
+        self._line_blade_counts={}
+        self.base_lines=lines;self.spanwise_lines=spanwise;self._rebuild_lines()
+
+    @staticmethod
+    def _profile_lines(geometry):
         spanwise=build_spanwise_wireframe(geometry.sections)
-        camera=deepcopy(self.camera_position)
-        lines={"Hub":(np.column_stack((geometry.hub.r,np.zeros_like(geometry.hub.r),geometry.hub.z)),"#56d9e0"),
-               "Shroud":(np.column_stack((geometry.shroud.r,np.zeros_like(geometry.shroud.r),geometry.shroud.z)),"#eead72")}
+        lines={}
         for section in geometry.sections:
             label="Hub" if section.span==0 else "Tip" if section.span==1 else f"Span {section.span:.6g}"
             for name,color in (("le","#e5c76b"),("ps","#56d9e0"),("te","#eead72"),("ss","#f6948c"),("camber","#aab4c5")):
                 lines[f"{label} {name}"]=(getattr(section,"master_"+name if name!="camber" else name).xyz,color)
         for line in spanwise:
             lines[f"Spanwise {line.segment} {line.segment_index}"]=(line.xyz,"#496b8e")
-        self.base_lines=lines;self.spanwise_lines=spanwise;self.camera_position=camera;self._rebuild_lines()
+        return lines,spanwise
 
-    def update_diffuser(self, geometry, walls):
-        """Show the existing planar diffuser in XYZ; no invented span geometry."""
-        self.model_label = "Diffuser • planar profile in XYZ (Z=0)"
-        lines={"Hub": (np.column_stack((walls.hub.r,np.zeros_like(walls.hub.r),walls.hub.z)),"#56d9e0"),
-               "Shroud": (np.column_stack((walls.shroud.r,np.zeros_like(walls.shroud.r),walls.shroud.z)),"#eead72")}
-        for name,color in (("le","#e5c76b"),("ps","#56d9e0"),("te","#eead72"),("ss","#f6948c"),("camber","#aab4c5")):
-            curve=geometry.camber if name=="camber" else getattr(geometry.master_surfaces,name)
-            lines[f"Diffuser {name}"]=(np.column_stack((curve.x,curve.y,np.zeros_like(curve.x))),color)
-        self.base_lines=lines;self.spanwise_lines=[];self._rebuild_lines()
+    def update_diffuser(self, geometry,wall_chunks=None):
+        """Display the diffuser's meridional sections and spanwise connections."""
+        self.update_geometry(geometry,wall_chunks)
+        self.model_label = "3D • Diffuser"
+
+    def update_rows(self,rows,walls):
+        """Compose independent rows; each row retains its own annulus count."""
+        lines={};counts={};spanwise=[]
+        for identifier,name,geometry,count in rows:
+            row_lines,row_spanwise=self._profile_lines(geometry)
+            for key,value in row_lines.items():
+                label=(f"Spanwise {name} [{identifier}] {key[9:]}" if key.startswith("Spanwise ")
+                       else f"{name} [{identifier}] {key}")
+                lines[label]=value;counts[label]=count
+            spanwise.extend(row_spanwise)
+        chunks={name:[getattr(walls,name)] for name in ("hub","shroud")}
+        lines.update(self._wall_lines(chunks));counts.update(Hub=1,Shroud=1)
+        self.surfaces=self._wall_surfaces(walls,chunks)
+        self.base_lines=lines;self.spanwise_lines=spanwise;self._line_blade_counts=counts
+        self.model_label=f"3D • All blade rows ({len(rows)})"
+        self._rebuild_lines()
+
+    @staticmethod
+    def _wall_lines(chunks):
+        result={}
+        for name,color in (("hub","#56d9e0"),("shroud","#eead72")):
+            points=[np.column_stack((c.r,np.zeros_like(c.r),c.z)) for c in chunks[name]]
+            result[name.title()]=(np.concatenate(points) if points else np.empty((0,3)),color)
+        return result
+
+    @staticmethod
+    def _wall_surfaces(geometry,chunks=None):
+        chunks={name:[getattr(geometry,name)] for name in ("hub","shroud")} if chunks is None else chunks
+        return {name:(np.concatenate([revolve_wall(wall) for wall in walls]),color)
+                for name,color in (("hub","#56d9e0"),("shroud","#eead72"))
+                if (walls:=chunks[name])}
+
+    def visible_surfaces(self):
+        for category,data in self.surfaces.items():
+            if self.visibility_controls[category].isChecked():yield data
 
     def set_full_annulus(self, enabled, blade_count):
         if not isinstance(blade_count, int) or isinstance(blade_count, bool) or blade_count < 1:
@@ -62,8 +102,9 @@ class Preview3D(QWidget):
                 # Render-only sampling; design geometry and exports retain all points.
                 indices=np.linspace(0,len(points)-1,min(len(points),151),dtype=int)
                 points=points[indices]
-                for index in range(self.blade_count):
-                    x,y=rotate_xy(points[:,0],points[:,1],2*np.pi*index/self.blade_count)
+                count=self._line_blade_counts.get(name,self.blade_count)
+                for index in range(count):
+                    x,y=rotate_xy(points[:,0],points[:,1],2*np.pi*index/count)
                     self.lines[f"{name} • blade {index+1}"]=(np.column_stack((x,y,points[:,2])),color)
         self.update()
 
@@ -72,13 +113,15 @@ class Preview3D(QWidget):
         ordered=sorted(self.lines.items(),key=lambda item:not item[0].startswith("Spanwise "))
         for name,data in ordered:
             name=name.split(" • blade ")[0]
+            if name in ("Hub","Shroud"):continue  # walls are surfaces, not polylines
             category="hub" if name=="Hub" else "shroud" if name=="Shroud" else "spanwise" if name.startswith("Spanwise ") else "profiles"
             if self.visibility_controls[category].isChecked():yield data
 
 
     def fit_view(self):
         if not self.lines:return
-        xyz=np.concatenate([points for points,color in self.lines.values()])
+        xyz=np.concatenate([points for points,color in self.lines.values()]
+                           +[faces.reshape(-1,3) for faces,color in self.surfaces.values()])
         self.camera_position["center"]=(xyz.min(axis=0)+xyz.max(axis=0))/2
         a,e=np.deg2rad([self.camera_position["azimuth"],self.camera_position["elevation"]])
         right=np.array([-np.sin(a),np.cos(a),0]);up=np.array([-np.cos(a)*np.sin(e),-np.sin(a)*np.sin(e),np.cos(e)])
@@ -97,6 +140,7 @@ class Preview3D(QWidget):
         right=np.array([-np.sin(a),np.cos(a),0]);up=np.array([-np.cos(a)*np.sin(e),-np.sin(a)*np.sin(e),np.cos(e)])
         factor=min(self.width(),self.height())/(2*camera["scale"])
         painter.save();painter.setClipRect(0,60,self.width(),max(0,self.height()-85))
+        self._paint_surfaces(painter,camera,right,up,factor)
         for points,color in self.visible_lines():
             relative=points-camera["center"]
             x=(relative@right+camera["pan"][0])*factor+self.width()/2
@@ -105,8 +149,29 @@ class Preview3D(QWidget):
             painter.drawPolyline(QPolygonF([QPointF(float(xx),float(yy)) for xx,yy in zip(x,y)]))
         painter.restore();painter.setPen(QColor("#d1dae7"))
         painter.drawText(12,52,self.model_label)
-        painter.drawText(12,self.height()-14,"XYZ [mm] • Z rotation axis • profile / spanwise wireframe")
+        painter.drawText(12,self.height()-14,"XYZ [mm] • Z axis • revolved walls / blade wireframe")
         painter.end()
+
+    def _paint_surfaces(self,painter,camera,right,up,factor):
+        visible=list(self.visible_surfaces())
+        if not visible:return
+        faces=np.concatenate([data[0] for data in visible])
+        colors=[color for data,color in visible for _ in data]
+        relative=faces-camera["center"]
+        x=(relative@right+camera["pan"][0])*factor+self.width()/2
+        y=-(relative@up+camera["pan"][1])*factor+(self.height()+60)/2
+        direction=np.cross(right,up)
+        depth=np.mean(relative@direction,axis=1)
+        normals=np.cross(faces[:,2]-faces[:,0],faces[:,3]-faces[:,1])
+        lengths=np.linalg.norm(normals,axis=1)
+        lighting=np.divide(np.abs(normals@direction),lengths,out=np.zeros_like(lengths),where=lengths>1e-12)
+        painter.setPen(Qt.PenStyle.NoPen)
+        for i in np.argsort(depth):
+            color=QColor(colors[i]); shade=.55+.45*lighting[i]
+            color.setRgbF(color.redF()*shade,color.greenF()*shade,color.blueF()*shade,.28)
+            painter.setBrush(color)
+            painter.drawPolygon(QPolygonF([QPointF(float(xx),float(yy)) for xx,yy in zip(x[i],y[i])]))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
 
     def mousePressEvent(self,event):self._last=event.position();event.accept()
 

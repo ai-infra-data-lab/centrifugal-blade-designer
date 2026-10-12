@@ -68,6 +68,69 @@ def add_via_dialog(window, kind, name):
     dialog.buttons.button(QDialogButtonBox.StandardButton.Ok).click()
 
 
+@pytest.mark.parametrize("kind", ["impeller", "diffuser"])
+def test_rename_updates_row_labels_preserves_data_and_undo_save(window,tmp_path,kind):
+    w=window
+    w.add_blade_row(kind,"元の翼列")
+    identifier=w.get_parameters().active_blade_row
+    # Ownership uses stable IDs even when a visible name changes.
+    w.meridional_editor.curves[0].segments[0].blade_row=identifier
+    w.commit_edit()
+    before=deepcopy(w.get_parameters());history=w.undo_stack.count()
+    w.navigator.rename_button.click();dialog=w.navigator.rename_dialog
+    assert dialog.isVisible() and dialog.isModal()
+    assert dialog.name_edit.text()=="元の翼列"
+    dialog.name_edit.setText("  改名した翼列  ")
+    dialog.buttons.button(QDialogButtonBox.StandardButton.Ok).click()
+    after=deepcopy(w.get_parameters())
+    expected=deepcopy(before);expected.blade_rows[-1].name="改名した翼列"
+    assert after==expected
+    assert w.undo_stack.count()==history+1
+    assert w.navigator.tree.currentItem().text(0)=="改名した翼列"
+    assert "改名した翼列" in w.editor_target_label.text()
+    assert "改名した翼列" in w.model_preview_3d.model_label
+    table=w.meridional_editor.blade_edges.table
+    offset=4*next(i for i,row in enumerate(after.blade_rows) if row.identifier==identifier)
+    assert [table.item(i,0).text() for i in range(offset,offset+4)]==["改名した翼列"]*4
+    assert (identifier,"改名した翼列") in w.meridional_editor.blade_rows
+    w.undo();assert w.get_parameters()==before
+    assert table.item(offset,0).text()=="元の翼列"
+    w.redo();assert w.get_parameters()==after
+    path=tmp_path/"renamed.json";w.save_to_path(path);w.load_from_path(path)
+    assert w.get_parameters()==after
+    w.navigator.tree.setCurrentItem(w.navigator.meridional_item)
+    assert table.item(offset,0).text()=="改名した翼列"
+    assert not w.navigator.rename_button.isEnabled()
+
+
+def test_rename_blank_cancel_and_same_name_do_not_change_project(window):
+    w=window;choose(w,"row-1")
+    before=deepcopy(w.get_parameters());history=w.undo_stack.count()
+    w.navigator.rename_button.click();dialog=w.navigator.rename_dialog
+    ok=dialog.buttons.button(QDialogButtonBox.StandardButton.Ok)
+    dialog.name_edit.setText("   ");assert not ok.isEnabled()
+    dialog.name_edit.setText("取消す名前");assert ok.isEnabled()
+    dialog.buttons.button(QDialogButtonBox.StandardButton.Cancel).click()
+    assert w.get_parameters()==before and w.undo_stack.count()==history
+    w.rename_blade_row("row-1","  Impeller  ")
+    assert w.get_parameters()==before and w.undo_stack.count()==history
+    with pytest.raises(ValueError,match="name is required"):
+        w.rename_blade_row("row-1"," ")
+    assert w.get_parameters()==before
+
+
+def test_row_names_match_navigation_for_legacy_and_selected_duplicate_kind(window):
+    w=window;table=w.meridional_editor.blade_edges.table
+    assert table.item(0,0).text()==w.navigator.rows_item.child(0).text(0)=="Impeller"
+    assert table.item(4,0).text()==w.navigator.rows_item.child(1).text(0)=="Diffuser"
+    assert w.get_parameters().blade_rows is None
+    w.add_blade_row("impeller","第2インペラ")
+    assert table.rowCount()==12 and table.item(8,0).text()=="第2インペラ"
+    choose(w,"row-1");assert table.item(0,0).text()=="Impeller"
+    choose(w,"row-3");assert table.item(8,0).text()=="第2インペラ"
+    assert table.item(0,0).text()=="Impeller" and table.item(4,0).text()=="Diffuser"
+
+
 def test_add_dialog_cancel_and_blank_name_leave_project_unchanged(window):
     w = window
     before = deepcopy(w.get_parameters())
@@ -151,7 +214,7 @@ def test_last_row_protected_and_shared_wall_edit(window):
     w.delete_blade_row()
     assert w.get_parameters() == before
     w.add_blade_row("diffuser")
-    w.meridional_editor.start_controls["start_z"].setValue(2)
+    w.meridional_editor.table.cellWidget(2,1).setValue(65)
     w.commit_edit()
     shared = deepcopy(w.get_parameters().hub)
     choose(w, "row-1")

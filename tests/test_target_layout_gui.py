@@ -72,7 +72,7 @@ def test_selection_does_not_grow_window_and_central_view_matches_target(window):
         w.navigator.tree.setCurrentItem(w.navigator.meridional_item)
         QTest.qWait(20)
         assert visible_tabs(w) == ["Meridional"]
-        assert w.central_views.currentWidget() is w.blade_plot
+        assert w.central_views.currentWidget() is w.meridional_editor.context
         assert not w.section_selector.isVisible()
         assert w.size() == size
         w.select_blade_row(kind)

@@ -3,7 +3,7 @@ from ..models.parameters import BladeParameters
 from ..models.geometry import BladeGeometry, BladeSurfaceGeometry, CurvatureGeometry
 from ..models.validation import validate_parameters, ValidationLevel, ValidationIssue
 from .resolution import validate_resolution
-from .camber import generate_camber, MASTER_POINTS
+from .camber import generate_camber
 from .thickness import generate_thickness
 from .surface import generate_surfaces
 from .edges import generate_edge
@@ -38,6 +38,10 @@ class BladeDesigner:
     def generate_3d(self,params):
         from .geometry_3d import generate_impeller
         return generate_impeller(params)
+
+    def generate_diffuser_3d(self,params):
+        from .geometry_3d import generate_diffuser_3d
+        return generate_diffuser_3d(params)
 
     def generate(self, params: BladeParameters) -> BladeGeometry:
         validate_resolution(params.resolution)

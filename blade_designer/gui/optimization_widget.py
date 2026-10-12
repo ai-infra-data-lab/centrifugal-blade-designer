@@ -1,5 +1,4 @@
 from copy import deepcopy
-import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,QComboBox,

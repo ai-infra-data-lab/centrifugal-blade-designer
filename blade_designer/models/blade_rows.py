@@ -17,6 +17,28 @@ def initial_rows(parameters):
             BladeRow("row-2", "Diffuser", "diffuser", row_snapshot(parameters))]
 
 
+def visible_edge_rows(rows,active_identifier):
+    """Owners of the two edge groups displayed in the meridional editor."""
+    result={}
+    for kind in ("impeller","diffuser"):
+        candidates=[row for row in rows or [] if row.kind==kind]
+        if candidates:
+            result[kind+"_edges"]=next((row for row in candidates if row.identifier==active_identifier),candidates[0])
+    return result
+
+
+def reconcile_visible_row_edges(parameters):
+    """Retain loaded top-level edge values when old row snapshots disagree.
+
+    Only the selected/first row represented by each visible group is updated;
+    other rows of the same kind retain their independent edge settings.
+    """
+    result=deepcopy(parameters)
+    for key,row in visible_edge_rows(result.blade_rows,result.active_blade_row).items():
+        setattr(row.parameters,key,deepcopy(getattr(result,key)))
+    return result
+
+
 def row_parameters(project, row):
     result = row_snapshot(row.parameters)
     for name in SHARED_FIELDS:

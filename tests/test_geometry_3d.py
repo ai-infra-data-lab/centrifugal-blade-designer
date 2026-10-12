@@ -70,12 +70,21 @@ def test_hub_tip_independent_edges_on_axial_wall():
   section.thickness.points=[DistributionPoint(0,4),DistributionPoint(1,4)]
  p.sections[1].edge_parameters.le_type=EdgeType.ELLIPTICAL
  p.sections[1].edge_parameters.le_ellipse_ratio=2
- p.sections[1].edge_parameters.te_type=EdgeType.CUTOFF
  hub,tip=generate_impeller(p).sections
  assert hub.master_le.z.min()==pytest.approx(13)
  assert tip.master_le.z.min()==pytest.approx(11)
  assert hub.master_te.z.max()==pytest.approx(87)
- np.testing.assert_allclose(tip.master_te.z,85)
+ assert tip.master_te.z.max()==pytest.approx(87)
+
+
+def test_axial_tip_cutoff_rejects_unreachable_hub_radius():
+ from blade_designer.models.parameters import EdgeType
+ p=BladeParameters()
+ p.hub=MeridionalCurveParameters(0,50,0,[LineSegmentParameters(100)])
+ p.shroud=MeridionalCurveParameters(0,70,0,[LineSegmentParameters(100)])
+ p.sections[1].edge_parameters.te_type=EdgeType.CUTOFF
+ with pytest.raises(ValueError,match="does not reach the Hub TE cylinder"):
+  generate_impeller(p)
 
 
 def test_zero_interior_thickness_rejects_collapsed_profile():

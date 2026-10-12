@@ -22,6 +22,12 @@ class BladeEdgeHandles(pg.GraphItem):
             symbol="o",symbolBrush=self.color,pen=pg.mkPen(self.color,width=2.5),pxMode=True)
         self.label.setPos(*np.mean(points,axis=0))
 
+    def set_name(self,name):
+        suffix="LE" if self.side=="leading_edge" else "TE"
+        self.label.setText(f"{name} {suffix}")
+        label=self.context.plot.plotItem.legend.getLabel(self.legend_item)
+        if label is not None:label.setText(f"{name} {suffix}")
+
     def hoverEvent(self,event):
         if not event.isExit() and len(self.scatter.pointsAt(event.pos())):
             event.acceptDrags(Qt.MouseButton.LeftButton)

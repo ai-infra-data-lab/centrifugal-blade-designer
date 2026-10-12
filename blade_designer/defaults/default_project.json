@@ -10,23 +10,23 @@
     "points": [
       {
         "m_blade_norm": 0.0,
-        "value": 50.70160218229253
+        "value": 65.0
       },
       {
-        "m_blade_norm": 0.21142002862719123,
-        "value": 47.930968895552354
+        "m_blade_norm": 0.25,
+        "value": 62.0
       },
       {
-        "m_blade_norm": 0.5131272136156082,
-        "value": 44.40470834879212
+        "m_blade_norm": 0.5,
+        "value": 58.0
       },
       {
-        "m_blade_norm": 0.7458727563209582,
-        "value": 43.39720533543205
+        "m_blade_norm": 0.75,
+        "value": 54.0
       },
       {
         "m_blade_norm": 1.0,
-        "value": 45.91596286883222
+        "value": 50.0
       }
     ]
   },
@@ -34,22 +34,22 @@
     "points": [
       {
         "m_blade_norm": 0.0,
-        "value": 3.9138268760375228
+        "value": 1.0
       },
       {
-        "m_blade_norm": 0.3875407459810192,
-        "value": 5.879978165386351
+        "m_blade_norm": 0.35,
+        "value": 4.0
       },
       {
         "m_blade_norm": 1.0,
-        "value": 3.7276208923952012
+        "value": 1.0
       }
     ]
   },
   "edges": {
     "le_type": "circular",
     "le_ellipse_ratio": 1.0,
-    "te_type": "cutoff",
+    "te_type": "circular",
     "te_ellipse_ratio": 1.0
   },
   "output_points": {
@@ -70,15 +70,18 @@
     "start_angle_deg": 0.0,
     "segments": [
       {
-        "length": 25
+        "length": 25,
+        "blade_row": "row-1"
       },
       {
         "radius": 30,
         "sweep_deg": 90,
-        "clockwise": false
+        "clockwise": false,
+        "blade_row": "row-1"
       },
       {
-        "length": 55
+        "length": 55,
+        "blade_row": "row-2"
       }
     ],
     "export_points": 501
@@ -89,15 +92,18 @@
     "start_angle_deg": 0,
     "segments": [
       {
-        "length": 25
+        "length": 25,
+        "blade_row": "row-1"
       },
       {
         "radius": 15,
         "sweep_deg": 90,
-        "clockwise": false
+        "clockwise": false,
+        "blade_row": "row-1"
       },
       {
-        "length": 55
+        "length": 55,
+        "blade_row": "row-2"
       }
     ],
     "export_points": 501
@@ -109,23 +115,23 @@
         "points": [
           {
             "m_blade_norm": 0.0,
-            "value": 50.70160218229253
+            "value": 65.0
           },
           {
-            "m_blade_norm": 0.21142002862719123,
-            "value": 47.930968895552354
+            "m_blade_norm": 0.25,
+            "value": 62.0
           },
           {
-            "m_blade_norm": 0.5131272136156082,
-            "value": 44.40470834879212
+            "m_blade_norm": 0.5,
+            "value": 58.0
           },
           {
-            "m_blade_norm": 0.7458727563209582,
-            "value": 43.39720533543205
+            "m_blade_norm": 0.75,
+            "value": 54.0
           },
           {
             "m_blade_norm": 1.0,
-            "value": 45.91596286883222
+            "value": 50.0
           }
         ]
       },
@@ -133,22 +139,22 @@
         "points": [
           {
             "m_blade_norm": 0.0,
-            "value": 3.9138268760375228
+            "value": 1.0
           },
           {
-            "m_blade_norm": 0.3875407459810192,
-            "value": 5.879978165386351
+            "m_blade_norm": 0.35,
+            "value": 4.0
           },
           {
             "m_blade_norm": 1.0,
-            "value": 3.7276208923952012
+            "value": 1.0
           }
         ]
       },
       "edge_parameters": {
         "le_type": "circular",
         "le_ellipse_ratio": 1.0,
-        "te_type": "cutoff",
+        "te_type": "circular",
         "te_ellipse_ratio": 1.0
       }
     },
@@ -185,19 +191,19 @@
             "value": 1.0
           },
           {
-            "m_blade_norm": 0.3519360481342042,
-            "value": 2.7170249601588274
+            "m_blade_norm": 0.35,
+            "value": 4.0
           },
           {
             "m_blade_norm": 1.0,
-            "value": 2.1181532966113474
+            "value": 1.0
           }
         ]
       },
       "edge_parameters": {
         "le_type": "circular",
         "le_ellipse_ratio": 1.0,
-        "te_type": "cutoff",
+        "te_type": "circular",
         "te_ellipse_ratio": 1.0
       }
     }
@@ -264,12 +270,12 @@
   "blade_te_fraction": 0.85,
   "impeller_edges": {
     "leading_edge": {
-      "hub_m_flow_norm": 0.2046915665284113,
-      "shroud_m_flow_norm": 0.25233524755015246
+      "hub_m_flow_norm": 0.15,
+      "shroud_m_flow_norm": 0.15
     },
     "trailing_edge": {
-      "hub_m_flow_norm": 0.5767923076516565,
-      "shroud_m_flow_norm": 0.4699885416476875
+      "hub_m_flow_norm": 0.85,
+      "shroud_m_flow_norm": 0.85
     },
     "reference_le_fraction": 0.15,
     "reference_te_fraction": 0.85,
@@ -334,7 +340,7 @@
           "r_le": 100.0,
           "r_te": 160.0,
           "theta_le_deg": 0.0,
-          "vane_count": 20
+          "vane_count": 11
         },
         "blade_angle": {
           "points": [
@@ -400,15 +406,18 @@
           "start_angle_deg": 0.0,
           "segments": [
             {
-              "length": 25
+              "length": 25,
+              "blade_row": "row-1"
             },
             {
               "radius": 30,
               "sweep_deg": 90,
-              "clockwise": false
+              "clockwise": false,
+              "blade_row": "row-1"
             },
             {
-              "length": 55
+              "length": 55,
+              "blade_row": "row-2"
             }
           ],
           "export_points": 501
@@ -419,15 +428,18 @@
           "start_angle_deg": 0,
           "segments": [
             {
-              "length": 25
+              "length": 25,
+              "blade_row": "row-1"
             },
             {
               "radius": 15,
               "sweep_deg": 90,
-              "clockwise": false
+              "clockwise": false,
+              "blade_row": "row-1"
             },
             {
-              "length": 55
+              "length": 55,
+              "blade_row": "row-2"
             }
           ],
           "export_points": 501
@@ -607,12 +619,12 @@
         },
         "diffuser_edges": {
           "leading_edge": {
-            "hub_m_flow_norm": 0.9,
-            "shroud_m_flow_norm": 0.9
+            "hub_m_flow_norm": 0.6384058824899077,
+            "shroud_m_flow_norm": 0.5591451592179268
           },
           "trailing_edge": {
             "hub_m_flow_norm": 0.96,
-            "shroud_m_flow_norm": 0.96
+            "shroud_m_flow_norm": 0.9501245125047815
           },
           "reference_le_fraction": 0.9,
           "reference_te_fraction": 0.96,
@@ -725,7 +737,7 @@
           "significant_digits": 6,
           "repeat_first_point": false
         },
-        "rotation_direction": "ccw",
+        "rotation_direction": "cw",
         "surface_mapping": "auto",
         "hub": {
           "start_z": 0.0,
@@ -733,15 +745,18 @@
           "start_angle_deg": 0.0,
           "segments": [
             {
-              "length": 25
+              "length": 25,
+              "blade_row": "row-1"
             },
             {
               "radius": 30,
               "sweep_deg": 90,
-              "clockwise": false
+              "clockwise": false,
+              "blade_row": "row-1"
             },
             {
-              "length": 55
+              "length": 55,
+              "blade_row": "row-2"
             }
           ],
           "export_points": 501
@@ -752,15 +767,18 @@
           "start_angle_deg": 0,
           "segments": [
             {
-              "length": 25
+              "length": 25,
+              "blade_row": "row-1"
             },
             {
               "radius": 15,
               "sweep_deg": 90,
-              "clockwise": false
+              "clockwise": false,
+              "blade_row": "row-1"
             },
             {
-              "length": 55
+              "length": 55,
+              "blade_row": "row-2"
             }
           ],
           "export_points": 501
@@ -992,5 +1010,5 @@
       }
     }
   ],
-  "active_blade_row": "row-1"
+  "active_blade_row": "row-2"
 }

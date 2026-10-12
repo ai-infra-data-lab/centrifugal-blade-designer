@@ -4,13 +4,12 @@ import numpy as np
 from PySide6.QtCore import QTimer, Qt, QEvent
 from PySide6.QtGui import QAction, QUndoStack
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QApplication, QAbstractSpinBox, QLineEdit, QRadioButton, QCheckBox, QSplitter, QSizePolicy, QComboBox, QLabel, QTabWidget, QScrollArea, QPushButton, QFileDialog, QMessageBox, QPlainTextEdit, QStackedWidget, QDialog, QToolButton, QMenu)
+    QApplication, QAbstractSpinBox, QLineEdit, QRadioButton, QCheckBox, QSplitter, QSizePolicy, QComboBox, QLabel, QTabWidget, QScrollArea, QFileDialog, QMessageBox, QPlainTextEdit, QStackedWidget, QDialog, QToolButton, QMenu)
 from ..models.parameters import BladeParameters, BladeRow, RotationDirection
-from ..models.blade_rows import initial_rows, row_snapshot, row_parameters
+from ..models.blade_rows import initial_rows, row_snapshot, row_parameters,visible_edge_rows,reconcile_visible_row_edges
 from .design_navigator import DesignNavigator
 from .undo_commands import ProjectEditCommand
 from ..models.geometry import BladeGeometry
-from ..models.validation import validate_parameters, ValidationLevel
 from ..geometry.designer import BladeDesigner,diffuser_design_parameters
 from ..fileio.project_io import save_project, load_project
 from ..fileio.turbogrid_export import export_turbogrid
@@ -20,6 +19,7 @@ from .meridional_editor import MeridionalEditor
 from .section_selector import SectionSelector
 from .preview_3d import Preview3D
 from ..geometry.flow_area import calculate_flow_area
+from ..geometry.row_domain import preview_wall_chunks
 from .flow_area_widget import FlowAreaWidget
 from .context_meridional import ContextMeridional
 from .output_editor import ImpellerOutputEditor
@@ -34,7 +34,7 @@ class MainWindow(QMainWindow):
         if mode not in ("design", "optimization"):
             raise ValueError("Unknown application mode")
         super().__init__()
-        self._default_parameters = deepcopy(default_parameters if default_parameters is not None else BladeParameters())
+        self._default_parameters = reconcile_visible_row_edges(default_parameters if default_parameters is not None else BladeParameters())
         self.mode = mode
         self._optimization_windows = []
         self.setWindowTitle("Centrifugal Compressor Blade Designer — Impeller / Vaned Diffuser v0.3")
@@ -45,6 +45,10 @@ class MainWindow(QMainWindow):
         self.designer = BladeDesigner()
         self.geometry: BladeGeometry | None = None
         self.impeller_geometry = None
+        self._selected_3d_geometry = None
+        self._central_preview_state = None
+        self._central_preview_errors = []
+        self._displaying_geometry = False
         self.project_path: Path | None = None
         self._sections = deepcopy(BladeParameters().sections)
         self._section_index = 0
@@ -125,8 +129,7 @@ class MainWindow(QMainWindow):
             distribution.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
         self.meridional_editor.context.region_legend.hide()
         self.meridional_editor.context.legend.hide()
-        self.meridional_editor.context.setMinimumHeight(240)
-        for widget in (self.blade_plot, self.annulus_plot):
+        for widget in (self.blade_plot, self.annulus_plot, self.meridional_editor.context):
             widget.setMinimumSize(0, 0)
             self.central_views.addWidget(widget)
         self.model_splitter = QSplitter(Qt.Orientation.Vertical)
@@ -245,6 +248,8 @@ class MainWindow(QMainWindow):
         self.meridional_editor.stationsChanged.connect(self._stations_changed)
         self.meridional_editor.ownershipChanged.connect(self._ensure_blade_rows)
         self.meridional_editor.parametersChanged.connect(self._schedule_update)
+        self.meridional_editor.wallExtended.connect(self._preserve_other_row_edges)
+        self.meridional_editor.additional_edges=self._other_row_edges
         self.panel.parametersChanged.connect(self._schedule_update)
         self.angle_editor.pointsChanged.connect(self._schedule_update)
         self.thickness_editor.pointsChanged.connect(self._schedule_update)
@@ -257,6 +262,7 @@ class MainWindow(QMainWindow):
         self.navigator.meridionalSelected.connect(self._select_meridional)
         self.navigator.rowSelected.connect(self.select_blade_row)
         self.navigator.addRequested.connect(self.add_blade_row)
+        self.navigator.renameRequested.connect(self.rename_blade_row)
         self.navigator.deleteRequested.connect(self.delete_blade_row)
         self.navigator.moveRequested.connect(self.move_blade_row)
         self._refresh_navigator()
@@ -320,9 +326,43 @@ class MainWindow(QMainWindow):
         self._refresh_model_view()
 
     def _refresh_model_view(self, *args):
-        self.central_views.setCurrentWidget(self.annulus_plot if self.annulus_2d.isChecked() else self.blade_plot)
+        view = (self.meridional_editor.context if self._editing_meridional
+                else self.annulus_plot if self.annulus_2d.isChecked() else self.blade_plot)
+        self.central_views.setCurrentWidget(view)
         count = self.panel.controls["vane_count"].value()
         self.model_preview_3d.set_full_annulus(self.annulus_3d.isChecked(), count)
+        if self._update_central_preview() and self._central_preview_errors:
+            self.messages.appendPlainText("\n".join(self._central_preview_errors))
+
+    def _update_central_preview(self):
+        if self.geometry is None or self.impeller_geometry is None:return False
+        if self._restoring and not self._displaying_geometry:return False
+        params=self.get_parameters()
+        state=(self._editing_meridional,self._editing_target,params)
+        if state==self._central_preview_state:return False
+        errors=[]
+        if self._editing_meridional:
+            entries=[]
+            for row in params.blade_rows or initial_rows(params):
+                p=row_parameters(params,row)
+                try:
+                    g=(self.designer.generate_3d(p) if row.kind=="impeller"
+                       else self.designer.generate_diffuser_3d(p))
+                    entries.append((row.identifier,row.name,g,p.geometry.vane_count))
+                except (ValueError,ArithmeticError) as exc:
+                    errors.append(f"ERROR — 3D {row.name}: {exc} (row omitted)")
+            self.model_preview_3d.update_rows(entries,self.impeller_geometry)
+        elif self._selected_3d_geometry is not None:
+            g=self._selected_3d_geometry
+            chunks=preview_wall_chunks(params,g,params.active_blade_row)
+            if self._editing_target==0:self.model_preview_3d.update_geometry(g,chunks)
+            else:self.model_preview_3d.update_diffuser(g,chunks)
+            if params.blade_rows is not None:
+                row=next(row for row in params.blade_rows if row.identifier==params.active_blade_row)
+                self.model_preview_3d.model_label=f"{row.name} • "+self.model_preview_3d.model_label
+        self._central_preview_errors=errors
+        self._central_preview_state=deepcopy(state)
+        return True
 
     def _show_tool_dialog(self, name, widget):
         if name not in self._tool_dialogs:
@@ -390,6 +430,7 @@ class MainWindow(QMainWindow):
         hub = p.sections[0]
         p.blade_angle,p.thickness,p.edges = hub.blade_angle,hub.thickness,hub.edge_parameters
         if self._blade_rows is not None:
+            self.meridional_editor.blade_edges.apply_to_rows(self._blade_rows)
             active = next(row for row in self._blade_rows if row.identifier == self._active_row)
             active.parameters = row_snapshot(p)
             p.blade_rows = deepcopy(self._blade_rows)
@@ -425,7 +466,10 @@ class MainWindow(QMainWindow):
             self.view_mode.blockSignals(True)
             self.view_mode.setCurrentIndex(self._editing_target)
             self.view_mode.blockSignals(False)
-        self.meridional_editor.blade_edges.set_parameters(params)
+        edge_params=deepcopy(params)
+        for key,row in visible_edge_rows(self._blade_rows,self._active_row).items():
+            setattr(edge_params,key,deepcopy(getattr(row.parameters,key)))
+        self.meridional_editor.blade_edges.set_parameters(edge_params)
         (self.rotation_ccw if params.rotation_direction==RotationDirection.CCW else self.rotation_cw).setChecked(True)
         self.output_editor.set_parameters(params)
         self.meridional_editor.mean_points=params.resolution.mean_points
@@ -520,6 +564,17 @@ class MainWindow(QMainWindow):
         self._committed_target=index
         self._refresh_navigator()
 
+    def _preserve_other_row_edges(self,wall,old_length,new_length):
+        from ..geometry.blade_edge import rescale_extended_wall_edges
+        for row in self._blade_rows or []:
+            if row.identifier==self._active_row:continue
+            for key in ("impeller_edges","diffuser_edges"):
+                rescale_extended_wall_edges(getattr(row.parameters,key),wall,old_length,new_length)
+
+    def _other_row_edges(self):
+        return [getattr(row.parameters,key) for row in self._blade_rows or []
+                if row.identifier!=self._active_row for key in ("impeller_edges","diffuser_edges")]
+
     def _select_meridional(self):
         self.commit_edit()
         self._editing_meridional = True
@@ -537,6 +592,7 @@ class MainWindow(QMainWindow):
         rows = self._blade_rows or initial_rows(self.panel.get_parameters())
         identifier = self._active_row or ("row-1" if self._editing_target == 0 else "row-2")
         self.navigator.set_rows(rows, identifier, select_row=select_row)
+        self.meridional_editor.blade_edges.set_row_names(rows, identifier)
         self.meridional_editor.set_blade_rows(rows)
 
     def _ensure_blade_rows(self):
@@ -604,6 +660,24 @@ class MainWindow(QMainWindow):
             self._activate_blade_row(identifier)
         finally:
             self._restoring = previous
+        self.commit_edit()
+
+    def rename_blade_row(self, identifier, name):
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("Blade row name is required.")
+        name = name.strip()
+        rows = self._blade_rows or initial_rows(self.panel.get_parameters())
+        row = next((row for row in rows if row.identifier == identifier), None)
+        if row is None or row.name == name: return
+        self.commit_edit()
+        self._ensure_blade_rows()
+        row = next(row for row in self._blade_rows if row.identifier == identifier)
+        row.name = name
+        self._refresh_navigator()
+        if not self._editing_meridional:
+            active = next(row for row in self._blade_rows if row.identifier == self._active_row)
+            self.editor_target_label.setText(f"Editing: {active.name} • {active.kind.title()}")
+        self.update_geometry()
         self.commit_edit()
 
     def delete_blade_row(self):
@@ -718,28 +792,32 @@ class MainWindow(QMainWindow):
 
     def _display_geometry(self, geometry: BladeGeometry, params: BladeParameters, impeller=None) -> None:
         impeller = self.designer.generate_3d(params) if impeller is None else impeller
+        diffuser=None;diffuser_error=None
+        if self._editing_target != 0:
+            try:diffuser=self.designer.generate_diffuser_3d(params)
+            except (ValueError,ArithmeticError) as exc:diffuser_error=str(exc)
         area=calculate_flow_area(impeller.hub,impeller.shroud,params.flow_path,points=params.resolution.area_points,strict=False,mean_points=params.resolution.mean_points)
         self.flow_area_result=area
         self.flow_area_widget.update_result(area,params.flow_path)
         self.impeller_geometry = impeller
-        self.preview_3d.update_geometry(impeller)
+        self._selected_3d_geometry=impeller if self._editing_target==0 else diffuser
+        self._central_preview_state=None
         if self._editing_target == 0:
-            self.model_preview_3d.update_geometry(impeller)
-        else:
-            self.model_preview_3d.update_diffuser(geometry, impeller)
-        self.context_meridional.update_geometry(impeller,params.flow_path,params.resolution.mean_points)
-        self.context_meridional.update_blade_edges(impeller,params)
-        self.meridional_editor.context.update_geometry(impeller,params.flow_path,params.resolution.mean_points)
-        self.meridional_editor.context.update_blade_edges(impeller,params)
-        self.blade_plot.update_geometry(geometry,params.geometry.vane_count)
+            self.preview_3d.update_geometry(impeller)
+        elif diffuser is not None:
+            self.diffuser_geometry = diffuser
+            self.preview_3d.update_diffuser(diffuser)
+        for context in (self.context_meridional, self.meridional_editor.context):
+            context.update_geometry(impeller,params.flow_path,params.resolution.mean_points)
+            context.update_blade_edges(impeller,params)
         selected = impeller.sections[self._section_index]
         section_name = "Hub" if selected.span==0 else "Tip" if selected.span==1 else f"Span {selected.span:.6g}"
         plane=self.projection.currentText()
-        self.blade_plot.setTitle(f"Impeller • {section_name} • {plane} projection" if self._editing_target==0 else "Vaned Diffuser • XY")
+        row_name = "Impeller" if self._editing_target == 0 else "Vaned Diffuser"
         if self._blade_rows is not None:
             row = next(row for row in self._blade_rows if row.identifier == self._active_row)
-            self.blade_plot.setTitle(f"{row.name} • {section_name} • {plane} projection" if self._editing_target==0 else f"{row.name} • XY")
-            self.model_preview_3d.model_label = f"{row.name} • " + self.model_preview_3d.model_label
+            row_name = row.name
+        self.blade_plot.setTitle(f"{row_name} • {section_name} • {plane} projection" if self._editing_target==0 else f"{row_name} • XY")
         axes=plane.lower() if self._editing_target==0 else "xy"
         self.blade_plot.setLabel("bottom",axes[0].upper()+" [mm]")
         self.blade_plot.setLabel("left",axes[1].upper()+" [mm]")
@@ -750,6 +828,9 @@ class MainWindow(QMainWindow):
                 curve.setData(getattr(segment,axes[0]),getattr(segment,axes[1]))
             self.blade_plot.adjacent.setData([],[])
             self.blade_plot.throat_line.setData([],[])
+            self.blade_plot.disableAutoRange()
+        else:
+            self.blade_plot.update_geometry(geometry,params.geometry.vane_count)
         if self._editing_target==0:
             self.annulus_plot.update_impeller_annulus(selected,params.geometry.vane_count,plane)
         else:self.annulus_plot.update_annulus(geometry,params.geometry.vane_count)
@@ -763,8 +844,13 @@ class MainWindow(QMainWindow):
         self.curvature_plot.update_geometry(geometry)
         self.metrics_widget.update_geometry(geometry,params.geometry.vane_count)
         self.geometry = geometry
-        self._refresh_model_view()
+        self._displaying_geometry=True
+        try:self._refresh_model_view()
+        finally:self._displaying_geometry=False
         messages = [f"{i.level.value.upper()} — {i.field}: {i.message}" for i in geometry.warnings]
+        messages.extend(self._central_preview_errors)
+        if diffuser_error:
+            messages.append(f"ERROR — Diffuser 3D: {diffuser_error}\n3D preview shows the last valid geometry; 2D remains updated.")
         if area.errors:messages.append(f"FLOW AREA — {len(area.errors)} unavailable cross-sections: {area.errors[0]}")
         self.messages.setPlainText("\n".join(messages) if messages else "Ready")
         t = geometry.metrics.throat
@@ -791,7 +877,7 @@ class MainWindow(QMainWindow):
         self.fit_view()
 
     def load_from_path(self, path: str | Path) -> None:
-        params = self._with_shared_impeller_edges(load_project(path))
+        params = self._with_shared_impeller_edges(reconcile_visible_row_edges(load_project(path)))
         geometry = self.designer.generate_diffuser(params)
         impeller = self.designer.generate_3d(params)
         self.set_parameters(params)

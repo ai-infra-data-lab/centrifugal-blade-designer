@@ -10,6 +10,7 @@ from .thickness import generate_thickness
 from .meridional import calculate_meridional
 from .edges import generate_edge
 from .checks import has_self_intersection
+from .cylindrical_cutoff import cylinder_distance, cut_surface
 
 
 
@@ -37,7 +38,7 @@ def resample_curve(curve,n_points):
     return Curve3D(*arrays,m_blade_norm,meridional_distance)
 
 
-def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts,mapping,resolution=None,flow_coordinates=None,rotation_sign=1):
+def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts,mapping,resolution=None,flow_coordinates=None,rotation_sign=1,*,cutoff_radius=None):
     resolution=GeometryResolutionParameters() if resolution is None else resolution
     validate_section(section)
     wall_m,_=calculate_meridional(wall_zr[:,1],wall_zr[:,0])
@@ -46,6 +47,8 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
     flow_fraction=np.linspace(0,1,len(wall_zr)) if flow_coordinates is None else flow_coordinates
     le_m=float(np.interp(le_fraction,flow_fraction,wall_m))
     te_m=float(np.interp(te_fraction,flow_fraction,wall_m))
+    if cutoff_radius is not None:
+        te_m=cylinder_distance(wall_m,wall_zr,cutoff_radius,te_m)
     if not np.isfinite([le_m,te_m]).all() or te_m<=le_m:
         raise ValueError(f"Span {section.span}: physical m_TE must exceed m_LE.")
     m_blade_norm=np.linspace(0,1,resolution.profile_points);m=le_m+(te_m-le_m)*m_blade_norm
@@ -68,12 +71,27 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
         return Curve3D(radius,theta+rotation_sign*tangential/radius,rz[:,0],m_blade_norm,np.asarray(distance))
     sign=1 if mapping==SurfaceMapping.POSITIVE_IS_PS else -1 if mapping==SurfaceMapping.NEGATIVE_IS_PS else (-1 if np.mean(beta_m_deg)>0 else 1)
     dm=-thickness*np.sin(beta_m_rad)/2;dy=thickness*np.cos(beta_m_rad)/2
-    ps=mapped(m+sign*dm,theta_rad,sign*dy,m_blade_norm)
-    ss=mapped(m-sign*dm,theta_rad,-sign*dy,m_blade_norm)
+    def surface(side):
+        distance=m+side*dm
+        if cutoff_radius is None:
+            return mapped(distance,theta_rad,side*dy,m_blade_norm)
+        coordinates=cut_surface(distance,theta_rad,side*dy,m_blade_norm,te_m,
+                                side*dm[-1],beta_m_rad[-1],wall_m,wall_zr[:,1],rotation_sign,te_m-le_m)
+        curve=mapped(*coordinates)
+        curve.r[-1]=cutoff_radius
+        return curve
+    ps=surface(sign)
+    ss=surface(-sign)
     edges=[]
     for index,leading,kind,ratio in ((0,True,section.edge_parameters.le_type,section.edge_parameters.le_ellipse_ratio),
                                    (-1,False,section.edge_parameters.te_type,section.edge_parameters.te_ellipse_ratio)):
         beta=beta_m_rad[index];center=np.array([m[index],0.])
+        if not leading and cutoff_radius is not None:
+            n=resolution.edge_points
+            edges.append(Curve3D(np.full(n,cutoff_radius),
+                np.linspace(ps.theta_rad[-1],ss.theta_rad[-1],n),
+                np.full(n,ps.z[-1]),meridional_distance=np.full(n,te_m)))
+            continue
         plus=np.array([sign*dm[index],sign*dy[index]])
         edge=generate_edge(center,np.array([np.cos(beta),np.sin(beta)]),center+plus,center-plus,kind,ratio,leading,resolution.edge_points)
         edges.append(mapped(edge.x,np.full(len(edge.x),theta_rad[index]),edge.y))
@@ -85,6 +103,8 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
             getattr(edge,name)[0]=getattr(first,name)[index];getattr(edge,name)[-1]=getattr(last,name)[index]
     for curve in (camber,ps,ss,le,te):
         if not np.all(np.isfinite(curve.xyz)): raise ValueError("Non-finite blade coordinates.")
+        if cutoff_radius is not None and np.any(curve.r > cutoff_radius+1e-9):
+            raise ValueError("TE Cutoff: blade profile extends outside the Hub TE cylinder.")
     # On a nonintersecting wall, (meridional distance, unwrapped theta) is
     # a chart of the surface. Validate the master contour before resampling.
     chart=np.concatenate([np.column_stack((curve.meridional_distance,curve.theta_rad*np.mean(r)))[sl]

@@ -6,12 +6,12 @@ from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QComboBox,QFormLa
     QTableWidget,QPushButton,QLabel,QTableWidgetItem,QAbstractItemView)
 from .control_point_editor import CompactDoubleSpinBox
 from .context_meridional import ContextMeridional
-from .plot_widgets import configure_plot
-from ..models.flow_path import FlowPathParameters, StationType
+from ..models.flow_path import FlowPathParameters
 from ..geometry.flow_path import validate_component_stations
 from ..models.meridional import (MeridionalCurveParameters,default_shroud,
     LineSegmentParameters,ArcSegmentParameters)
-from ..geometry.meridional_segments import generate_meridional,validate_flow_path
+from ..geometry.meridional_segments import generate_meridional,validate_flow_path,convert_segment_type
+from ..geometry.blade_edge import rescale_extended_wall_edges,adapt_wall_edge_coordinates
 
 
 class MeridionalEditor(QWidget):
@@ -19,6 +19,7 @@ class MeridionalEditor(QWidget):
     stationsChanged = Signal()
     editFinished = Signal()
     ownershipChanged = Signal()
+    wallExtended = Signal(str,float,float)
 
     def __init__(self):
         super().__init__()
@@ -27,6 +28,7 @@ class MeridionalEditor(QWidget):
         self._loading=False
         self.curves=[MeridionalCurveParameters(),default_shroud()]
         self.blade_rows = []
+        self.additional_edges = lambda: []
         self.ownership_items = []
         layout=QVBoxLayout(self)
         self.selector=QComboBox();self.selector.addItems(["Hub","Shroud"])
@@ -35,6 +37,7 @@ class MeridionalEditor(QWidget):
         self.start_controls={}
         for name,label in (("start_z","Start Z"),("start_r","Start R"),("start_angle_deg","Start angle [deg]")):
             box=CompactDoubleSpinBox();box.setDecimals(12);box.setRange(-1e9,1e9)
+            box.setKeyboardTracking(False)
             self.start_controls[name]=box;form.addRow(label,box)
             box.valueChanged.connect(lambda value,key=name:self._start_changed(key,value))
         self.table=QTableWidget(0,6);self.table.setHorizontalHeaderLabels(["Type","Length","Radius","Sweep [deg]","Direction","所属翼列 / Blade Row"])
@@ -131,11 +134,16 @@ class MeridionalEditor(QWidget):
             arc=isinstance(seg,ArcSegmentParameters)
             self.table.setItem(row,0,QTableWidgetItem("Arc" if arc else "Line"))
             self.table.item(row,0).setFlags(self.table.item(row,0).flags() & ~self.table.item(row,0).flags().ItemIsEditable)
+            kind=QComboBox();kind.addItem("Line",False);kind.addItem("Arc",True)
+            kind.setCurrentIndex(int(arc))
+            kind.currentIndexChanged.connect(lambda index,i=row:self._type_changed(i,bool(index)))
+            self.table.setCellWidget(row,0,kind)
             for col,key in ((1,"length"),(2,"radius"),(3,"sweep_deg")):
                 self.table.removeCellWidget(row,col)
                 self.table.setItem(row,col,QTableWidgetItem(""))
                 if hasattr(seg,key):
                     box=CompactDoubleSpinBox();box.setDecimals(12);box.setRange(-1e9,1e9);box.setValue(getattr(seg,key))
+                    box.setKeyboardTracking(False)
                     box.valueChanged.connect(lambda value,i=row,k=key:self._segment_changed(i,k,value))
                     self.table.setCellWidget(row,col,box)
             self.table.removeCellWidget(row,4)
@@ -153,18 +161,72 @@ class MeridionalEditor(QWidget):
 
     def _start_changed(self,key,value):
         if self._loading:return
-        setattr(self.curves[self.selector.currentIndex()],key,value);self._changed()
+        curve=deepcopy(self.curves[self.selector.currentIndex()]);setattr(curve,key,value)
+        self._edit_wall(curve)
+
+    def _edit_wall(self,curve,refresh=False,row=None):
+        index=self.selector.currentIndex();wall="hub" if index==0 else "shroud"
+        pending={key:box.value() for key,box in self.blade_edges.all_coordinate_controls.items()
+                 if box.value()!=self.blade_edges.all_display_coordinates[key]}
+        sources=self.blade_edges.all_edges()+self.additional_edges()
+        try:
+            old=generate_meridional(self.curves[index]);new=generate_meridional(curve)
+            geometries=[generate_meridional(p) for p in self.curves];geometries[index]=new
+            validate_flow_path(*geometries)
+            proposals=[adapt_wall_edge_coordinates(edges,wall,old,new) for edges in sources]
+        except (ValueError,ArithmeticError) as exc:
+            self._populate()
+            if row is not None:self.table.selectRow(row)
+            self.message.setText(f"ERROR: 無効な子午面のため編集を取り消しました: {exc}")
+            return False
+        self.curves[index]=curve
+        for edges,proposal in zip(sources,proposals):
+            edges.leading_edge=proposal.leading_edge;edges.trailing_edge=proposal.trailing_edge
+        self.blade_edges.set_walls(*geometries)
+        if refresh:self._populate()
+        if row is not None:self.table.selectRow(row)
+        self._changed()
+        for key,value in pending.items():self.blade_edges.all_coordinate_controls[key].setValue(value)
+        return True
+
+    def _type_changed(self,row,arc):
+        if self._loading:return
+        curve=self.curves[self.selector.currentIndex()];segment=curve.segments[row]
+        if isinstance(segment,ArcSegmentParameters)==arc:return
+        try:replacement=convert_segment_type(segment,arc)
+        except ValueError as exc:
+            self._populate();self.message.setText(f"ERROR: {exc}");return
+        curve=deepcopy(curve);curve.segments[row]=replacement
+        if self._edit_wall(curve,refresh=True,row=row):self.editFinished.emit()
 
     def _segment_changed(self,row,key,value):
         if self._loading:return
-        setattr(self.curves[self.selector.currentIndex()].segments[row],key,value);self._changed()
+        curve=deepcopy(self.curves[self.selector.currentIndex()]);setattr(curve.segments[row],key,value)
+        self._edit_wall(curve,row=row)
 
     def _changed(self):
         self.update_preview();self.parametersChanged.emit()
 
     def add_segment(self,arc):
-        self.curves[self.selector.currentIndex()].segments.append(ArcSegmentParameters() if arc else LineSegmentParameters())
-        self._populate();self.table.selectRow(self.table.rowCount()-1);self._changed();self.editFinished.emit()
+        index=self.selector.currentIndex();curve=self.curves[index]
+        pending={key:box.value() for key,box in self.blade_edges.all_coordinate_controls.items()
+                 if box.value()!=self.blade_edges.all_display_coordinates[key]}
+        try:old_length=generate_meridional(curve).length
+        except (ValueError,ArithmeticError):old_length=None
+        curve.segments.append(ArcSegmentParameters() if arc else LineSegmentParameters())
+        if old_length is not None:
+            try:new_wall=generate_meridional(curve)
+            except (ValueError,ArithmeticError):new_wall=None
+            if new_wall is not None:
+                wall="hub" if index==0 else "shroud"
+                for edges in self.blade_edges.all_edges():
+                    rescale_extended_wall_edges(edges,wall,old_length,new_wall.length)
+                walls=list(self.blade_edges.walls);walls[index]=new_wall
+                self.blade_edges.set_walls(*walls)
+                self.wallExtended.emit(wall,old_length,new_wall.length)
+        self._populate();self.table.selectRow(self.table.rowCount()-1);self._changed()
+        for key,value in pending.items():self.blade_edges.all_coordinate_controls[key].setValue(value)
+        self.editFinished.emit()
 
     def delete_segment(self):
         segments=self.curves[self.selector.currentIndex()].segments;row=self.table.currentRow()
@@ -180,14 +242,13 @@ class MeridionalEditor(QWidget):
     def update_preview(self):
         try:
             geometry=[generate_meridional(p) for p in self.curves];validate_flow_path(*geometry)
+            self.blade_edges.set_walls(*geometry)
             self._show_ownership(geometry)
             from types import SimpleNamespace
             g=SimpleNamespace(hub=geometry[0],shroud=geometry[1])
             self.context.update_geometry(g,self.flow_path,self.mean_points)
             if hasattr(self,'blade_edges'):
-                from ..models.parameters import BladeParameters
-                p=BladeParameters();self.blade_edges.apply_to(p)
-                self.context.update_blade_edges(g,p)
+                self.context.update_edge_groups(g,self.blade_edges.edge_groups())
             for g,item,joins in zip(geometry,self.items,self.joins):
                 item.setData(g.z,g.r)
                 points=np.array([g.segments[0].start.zr]+[s.end.zr for s in g.segments])

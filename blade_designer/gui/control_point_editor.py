@@ -77,25 +77,27 @@ class ControlPointEditor(QWidget):
     dragFinished = Signal()
     editFinished = Signal()
 
-    def __init__(self, kind: str, parent: QWidget | None = None) -> None:
+    def __init__(self, kind: str, parent: QWidget | None = None, *, shared_plot: pg.PlotWidget | None = None) -> None:
         super().__init__(parent)
         self.kind = kind
         self._points: list[DistributionPoint] = []
         layout = QVBoxLayout(self)
-        self.plot = pg.PlotWidget(background="#101c2b")
-        self.plot.setMinimumHeight(180)
-        self.plot.setLabel("bottom", "Normalized Meridional")
-        self.plot.getAxis("bottom").setHeight(48)
-        self.plot.getAxis("left").setWidth(80)
-        self.plot.setLabel("left", "Blade Angle βm [deg]" if kind == "blade_angle" else "Thickness [mm]")
-        self.plot.showGrid(x=True,y=True,alpha=.2)
-        for name in ("bottom","left"):
-            self.plot.getAxis(name).setTextPen("#d1dae7")
+        self.plot = shared_plot if shared_plot is not None else pg.PlotWidget(background="#101c2b")
+        if shared_plot is None:
+            self.plot.setMinimumHeight(180)
+            self.plot.setLabel("bottom", "Normalized Meridional")
+            self.plot.getAxis("bottom").setHeight(48)
+            self.plot.getAxis("left").setWidth(80)
+            self.plot.setLabel("left", "Blade Angle βm [deg]" if kind == "blade_angle" else "Thickness [mm]")
+            self.plot.showGrid(x=True,y=True,alpha=.2)
+            for name in ("bottom","left"):
+                self.plot.getAxis(name).setTextPen("#d1dae7")
         self.curve = self.plot.plot(pen=pg.mkPen("#e5c76b",width=2))
         self.handles = DraggablePoints(self)
         self.plot.addItem(self.handles)
-        layout.addWidget(self.plot,1)
-        layout.addWidget(QLabel("Drag a point or edit the table. Endpoints remain at 0 and 1."))
+        if shared_plot is None:
+            layout.addWidget(self.plot,1)
+            layout.addWidget(QLabel("Drag a point or edit the table. Endpoints remain at 0 and 1."))
         self.table = QTableWidget(0,2)
         self.table.setHorizontalHeaderLabels(["Normalized Meridional","βm [deg]" if kind == "blade_angle" else "Thickness [mm]"])
         self.table.horizontalHeader().setStretchLastSection(True)

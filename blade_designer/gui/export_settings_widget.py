@@ -1,4 +1,3 @@
-from copy import deepcopy
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QGroupBox, QFormLayout, QSpinBox, QCheckBox
 from ..models.parameters import ExportParameters

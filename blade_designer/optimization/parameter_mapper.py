@@ -1,6 +1,5 @@
 """Mapping never mutates its baseline and never imports a GUI or optimizer."""
 from copy import deepcopy
-from numbers import Real
 from collections.abc import Sequence
 import numpy as np
 from ..geometry.distributions import distribution_interpolator

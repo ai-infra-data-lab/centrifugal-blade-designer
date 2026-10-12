@@ -191,7 +191,7 @@ def test_impeller_view_stays_fixed_for_each_editor(window,change):
  if change=='angle':window.angle_editor.table.cellWidget(1,1).setValue(45)
  if change=='thickness':window.thickness_editor.table.cellWidget(1,1).setValue(5)
  if change=='edge':window.panel.controls['le_type'].setCurrentIndex(1)
- if change=='meridional':window.meridional_editor.table.cellWidget(0,1).setValue(26)
+ if change=='meridional':window.meridional_editor.table.cellWidget(2,1).setValue(65)
  window.update_geometry()
  assert 'ERROR' not in window.statusBar().currentMessage()
  np.testing.assert_allclose(view.viewRange(),before)

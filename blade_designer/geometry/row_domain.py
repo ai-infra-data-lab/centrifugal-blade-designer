@@ -1,5 +1,36 @@
 """Physical wall intervals selected by blade-row segment ownership (no Qt/I/O)."""
 import numpy as np
+from types import SimpleNamespace
+from .meridional_segments import sample_meridional
+
+
+def preview_wall_chunks(params,geometry,identifier):
+    """Sample owned wall runs without joining gaps or changing design geometry.
+
+    Legacy projects with no ownership use the full walls. Unlike export, a
+    preview can display disconnected or partially assigned wall segments.
+    """
+    assigned=any(s.blade_row is not None for c in (params.hub,params.shroud) for s in c.segments)
+    result={}
+    for name in ("hub","shroud"):
+        wall=getattr(geometry,name);curve=getattr(params,name)
+        if not assigned:
+            result[name]=[wall];continue
+        boundaries=np.r_[0.,np.cumsum([s.length for s in wall.segments])]
+        indices=[i for i,s in enumerate(curve.segments) if s.blade_row==identifier]
+        runs=[]
+        for i in indices:
+            if runs and runs[-1][-1]+1==i:runs[-1].append(i)
+            else:runs.append([i])
+        chunks=[]
+        for run in runs:
+            start,end=boundaries[run[0]],boundaries[run[-1]+1]
+            # Include joins exactly so a short line/arc never disappears.
+            distances=np.unique(np.r_[np.linspace(start,end,49),boundaries[run[0]:run[-1]+2]])
+            zr=sample_meridional(wall,distances)
+            chunks.append(SimpleNamespace(z=zr[:,0],r=zr[:,1]))
+        result[name]=chunks
+    return result
 
 
 def wall_interval(curve, geometry, identifier):

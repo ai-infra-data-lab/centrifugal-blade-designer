@@ -52,16 +52,7 @@ class ProfileDistributionEditor(QWidget):
             self.series = {}
             colors = ["#56d9e0", "#c7a6ff", "#7fd28b", "#f192bc"]
             for index, (span, name, _) in enumerate(profiles):
-                editor = ControlPointEditor(self.kind)
-                old_plot = editor.plot
-                old_plot.removeItem(editor.curve)
-                old_plot.removeItem(editor.handles)
-                editor.layout().removeWidget(old_plot)
-                old_plot.hide()
-                old_plot.deleteLater()
-                instruction=editor.layout().takeAt(0).widget()
-                instruction.hide();instruction.deleteLater()
-                editor.plot = self.plot
+                editor = ControlPointEditor(self.kind, shared_plot=self.plot)
                 color = "#ffad55" if span == 1.0 else colors[index % len(colors)]
                 editor.curve.setPen(pg.mkPen(color, width=3 if span == 1 else 2,
                     style=Qt.PenStyle.DashLine if span == 1 else Qt.PenStyle.SolidLine))
@@ -69,8 +60,6 @@ class ProfileDistributionEditor(QWidget):
                 editor.handles.point_size = 24 if span == 1 else 12
                 editor.handles.brush = None if span == 1 else color
                 editor.handles.setZValue(10 if span == 0 else 5)
-                self.plot.addItem(editor.curve)
-                self.plot.addItem(editor.handles)
                 self.legend.addItem(editor.curve, name)
                 label = QLabel(name)
                 label.setStyleSheet(f"color: {color}; font-weight: bold; background: #101c2b; padding: 4px;")

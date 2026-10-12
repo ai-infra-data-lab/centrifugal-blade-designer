@@ -30,7 +30,7 @@ def test_project_undo_redo_operations(window,edit):
     if edit=="le":w.panel.controls["le_type"].setCurrentIndex(1)
     if edit=="te":w.panel.controls["te_type"].setCurrentIndex(2)
     if edit=="start":w.meridional_editor.start_controls["start_z"].setValue(3)
-    if edit=="segment":w.meridional_editor.table.cellWidget(0,1).setValue(27)
+    if edit=="segment":w.meridional_editor.table.cellWidget(2,1).setValue(65)
     if edit=="station":w.meridional_editor.station_table.cellWidget(1,1).setValue(.18)
     if edit=="edge_position":w.meridional_editor.blade_edges.controls["impeller_edges","leading_edge","hub"].setValue(.2)
     if edit=="output":w.panel.controls["ps_points"].setValue(51)
@@ -131,7 +131,7 @@ def test_shroud_thickness_and_span_delete_history(window):
     w=window
     w.meridional_editor.selector.setCurrentIndex(1)
     before=deepcopy(w.get_parameters())
-    box=w.meridional_editor.table.cellWidget(0,1);box.setValue(28);box.editingFinished.emit()
+    box=w.meridional_editor.table.cellWidget(2,1);box.setValue(65);box.editingFinished.emit()
     assert w.get_parameters().shroud!=before.shroud
     w.undo();assert w.get_parameters()==before
     w.thickness_editor.add_point();after=deepcopy(w.get_parameters())

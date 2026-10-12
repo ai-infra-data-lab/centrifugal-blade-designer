@@ -1,11 +1,31 @@
 """Exact wall projection and span correspondence, without GUI dependencies."""
 import numpy as np
+from copy import deepcopy
 from ..models.meridional import ArcSegmentGeometry,LineSegmentGeometry,Point2D
 from .meridional_segments import sample_meridional,intersections
 
 def edge_endpoints(edge,hub,shroud):
     return np.array([sample_meridional(hub,np.array([edge.hub_m_flow_norm*hub.length]))[0],
                      sample_meridional(shroud,np.array([edge.shroud_m_flow_norm*shroud.length]))[0]])
+
+def rescale_extended_wall_edges(edges,wall,old_length,new_length):
+    """Keep physical arclength when an unchanged wall gains a tail segment."""
+    if wall not in ("hub","shroud") or not np.isfinite([old_length,new_length]).all() or not 0<old_length<=new_length:
+        raise ValueError("Wall extension requires positive nondecreasing lengths.")
+    field=wall+"_m_flow_norm"
+    for edge in (edges.leading_edge,edges.trailing_edge):
+        setattr(edge,field,getattr(edge,field)*(old_length/new_length))
+
+def adapt_wall_edge_coordinates(edges,wall,old_geometry,new_geometry):
+    """Rebase unchanged endpoints and project off-wall endpoints onto the new wall."""
+    result=deepcopy(edges);field=wall+"_m_flow_norm"
+    for side in ("leading_edge","trailing_edge"):
+        edge=getattr(result,side);fraction=getattr(edge,field)
+        point=sample_meridional(old_geometry,np.array([fraction*old_geometry.length]))[0]
+        value,_=project_to_wall(new_geometry,point)
+        unchanged=sample_meridional(new_geometry,np.array([fraction*new_geometry.length]))[0]
+        setattr(edge,field,fraction if np.linalg.norm(unchanged-point)<=1e-10 else value)
+    return result
 
 def interpolate_edge_position(edge,hub,shroud,span):
     if not np.isfinite(span) or not 0<=span<=1:raise ValueError("Span must be finite within [0,1].")

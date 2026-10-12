@@ -38,7 +38,8 @@ def test_preview_controls_and_camera_preservation():
     assert list(preview.visible_lines())==[]
     for box in preview.visibility_controls.values():box.setChecked(True)
     preview.update_geometry(g)
-    assert len(list(preview.visible_lines()))==256
+    assert len(list(preview.visible_lines()))==254
+    assert len(list(preview.visible_surfaces()))==2
     for k,value in camera.items():np.testing.assert_array_equal(preview.camera_position[k],value)
     previous=preview.lines
     g.sections[1].ps.r=g.sections[1].ps.r[:-1]

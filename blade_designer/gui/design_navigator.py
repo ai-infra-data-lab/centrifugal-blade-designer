@@ -8,6 +8,7 @@ class DesignNavigator(QWidget):
     meridionalSelected = Signal()
     rowSelected = Signal(str)
     addRequested = Signal(str, str)
+    renameRequested = Signal(str, str)
     deleteRequested = Signal()
     moveRequested = Signal(int)
 
@@ -26,12 +27,14 @@ class DesignNavigator(QWidget):
         self.tree.itemClicked.connect(self._clicked)
         layout.addWidget(self.tree, 1)
         self.add_button = QPushButton("追加 / Add Row")
+        self.rename_button = QPushButton("名前変更 / Rename")
         self.delete_button = QPushButton("削除 / Delete")
         self.up_button = QPushButton("上へ / Up")
         self.down_button = QPushButton("下へ / Down")
-        for button in (self.add_button, self.delete_button, self.up_button, self.down_button):
+        for button in (self.add_button, self.rename_button, self.delete_button, self.up_button, self.down_button):
             layout.addWidget(button)
         self.add_button.clicked.connect(self._request_add)
+        self.rename_button.clicked.connect(self._request_rename)
         self.delete_button.clicked.connect(self.deleteRequested)
         self.up_button.clicked.connect(lambda: self.moveRequested.emit(-1))
         self.down_button.clicked.connect(lambda: self.moveRequested.emit(1))
@@ -64,6 +67,30 @@ class DesignNavigator(QWidget):
         dialog.open()
         dialog.name_edit.setFocus()
 
+    def _request_rename(self):
+        item = self.tree.currentItem()
+        if item is None or item.parent() is not self.rows_item: return
+        identifier = item.data(0, Qt.ItemDataRole.UserRole)
+        dialog = QDialog(self)
+        dialog.setWindowTitle("翼列の名前変更 / Rename Blade Row")
+        dialog.setModal(True)
+        form = QFormLayout(dialog)
+        dialog.name_edit = QLineEdit(item.text(0))
+        form.addRow("名前 / Name", dialog.name_edit)
+        dialog.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        ok = dialog.buttons.button(QDialogButtonBox.StandardButton.Ok)
+        ok.setText("変更 / Rename")
+        dialog.name_edit.textChanged.connect(lambda text: ok.setEnabled(bool(text.strip())))
+        dialog.buttons.accepted.connect(dialog.accept)
+        dialog.buttons.rejected.connect(dialog.reject)
+        dialog.accepted.connect(lambda: self.renameRequested.emit(identifier, dialog.name_edit.text().strip()))
+        dialog.finished.connect(dialog.deleteLater)
+        form.addRow(dialog.buttons)
+        self.rename_dialog = dialog
+        dialog.open()
+        dialog.name_edit.selectAll()
+        dialog.name_edit.setFocus()
+
     def set_rows(self, rows, identifier, select_row=False):
         self.active_identifier = identifier
         meridional = self.tree.currentItem() is self.meridional_item and not select_row
@@ -88,6 +115,7 @@ class DesignNavigator(QWidget):
         item = self.tree.currentItem()
         index = self.rows_item.indexOfChild(item) if item is not None else -1
         count = self.rows_item.childCount()
+        self.rename_button.setEnabled(index >= 0)
         self.delete_button.setEnabled(index >= 0 and count > 1)
         self.up_button.setEnabled(index > 0)
         self.down_button.setEnabled(index >= 0 and index < count - 1)

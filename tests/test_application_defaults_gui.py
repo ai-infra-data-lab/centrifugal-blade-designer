@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtTest import QTest
 from main import create_window, parse_arguments
 from blade_designer.fileio.project_io import load_project, save_project
+from blade_designer.models.blade_rows import reconcile_visible_row_edges
 
 
 TEMPLATE = Path(__file__).resolve().parents[1] / "blade_designer/defaults/default_project.json"
@@ -23,9 +24,9 @@ def window():
 
 def test_startup_and_new_use_independent_template(window):
     w = window
-    expected = load_project(TEMPLATE)
+    expected = reconcile_visible_row_edges(load_project(TEMPLATE))
     digest = hashlib.sha256(TEMPLATE.read_bytes()).hexdigest()
-    assert expected.sections[0].blade_angle.points[0].value == pytest.approx(50.70160218229253)
+    assert expected.sections[0].blade_angle.points[0].value == pytest.approx(65.)
     assert w.get_parameters() == expected
     assert w.project_path is None and w.undo_stack.count() == 0
     w.blade_count.setValue(13); w.blade_count.editingFinished.emit(); w.update_geometry()
@@ -38,6 +39,8 @@ def test_startup_and_new_use_independent_template(window):
 
 def test_visible_blade_count_is_per_row_with_undo_save_and_annulus(window, tmp_path):
     w = window
+    # The saved template now opens Diffuser; select Impeller for this scenario.
+    w.select_blade_row("row-1")
     assert w.blade_count_widget.isVisible()
     original = deepcopy(w.get_parameters())
     w.annulus_2d.setChecked(True); w.annulus_3d.setChecked(True)
@@ -61,12 +64,13 @@ def test_visible_blade_count_is_per_row_with_undo_save_and_annulus(window, tmp_p
 
 def test_explicit_project_overrides_startup_and_new_restores_template(window, tmp_path):
     w = window; params = load_project(TEMPLATE)
-    params.geometry.vane_count = params.blade_rows[0].parameters.geometry.vane_count = 7
+    active=next(row for row in params.blade_rows if row.identifier==params.active_blade_row)
+    params.geometry.vane_count = active.parameters.geometry.vane_count = 7
     path = tmp_path / "explicit.json"; save_project(path, params)
     other = create_window(parse_arguments(["--project", str(path)]))
     try:
         assert other.blade_count.value() == 7 and other.project_path == path
         other.new_project()
-        assert other.get_parameters() == load_project(TEMPLATE)
+        assert other.get_parameters() == reconcile_visible_row_edges(load_project(TEMPLATE))
     finally:
         other.timer.stop(); other.close(); other.deleteLater()

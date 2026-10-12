@@ -9,6 +9,19 @@ def _rotate(vector, angle):
     return np.array([[c,-s],[s,c]]) @ vector
 
 
+def convert_segment_type(segment,arc):
+    """Change primitive type, retaining physical length and row ownership."""
+    length=(segment.radius*abs(np.deg2rad(segment.sweep_deg))
+            if isinstance(segment,ArcSegmentParameters) else segment.length)
+    if not np.isfinite(length) or length<=0:
+        raise ValueError("Segment conversion requires a positive finite length.")
+    if arc:
+        result=ArcSegmentParameters(blade_row=segment.blade_row)
+        result.radius=float(length/np.deg2rad(result.sweep_deg))
+        return result
+    return LineSegmentParameters(length=float(length),blade_row=segment.blade_row)
+
+
 def evaluate_segment(segment, distance):
     distance = np.asarray(distance,dtype=np.float64)
     if isinstance(segment,ArcSegmentGeometry):
