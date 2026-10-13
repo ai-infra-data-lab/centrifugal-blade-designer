@@ -50,7 +50,7 @@ VS CodeのTest Explorer内でのクリック実行は手動確認対象です。
 ## 5. Gitで確認して記録
 
 初回コミットは`16ebf3707ca22d8ab4e8283c8eda0c41809584ae`で、このアプリの156ファイルだけを記録しました。親リポジトリには家計簿の未追跡ファイルもあるため、対象ファイルを明示して記録します。
-v0.3.0最終版の保存先は、アプリ専用の非公開リポジトリ `https://github.com/ai-infra-data-lab/centrifugal-blade-designer` です。GitHubではアプリのファイルをリポジトリ直下に置きます。既存ローカルcheckoutと親のGit履歴は維持し、`git subtree split --prefix=centrifugal_blade_designer`でアプリ部分の履歴だけを書き出します。親リポジトリ全体をこの保存先へpushしないでください。
+保存先は、アプリ専用リポジトリ `https://github.com/ai-infra-data-lab/centrifugal-blade-designer` です。GitHubではアプリのファイルをリポジトリ直下に置きます。既存ローカルcheckoutと親のGit履歴は維持し、`git subtree split --prefix=centrifugal_blade_designer`でアプリ部分の履歴だけを書き出します。親リポジトリ全体をこの保存先へpushしないでください。
 
 親フォルダから:
 
@@ -74,7 +74,7 @@ git switch -c feature/short-description
 一括git add .で親フォルダの家計簿を混ぜない。Staged Changesを確認してからコミット。Gitの署名・user.name/emailは本人の設定を使い、こちらで推測しない。
 以後は1機能/修正ごとに独立して記録します。自動テストと実画面の手動チェックは区別し、未確認の操作を検証済みとして記録しないでください。
 
-既存親checkoutのremote設定は変更せず、アプリ部分の書き出しコミットを専用リポジトリURLへ明示してpushします。アップロード対象のコミットとタグを確認し、private設定を維持します。将来、専用リポジトリを別の場所へcloneする場合も、既存checkout・ユーザーデータを移動・削除しないでください。
+既存親checkoutのremote設定は変更せず、アプリ部分の書き出しコミットを専用リポジトリURLへ明示してpushします。アップロード対象のコミットとタグを確認し、公開設定の変更はユーザーの明示指示に従います。publicにする場合は現在のファイルだけでなく過去の履歴も公開対象なので、除外ファイル・秘密情報が含まれていないことを確認します。将来、専用リポジトリを別の場所へcloneする場合も、既存checkout・ユーザーデータを移動・削除しないでください。
 
 ## 6. Codexへの依頼例
 
@@ -96,7 +96,23 @@ py -3.12 -m venv .venv
 ```
 
 3.12が未導入なら先にPythonを導入。実際に使用されたPythonはsys.executableで確認します。仮想環境のActivate.ps1を使わずexeを指定できるので、PowerShellの実行ポリシーを変更する必要はありません。
-固定依存は今回稼働中の環境記録です。新規インストールの成功は未検証。既存requirements.txtで互換環境を作る場合もpip check・回帰・手動起動を行ってから採用します。
+3.12用の固定依存は稼働中の環境記録で、その新規インストールの成功は未検証です。既存requirements.txtで互換環境を作る場合もpip check・回帰・手動起動を行ってから採用します。
+
+### Python 3.11（2026-10-12 自動確認済み）
+
+Windows Python 3.11.9の独立した仮想環境へrequirements.txtから新規インストールし、pip check成功、全回帰457 passed / 0 failure / 0 error / 0 skipped（920.82秒）、通常設計・最適化のQt offscreen起動と形状計算のReadyを確認しました。既存3.12環境・アプリ本体・数値fixtureは変更していません。実ディスプレイでの操作、別PC、VS Code F5、TurboGrid実機Importは今回未確認です。
+
+初めて導入するPC/checkoutで、この依存の組み合わせを再現する手順:
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-windows-py311.lock.txt
+.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe tools/run_tests.py
+.\.venv\Scripts\python.exe main.py
+```
+
+既存の.venvには上書きしないでください。今回の検証環境はGit対象外のartifacts/python311-compat/venvに保持しています。依存記録はrequirements-windows-py311.lock.txt、起動確認はartifacts/python311-compat/startup.json、回帰記録はartifacts/test-runs/20261012T113836Z-e2f25019/pytest.xml・result.jsonです。主要依存はNumPy 2.4.6、SciPy 1.17.1、PySide6 6.12.0、pyqtgraph 0.14.0、pytest 9.1.1です。
 
 ## 8. WSL2 / Ubuntu 24.04（提案・未実行）
 

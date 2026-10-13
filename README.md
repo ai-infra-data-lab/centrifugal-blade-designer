@@ -1,6 +1,6 @@
 # Centrifugal Compressor Blade Designer v0.3
 
-v0.3.0最終版の保存先: [アプリ専用の非公開GitHubリポジトリ](https://github.com/ai-infra-data-lab/centrifugal-blade-designer)。自動回帰318件成功。実ディスプレイの変更後操作とTurboGrid実機Importは未確認です。
+保存先: [アプリ専用のGitHubリポジトリ](https://github.com/ai-infra-data-lab/centrifugal-blade-designer)。最新の静翼TurboGrid出力対応は全回帰490件成功。v0.3.0タグの記録は318件成功で、タグは維持します。実ディスプレイの変更後操作とTurboGrid実機Importは未確認です。
 
 2026-10-11のローカル整理では、角度・厚さEditorの不要な一時グラフ、重複する表示更新、未使用importを削除しました。操作・数値計算・既定値・保存形式は維持します。検証記録は[FEATURES.md](FEATURES.md)を参照。GitHubのv0.3.0タグは変更していません。
 
@@ -33,6 +33,8 @@ Hub/ShroudのLine・Circular Arc子午面、Hub/Tip・中間Spanの翼断面、C
 ## 起動・検証
 
 このPCの専用環境はPython 3.12です。別環境ではPython 3.11以上とrequirements.txtの依存を使用してください。
+
+Python 3.11のWindows環境を再現する場合は、`requirements-windows-py311.lock.txt`を使用します。2026-10-12に別のPython 3.11.9環境で新規インストール・pip check・全回帰457件成功・通常設計/最適化のQt offscreen起動を確認しました。別PCと実画面操作は今回未確認です。手順と検証結果は[開発手順](docs/DEVELOPMENT.md)・[検証記録](FEATURES.md)を参照してください。既存の3.12環境は上書きしません。
 
 ```powershell
 cd 'C:\Codex\pythonのGUI作成\centrifugal_blade_designer'
@@ -203,6 +205,14 @@ Station面積表とA/A_IMP_LE、m、領域、Hub/Shroud R、Passage Lengthを表
 JSONはfull precisionです。Export時だけformat(value, ".6g")相当に丸めます。
 
 TurboGrid Exportで指定したcase directoryに以下を書きます。
+
+編集対象でImpeller・Diffuser・RCなどの翼列を選択してから出力します。子午面を選択中は翼列選択を要求します。静翼は選択翼列の独立設定から、中央3Dと同じ`generate_diffuser_3d`でHub/Tipの2断面を生成し、中間Spanは追加しません。上段2Dと従来のDiffuser CSVは変更しません。
+
+静翼の壁面は、その翼列に所属するHub/Shroudの連続区間を出力します。両壁面への割り当てとLE/TE・全輪郭の包含を確認し、未割り当て・飛び飛び・範囲外なら出力を拒否します。全区間が未割り当ての旧プロジェクトは全壁面を出力します。表示は欠落/分離区間も描画できるため、表示できても出力できるとは限りません。
+
+静翼の翼枚数・回転方向・端部タイプ・軸/単位は選択翼列の設定を使います。Full AnnulusのON/OFFでは出力を変えず、1翼分と翼枚数を記録します。出力時は現在の値を再生成し、無効編集後に画面へ残った前回の有効3Dを代わりに出力しません。丸めで静翼輪郭の点が重なる場合は、有効桁数を増やしてください。
+
+表示輪郭は高密度のmaster、出力は指定点数の再サンプリングです。元の形状と所属範囲を共通化し、座標丸めとサンプリング差を区別します。TurboGridでのLofting・曲線補間・LE/TE認識・壁面への接続・入口/出口の余裕は実機で確認してください。4ファイルは検証後に一時ファイルから個別置換するため、無効形状は既存出力を変更しませんが、置換途中のI/O障害に対する4ファイル一括の原子性は保証しません。
 
 ```text
 hub.curve

@@ -967,9 +967,10 @@ class MainWindow(QMainWindow):
             self.optimization_widget.report.setPlainText(f"Cannot apply candidate: {exc}")
 
     def export_turbogrid_dialog(self):
-        if self._blade_rows is not None and self._editing_target != 0:
-            QMessageBox.warning(self, "TurboGrid Export", "Select an Impeller blade row for TurboGrid export.")
+        if self._editing_meridional:
+            QMessageBox.warning(self, "TurboGrid Export", "Select a blade row for TurboGrid export.")
             return
+        self.commit_edit()
         directory = QFileDialog.getExistingDirectory(self,"Export TurboGrid case directory")
         if directory:
             try:

@@ -1,8 +1,10 @@
 # 既存機能一覧
 
-確認日: 2026-10-12。対象: Centrifugal Compressor Blade Designer v0.3。
-v0.3.0最終版の保存先はアプリ専用の非公開GitHub `ai-infra-data-lab/centrifugal-blade-designer`。ソース・テスト・資料・デフォルト用JSONの167ファイルを対象とし、ユーザーJSON原本・仮想環境・キャッシュ・成果物・家計簿は除外します。実画面の未確認事項は維持します。
-公開済みv0.3.0は全回帰318件成功。中央3Dの全翼列/所属壁面表示までのローカルコードは全回帰450件が成功しました。その後の「全翼列に独立したLE/TE欄を追加する」修正は、再開後の拡張関連108件と最終全回帰457件が成功しました。Git status・差分チェックも実行できています。今回の最終コードの検証結果は457件成功です。
+確認日: 2026-10-13。対象: Centrifugal Compressor Blade Designer v0.3。
+2026-10-13 Diffuser/RC TurboGrid出力: 選択静翼の独立snapshotと共有子午面からHub/Tipの2断面・所属Hub/Shroud・BladeGen.infを出力します。中間Span・JSON schema・Diffuser CSV・3D生成本体は変更しません。子午面選択は出力を拒否し、無効な現在値や丸め縮退では既存ケースを保護します。出力/所属関連46件成功（artifacts/test-runs/20261013T114027Z-980016ca）、GUI/関連形状58件成功（20261013T114153Z-5dfc7c61）。Windows .venv / Python 3.12.14の全回帰490 passed / 0 failure / 0 error / 0 skipped、489.85秒（20261013T114334Z-9664fb0c）。Impeller互換基準は変更前3ケース/12ファイルのLF正規化ASCIIハッシュで、すべて一致しました。解析的円錐座標、Diffuser/RC独立設定、軸/単位、所属壁面、JSON、保留編集、表示との対応、Full Annulusによる出力不変、前回の有効表示の誤出力防止も確認。実装失敗・環境エラーはありません。実画面操作とTurboGrid実機Importは未確認、stage/commit/pushは未実施です。Python 3.11の今回変更後の再検証は行っていません。
+2026-10-12 Python 3.11互換確認: Windows Python 3.11.9の独立環境へrequirements.txtから新規インストール成功、pip check成功。tools/run_tests.pyで457 passed / 0 failure / 0 error / 0 skipped（920.82秒）。通常設計・最適化のQt offscreen起動・形状計算は両方Ready。記録: artifacts/test-runs/20261012T113836Z-e2f25019/pytest.xml・result.json、artifacts/python311-compat/startup.json。再現用requirements-windows-py311.lock.txtとREADME・docs/DEVELOPMENT.mdを追加・更新。既存3.12環境・アプリ本体・数値fixture・ユーザー原本は変更せず、stage/commit/pushは未実施。今回の別PC・実画面操作・F5・TurboGrid実機Importは未確認です。
+保存先はアプリ専用GitHub `ai-infra-data-lab/centrifugal-blade-designer`。ソース・テスト・資料・デフォルト用JSONを対象とし、ユーザーJSON原本・仮想環境・キャッシュ・成果物・家計簿は除外します。v0.3.0タグの167ファイルの記録は維持します。実画面の未確認事項は維持します。
+公開済みv0.3.0は全回帰318件成功。中央3Dの全翼列/所属壁面表示までのローカルコードは全回帰450件が成功しました。その後の「全翼列に独立したLE/TE欄を追加する」修正は、再開後の拡張関連108件と全回帰457件が成功しました。静翼TurboGrid出力追加後の最終コードは全回帰490件成功です。Git status・差分チェックも確認しています。
 **動作確認済み（自動）はWindows .venv / Qt offscreenでの確認**です。実ディスプレイ・VS Codeボタン操作・TurboGrid実機まで確認した意味ではありません。
 
 | 機能 | 実装状態 | 動作状態・根拠 |
@@ -51,7 +53,7 @@ v0.3.0最終版の保存先はアプリ専用の非公開GitHub `ai-infra-data-l
 | 内部計算解像度と出力LE/PS/TE/SS点数の分離 | 実装確認済み | 動作確認済み（自動）: test_geometry_resolution、test_resample |
 | Project JSON保存/読込、0.1/0.2/旧0.3移行、精度維持 | 実装確認済み | 動作確認済み（自動）: test_project_io、test_project_migration、test_project_flow_path_migration。旧GUI読込で形状差はHub LE/TEへ統一 |
 | Diffuser segments/closed contour CSV、有効桁1～15 | 実装確認済み | 動作確認済み（自動）: test_csv_export |
-| TurboGrid 3 curve + BladeGen.inf、軸・単位・順序 | 実装確認済み | 動作確認済み（自動書出し）: test_turbogrid_export。実機Importは未確認 |
+| 選択Impeller/静翼のTurboGrid 3 curve + BladeGen.inf、軸・単位・順序 | 実装確認済み | 動作確認済み（自動書出し/Qt offscreen）: test_turbogrid_export、test_stator_turbogrid_export、test_stator_turbogrid_gui。静翼Hub/Tip・所属壁面・選択設定・丸め縮退拒否・既存ケース保護・旧Impeller互換。実機Importは未確認 |
 | Rotation CW/CCW、Reverse、座標反転 | 実装確認済み | 動作確認済み（自動）: test_rotation_direction |
 | 別モード最適化、baseline・変数・制約・候補preview/apply | 実装確認済み | 動作確認済み（自動）: test_optimization_mapper/constraints/gui。探索実行・CFDは含まない |
 | VS Code launch/tasks/Test Explorer設定 | 実装確認済み（設定作成） | JSON・対象ファイル・CLIテスト確認済み。変更前F5起動はユーザー確認済み。Testing画面のクリック実行は未確認 |

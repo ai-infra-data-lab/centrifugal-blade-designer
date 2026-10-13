@@ -100,7 +100,15 @@ geometry/geometry_3d.pyのgenerate_diffuser_3dはdiffuser_profileをSpan 0・1�
 - tests/fixtures/*.json / *.npz: 旧プロジェクト・既存実装座標の回帰資料。Git対象。
 - artifacts/: 過去の画像・検証結果・zip・ANSYS形式資料・今回のログ。Git対象から除外。
 - 読込: Project JSON schema 0.1/0.2/0.3、起動時--project。
-- 書出: Project JSON（内部精度）、Diffuser segments/contour CSV（有効桁）、Impeller TurboGrid hub.curve/shroud.curve/profile.curve/BladeGen.inf。
+- 書出: Project JSON（内部精度）、Diffuser segments/contour CSV（有効桁）、選択Impeller/静翼のTurboGrid hub.curve/shroud.curve/profile.curve/BladeGen.inf。
 - TurboGridで実際にImportする確認とCAD/CFD連携は今回実行していません。
+
+### 静翼TurboGrid出力（2026-10-13）
+
+fileio/turbogrid_export.pyは従来のImpeller計算経路を維持し、選択行のkindがdiffuserならrow_parametersで独立snapshotへ共有壁面等を組み合わせ、generate_diffuser_3dを呼びます。RCは名前であり同じdiffuser種類です。静翼のauto端部判定はdiffuser_profile.edge_parametersを参照します。geometry/row_domain.export_wall_intervalsへ対象edgesを渡し、所属IDは元プロジェクトから取得して両壁面の連続性と静翼LE/TE・全輪郭の包含を検証します。edges省略時のImpeller互換APIは維持します。
+
+MainWindowは子午面選択中の出力を拒否し、翼列選択時は保留編集をcommit_editで確定して現在値を出力関数へ渡します。3D生成・JSON schema・CSV・Preview3Dは変更しません。静翼の丸め後の輪郭縮退/対応点数の不一致をファイル作成前に拒否します。書込みの個別os.replaceによるI/O障害時の原子性は従来どおりで、ケース全体のトランザクションは追加しません。
+
+tests/fixtures/turbogrid_impeller_sha256.jsonは実装変更前のb751f27で生成した3ケース/12ファイルのLF正規化ASCIIハッシュです。歴史的な出力互換性の基準であり解析解ではありません。静翼は別途、円錐壁面の解析座標・回転/単位・所属端点・独立設定・GUI出力と現在3Dの一致を検証します。
 
 既存の詳細仕様・変更報告はプロジェクト直下のV03_*.md、各EDITOR_REPORT.md等を維持しています。最新のユーザー要求を優先し、旧仕様から動作を勝手に戻さないでください。

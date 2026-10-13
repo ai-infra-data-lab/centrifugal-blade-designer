@@ -9,7 +9,7 @@ import tempfile
 import numpy as np
 from .csv_export import format_number
 from ..geometry.meridional_segments import sample_meridional
-from ..geometry.geometry_3d import generate_impeller
+from ..geometry.geometry_3d import generate_impeller, generate_diffuser_3d
 from ..geometry.row_domain import export_wall_intervals
 from ..models.parameters import EdgeType
 
@@ -47,32 +47,47 @@ def _coordinates(xyz,digits,markers=None):
 
 
 def export_turbogrid(case_directory,params):
-    from ..models.blade_rows import validate_rows
+    from ..models.blade_rows import validate_rows, row_parameters
     validate_rows(params)
-    if params.blade_rows is not None and next(row for row in params.blade_rows if row.identifier == params.active_blade_row).kind != "impeller":
-        raise ValueError("Select an Impeller blade row for TurboGrid export.")
-    geometry=generate_impeller(params)
+    project=params
+    row=(next(row for row in params.blade_rows if row.identifier == params.active_blade_row)
+         if params.blade_rows is not None else None)
+    stator=row is not None and row.kind == "diffuser"
+    if stator:params=row_parameters(project,row)
+    geometry=generate_diffuser_3d(params) if stator else generate_impeller(params)
+    edges=params.diffuser_edges if stator else params.impeller_edges
     settings=params.turbogrid;digits=params.export.significant_digits
     filenames=[settings.hub_curve_filename,settings.shroud_curve_filename,settings.profile_curve_filename,"BladeGen.inf"]
     if len(set(name.lower() for name in filenames))!=4 or any(not name or Path(name).name!=name or any(c in name for c in '\\/:\r\n') for name in filenames):
         raise ValueError("TurboGrid filenames must be distinct simple filenames.")
     contents={}
-    intervals = export_wall_intervals(params, geometry)
+    intervals = export_wall_intervals(project, geometry, edges)
     for (wall,p,name),(start,end) in zip(((geometry.hub,params.hub,filenames[0]),(geometry.shroud,params.shroud,filenames[1])), intervals):
         zr=sample_meridional(wall,np.linspace(start,end,p.export_points))
         xyz=np.column_stack((zr[:,1],np.zeros(len(zr)),zr[:,0]))
         contents[name]=_coordinates(_external_xyz(xyz,settings),digits)
     profiles=[]
+    profile_counts=[]
     for section in geometry.sections:
         label="Hub" if section.span==0 else "Tip" if section.span==1 else f"Span_{section.span:.15g}"
         xyz,markers=closed_profile(section)
-        profiles.append(f"# {label}\n"+_coordinates(_external_xyz(xyz,settings),digits,markers))
+        coordinates=_coordinates(_external_xyz(xyz,settings),digits,markers)
+        if stator:
+            # Reject collapsed output after rounding, before touching the case.
+            rounded=np.array([[float(v) for v in line.split()[:3]] for line in coordinates.splitlines()])
+            if len(rounded)<4 or np.any(np.linalg.norm(np.diff(rounded,axis=0),axis=1)==0) or len(markers)!=2:
+                raise ValueError("Static blade profile collapses at the selected output precision.")
+            profile_counts.append(len(rounded))
+        profiles.append(f"# {label}\n"+coordinates)
+    if stator and len(set(profile_counts))!=1:
+        raise ValueError("Static Hub and Tip profiles must have matching contour point counts.")
     contents[filenames[2]]="".join(profiles)
     def end_type(choice,side):
         if choice not in ('auto','EllipseEnd','CutOffEnd','SquareEnd'):
             raise ValueError("Unknown TurboGrid edge end type.")
         if choice!='auto':return choice
-        kinds=[getattr(s.edge_parameters,side+'_type') for s in params.sections]
+        sections=[params.diffuser_profile] if stator else params.sections
+        kinds=[getattr(s.edge_parameters,side+'_type') for s in sections]
         if all(k==EdgeType.CUTOFF for k in kinds):return 'CutOffEnd'
         if all(k!=EdgeType.CUTOFF for k in kinds):return 'EllipseEnd'
         return None  # Mixed span shapes use curve markers and TurboGrid detection.

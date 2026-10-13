@@ -1,0 +1,23 @@
+{
+  "reference": "b751f278e61bef40a9e1217b73940109c43e5410; captured before stator export edits; LF-normalized ASCII compatibility reference, not analytic validation",
+  "cases": {
+    "legacy": {
+      "hub.curve": "72d139bd4b9a68a39c454014a0c536bbf128f19983dbde7df6e68a6e3e6126e2",
+      "shroud.curve": "94bcbf10fe4a14b2bb7f4edaf5f722a551a1ae1673e5c17ad27a50895df63cf9",
+      "profile.curve": "ceb694d5810ecc39499bb0852b152f8c51aba11f6e2105c4ccb861dd392593b4",
+      "BladeGen.inf": "dadc288a2397ba292dc5bd3f47efad508ba2ae8cb3c8a2d3a1e1039e1557bb9f"
+    },
+    "middle_span": {
+      "hub.curve": "72d139bd4b9a68a39c454014a0c536bbf128f19983dbde7df6e68a6e3e6126e2",
+      "shroud.curve": "94bcbf10fe4a14b2bb7f4edaf5f722a551a1ae1673e5c17ad27a50895df63cf9",
+      "profile.curve": "b5389c2023563b26282616d250aad369c5aaae29254eccc79b8a548ceafd58a9",
+      "BladeGen.inf": "dadc288a2397ba292dc5bd3f47efad508ba2ae8cb3c8a2d3a1e1039e1557bb9f"
+    },
+    "cutoff_x_cm": {
+      "hub.curve": "9a0056c469d276362ed10f257345d60dfef78dba58e2db2a099f4d8889e62005",
+      "shroud.curve": "0480a6a2e74df9dd48389bc2420a45927961a1429c092655a55168b96a7699bc",
+      "profile.curve": "641facacf71c317d67b612ae5eeda8c46c7ea0d5e02bd18c6b87cf94b9b4aafe",
+      "BladeGen.inf": "c075f19c01b44996ca3dfeca6a5be5c944df0289ffe7b3b8176c89aaf5832d24"
+    }
+  }
+}

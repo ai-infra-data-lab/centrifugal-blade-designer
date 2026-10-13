@@ -1,0 +1,17 @@
+# Windows Python 3.11.9 dependency snapshot, installed 2026-10-12.
+# Verification results: FEATURES.md and docs/DEVELOPMENT.md.
+colorama==0.4.6
+iniconfig==2.3.1
+numpy==2.4.6
+packaging==26.3
+pluggy==1.6.0
+Pygments==2.21.0
+pyqtgraph==0.14.0
+PySide6==6.12.0
+PySide6_Addons==6.12.0
+PySide6_Essentials==6.12.0
+PySide6_Pdf==6.12.0.140
+PySide6_WebEngine==6.12.0.140
+pytest==9.1.1
+scipy==1.17.1
+shiboken6==6.12.0

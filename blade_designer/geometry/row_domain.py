@@ -43,7 +43,8 @@ def wall_interval(curve, geometry, identifier):
     return float(boundaries[indices[0]]), float(boundaries[indices[-1] + 1])
 
 
-def export_wall_intervals(params, geometry):
+def export_wall_intervals(params, geometry, edges=None):
+    edges = params.impeller_edges if edges is None else edges
     if not any(segment.blade_row is not None for curve in (params.hub, params.shroud) for segment in curve.segments):
         return [(0., geometry.hub.length), (0., geometry.shroud.length)]
     if not params.active_blade_row:
@@ -51,8 +52,8 @@ def export_wall_intervals(params, geometry):
     intervals = [wall_interval(curve, wall, params.active_blade_row)
                  for curve, wall in ((params.hub, geometry.hub), (params.shroud, geometry.shroud))]
     for (start, end), wall, side in zip(intervals, (geometry.hub, geometry.shroud), ("hub", "shroud")):
-        leading = getattr(params.impeller_edges.leading_edge, side + "_m_flow_norm") * wall.length
-        trailing = getattr(params.impeller_edges.trailing_edge, side + "_m_flow_norm") * wall.length
+        leading = getattr(edges.leading_edge, side + "_m_flow_norm") * wall.length
+        trailing = getattr(edges.trailing_edge, side + "_m_flow_norm") * wall.length
         if start > leading + 1e-9 or end < trailing - 1e-9:
             raise ValueError("The assigned meridional export domain must contain the blade LE and TE.")
         section = geometry.sections[0 if side == "hub" else -1]
