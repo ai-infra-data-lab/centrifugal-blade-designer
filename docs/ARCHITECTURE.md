@@ -18,6 +18,10 @@
 流れ: main → gui → models / geometry / fileio / optimization。
 geometryからQtを呼ぶ構成ではありません。3DはQPainterによる回転面と翼wireframeで、PyVista/VTK/OpenGLの依存はありません。
 
+MainWindowの上部メニューはFile/Edit/View/Toolsの順で1つずつ作り、ツールバーは作りません。ExportはFile、最適化別ウィンドウはTools、回転方向/反転はEdit、投影面はViewへ配置します。回転方向は排他的QActionGroupから非表示の既存radio状態へ渡し、radio変更をメニューへ同期します。投影面も非表示の既存comboへ渡し、_sync_projection_menuで選択値と対象別の有効状態を同期します。非表示Widgetは既存の計算/保存/Undo経路との接続を維持するための内部状態です。ファイル操作や各解析ウィンドウのcallback・ショートカットを変更せず、入口と順序だけを整理します。
+
+Preview3Dのカメラは従来のazimuth/elevation/scale/center/panに自由回転行列rotationを追加します。仮想球上のドラッグ位置の対応から回転を合成し、SVDで直交性を維持します。従来の角度APIは基底方向として残し、投影・面の奥行き/陰影・Fit Viewは同じ回転基底を使用します。正面/上面/側面/等角/リセットでは自由回転を初期化して全体を収め、Fitは回転を保持します。画面操作はパラメータ・Undo履歴・ファイル形式へ保存せず、形状計算と出力処理は変更しません。中央/別ウィンドウの両Previewで同じ操作を提供します。
+
 ## 複数翼列（2026-10-09）
 
 `gui/design_navigator.py`は左の子午面・翼列選択と追加/削除/順番変更を提供します。

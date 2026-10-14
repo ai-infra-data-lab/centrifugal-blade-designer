@@ -2,9 +2,9 @@ from pathlib import Path
 from copy import deepcopy
 import numpy as np
 from PySide6.QtCore import QTimer, Qt, QEvent
-from PySide6.QtGui import QAction, QUndoStack
+from PySide6.QtGui import QAction, QActionGroup, QUndoStack
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QApplication, QAbstractSpinBox, QLineEdit, QRadioButton, QCheckBox, QSplitter, QSizePolicy, QComboBox, QLabel, QTabWidget, QScrollArea, QFileDialog, QMessageBox, QPlainTextEdit, QStackedWidget, QDialog, QToolButton, QMenu)
+    QApplication, QAbstractSpinBox, QLineEdit, QRadioButton, QCheckBox, QSplitter, QSizePolicy, QComboBox, QLabel, QTabWidget, QScrollArea, QFileDialog, QMessageBox, QPlainTextEdit, QStackedWidget, QDialog)
 from ..models.parameters import BladeParameters, BladeRow, RotationDirection
 from ..models.blade_rows import initial_rows, row_snapshot, row_parameters,visible_edge_rows,reconcile_visible_row_edges
 from .design_navigator import DesignNavigator
@@ -182,59 +182,68 @@ class MainWindow(QMainWindow):
         self.meridional_editor.station_table.cellClicked.connect(lambda row,column:self.flow_area_widget.select_position(self.meridional_editor.flow_path.stations[row].m_flow_norm,exact=True))
         self.context_tabs.hide()
         self.vertical_splitter.setChildrenCollapsible(False)
-        toolbar = self.addToolBar("Project")
-        toolbar.setMovable(False)
-        self.toolbar_groups = {}
-        def group(name):
-            button = QToolButton()
-            button.setText(name)
-            button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-            menu = QMenu(button)
-            button.setMenu(menu)
-            toolbar.addWidget(button)
-            self.toolbar_groups[name] = button
-            return menu
-        project_menu = group("Project")
-        for label, callback in (("New", self.new_project), ("Open", self.open_project_dialog), ("Save", self.save_project_dialog)):
-            project_menu.addAction(label).triggered.connect(callback)
-        edit_toolbar_menu = group("Edit")
-        view_toolbar_menu = group("View")
+        self.file_menu=self.menuBar().addMenu("File")
+        self.edit_menu=self.menuBar().addMenu("Edit")
+        self.view_menu=self.menuBar().addMenu("View")
+        self.tools_menu=self.menuBar().addMenu("Tools")
+        self.project_actions={}
+        for label,shortcut,callback in (("New","Ctrl+N",self.new_project),
+                ("Open Project","Ctrl+O",self.open_project_dialog),
+                ("Save Project","Ctrl+S",self.save_project_dialog)):
+            action=QAction(label,self);action.setShortcut(shortcut);action.triggered.connect(callback)
+            self.file_menu.addAction(action);self.project_actions[label]=action
+        self.undo_action=QAction("Undo",self);self.undo_action.setShortcut("Ctrl+Z");self.undo_action.triggered.connect(self.undo)
+        self.redo_action=QAction("Redo",self);self.redo_action.setShortcuts(["Ctrl+Y","Ctrl+Shift+Z"]);self.redo_action.triggered.connect(self.redo)
+        for action in (self.undo_action,self.redo_action):self.edit_menu.addAction(action)
+        self.undo_stack.canRedoChanged.connect(self.redo_action.setEnabled)
+        self.redo_action.setEnabled(False)
         for label,box in (("2D Full Annulus",self.annulus_2d),("3D Full Annulus",self.annulus_3d)):
             action=QAction(label,self);action.setCheckable(True)
             action.toggled.connect(box.setChecked);box.toggled.connect(action.setChecked)
-            view_toolbar_menu.addAction(action)
-        view_toolbar_menu.addAction("Fit View").triggered.connect(self.fit_view)
-        view_toolbar_menu.addAction("Output Settings").triggered.connect(self.show_output_settings)
+            self.view_menu.addAction(action)
+        self.view_menu.addSeparator()
+        fit_action=self.view_menu.addAction("Fit View");fit_action.triggered.connect(self.fit_view)
+        self.view_menu.addSeparator()
+        self.view_menu.addAction("Output Settings").triggered.connect(self.show_output_settings)
         for label in ("Flow Area", "Metrics", "3D Preview", "Diffuser Curvature"):
-            view_toolbar_menu.addAction(label).triggered.connect(lambda checked=False, name=label: self.show_analysis_view(name))
-        toolbar.addSeparator()
-        rotation_widget=QWidget();rotation_layout=QHBoxLayout(rotation_widget);rotation_layout.setContentsMargins(4,0,4,0)
-        rotation_layout.addWidget(QLabel("Rotation (+Z)"))
-        rotation_widget.setToolTip("Rotation Direction • Viewed from +Z axis")
+            self.view_menu.addAction(label).triggered.connect(lambda checked=False, name=label: self.show_analysis_view(name))
+        # Retain the existing rotation controls as hidden state adapters.
+        rotation_widget=QWidget(root);rotation_layout=QHBoxLayout(rotation_widget)
+        rotation_widget.hide()
         self.rotation_ccw=QRadioButton("CCW");self.rotation_cw=QRadioButton("CW");self.rotation_ccw.setChecked(True)
         for button in (self.rotation_ccw,self.rotation_cw):
             rotation_layout.addWidget(button);button.toggled.connect(self._rotation_changed)
-        toolbar.addWidget(rotation_widget)
-        toolbar.addAction("Reverse").triggered.connect(self.reverse_rotation)
-        edit_menu=self.menuBar().addMenu("Edit")
-        self.undo_action=QAction("Undo",self);self.undo_action.setShortcut("Ctrl+Z");self.undo_action.triggered.connect(self.undo)
-        self.redo_action=QAction("Redo",self);self.redo_action.setShortcuts(["Ctrl+Y","Ctrl+Shift+Z"]);self.redo_action.triggered.connect(self.redo)
-        for action in (self.undo_action,self.redo_action):edit_menu.addAction(action);edit_toolbar_menu.addAction(action)
-        self.undo_stack.canRedoChanged.connect(self.redo_action.setEnabled)
-        self.redo_action.setEnabled(False)
+        self.edit_menu.addSeparator()
+        rotation_menu=self.edit_menu.addMenu("Rotation Direction (+Z)")
+        rotation_group=QActionGroup(self);self.rotation_actions={}
+        for text,button in (("CCW",self.rotation_ccw),("CW",self.rotation_cw)):
+            action=rotation_menu.addAction(text);action.setCheckable(True);rotation_group.addAction(action)
+            action.setChecked(button.isChecked())
+            action.triggered.connect(lambda checked=False,button=button:button.setChecked(True))
+            button.toggled.connect(action.setChecked);self.rotation_actions[text]=action
+        reverse_action=self.edit_menu.addAction("Reverse Rotation");reverse_action.triggered.connect(self.reverse_rotation)
         self.view_mode = QComboBox()
         self.view_mode.addItems(["Impeller", "Diffuser"])
         self.view_mode.setToolTip("Select geometry and distribution editing target")
         self.view_mode.setParent(root)
         self.view_mode.hide()
         self.view_mode.currentIndexChanged.connect(self._target_changed)
-        self.projection=QComboBox();self.projection.addItems(["XY","XZ","YZ"])
-        self.projection.setToolTip("Impeller projection plane");toolbar.addWidget(QLabel("Projection:"));toolbar.addWidget(self.projection)
+        self.projection=QComboBox(root);self.projection.addItems(["XY","XZ","YZ"]);self.projection.hide()
+        self.projection_menu=self.view_menu.addMenu("Projection")
+        projection_group=QActionGroup(self);self.projection_actions={}
+        for plane in ("XY","XZ","YZ"):
+            action=self.projection_menu.addAction(plane);action.setCheckable(True);projection_group.addAction(action)
+            action.triggered.connect(lambda checked=False,plane=plane:self.projection.setCurrentText(plane))
+            self.projection_actions[plane]=action
+        self._sync_projection_menu()
         self.projection.currentIndexChanged.connect(self._projection_changed)
-        toolbar.addSeparator()
-        export_menu = group("Export")
+        self.file_menu.addSeparator()
+        export_menu = self.file_menu.addMenu("Export")
         for label,callback in (("Diffuser Segments CSV",self.export_segments_dialog),("Diffuser Contour CSV",self.export_contour_dialog),("TurboGrid Export",self.export_turbogrid_dialog)):
             export_menu.addAction(label).triggered.connect(callback)
+        self.file_menu.addSeparator()
+        self.file_menu.addAction("Exit").triggered.connect(self.close)
+        self.tools_menu.addAction("Open Optimization Mode in Separate Window").triggered.connect(self.open_optimization_mode)
         self.messages = QPlainTextEdit()
         self.messages.setReadOnly(True)
         self.messages.setFixedHeight(48)
@@ -272,18 +281,6 @@ class MainWindow(QMainWindow):
         self.annulus_3d.toggled.connect(self._refresh_model_view)
         self._configure_editor_tabs()
         self.central_views.setCurrentWidget(self.blade_plot)
-        mode_menu=self.menuBar().addMenu("Mode")
-        mode_menu.addAction("Open Optimization Mode in Separate Window").triggered.connect(self.open_optimization_mode)
-        file_menu = self.menuBar().addMenu("File")
-        for label,shortcut,callback in (
-                ("New","Ctrl+N",self.new_project),("Open Project","Ctrl+O",self.open_project_dialog),
-                ("Save Project","Ctrl+S",self.save_project_dialog),
-                ("Export Segments CSV","",self.export_segments_dialog),
-                ("Export Closed Contour CSV","",self.export_contour_dialog),("Exit","",self.close)):
-            action = QAction(label,self)
-            if shortcut: action.setShortcut(shortcut)
-            action.triggered.connect(callback)
-            file_menu.addAction(action)
         for editor in (self.angle_editor,self.thickness_editor):
             editor.dragStarted.connect(self._begin_drag);editor.dragFinished.connect(self._end_drag)
             editor.editFinished.connect(self.commit_edit)
@@ -523,6 +520,7 @@ class MainWindow(QMainWindow):
         self.projection.blockSignals(True)
         self.projection.setCurrentText(self._impeller_projection if self._editing_target==0 else "XY")
         self.projection.blockSignals(False)
+        self._sync_projection_menu()
         name="Hub" if section.span==0 else "Tip" if section.span==1 else f"Span {section.span:.6g}"
         self.editor_target_label.setText("Editing: Impeller • Hub + Tip / All Span Profiles" if self._editing_target==0 else "Editing: Diffuser")
         if self._blade_rows is not None:
@@ -534,10 +532,16 @@ class MainWindow(QMainWindow):
         self._editor_tab_changed(self.tabs.currentIndex())
         self._bind_history_inputs()
 
+    def _sync_projection_menu(self):
+        self.projection_menu.setEnabled(self.projection.isEnabled())
+        for plane,action in self.projection_actions.items():
+            action.setChecked(plane==self.projection.currentText())
+
     def _projection_changed(self):
         if self._editing_target==0:self._impeller_projection=self.projection.currentText()
         else:
             self.projection.blockSignals(True);self.projection.setCurrentText("XY");self.projection.blockSignals(False)
+        self._sync_projection_menu()
         self.update_geometry()
 
     def _target_changed(self,index):

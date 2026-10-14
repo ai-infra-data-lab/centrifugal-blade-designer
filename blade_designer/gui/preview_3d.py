@@ -2,7 +2,7 @@
 import numpy as np
 from PySide6.QtCore import Qt,QPointF
 from PySide6.QtGui import QPainter,QPen,QColor,QPolygonF
-from PySide6.QtWidgets import QWidget,QCheckBox,QHBoxLayout,QVBoxLayout
+from PySide6.QtWidgets import QWidget,QCheckBox,QHBoxLayout,QVBoxLayout,QToolButton
 from ..geometry.wireframe import build_spanwise_wireframe
 from ..geometry.annulus import rotate_xy
 from ..geometry.revolved_surface import revolve_wall
@@ -11,18 +11,71 @@ from ..geometry.revolved_surface import revolve_wall
 class Preview3D(QWidget):
     def __init__(self):
         super().__init__();self.setMinimumSize(320,180)
-        self.camera_position={"azimuth":-45.,"elevation":25.,"scale":160.,"center":np.zeros(3),"pan":np.zeros(2)}
+        self.camera_position={"azimuth":-45.,"elevation":25.,"rotation":np.eye(3),"scale":160.,"center":np.zeros(3),"pan":np.zeros(2)}
+        self._plot_top=90
         self.lines={};self.spanwise_lines=[];self._last=None
         self.base_lines = {};self.full_annulus = False;self.blade_count = 1
         self.surfaces = {}
         self._line_blade_counts = {}
         self.model_label = "3D"
         self.visibility_controls={}
-        layout=QVBoxLayout(self);row=QHBoxLayout();layout.addLayout(row);layout.addStretch()
+        layout=QVBoxLayout(self);row=QHBoxLayout();layout.addLayout(row)
         for key,label in (("profiles","Profiles"),("spanwise","Spanwise"),("hub","Hub"),("shroud","Shroud")):
             box=QCheckBox(label);box.setChecked(True);box.setStyleSheet("color: #d1dae7;")
             box.toggled.connect(self.update);row.addWidget(box);self.visibility_controls[key]=box
         row.addStretch()
+        views=QHBoxLayout();layout.addLayout(views);layout.addStretch()
+        self.view_buttons={}
+        for name,label,tip in (("front","正面","+X方向から見る（YZ）"),
+                               ("top","上面","+Z方向から見る（XY）"),
+                               ("side","側面","+Y方向から見る（XZ）"),
+                               ("iso","等角","等角図"),
+                               ("fit","全体","向きを維持して全体を表示"),
+                               ("reset","リセット","初期方向へ戻して全体を表示")):
+            button=QToolButton();button.setText(label);button.setToolTip(tip)
+            button.clicked.connect(lambda checked=False,name=name:self.set_view(name))
+            views.addWidget(button);self.view_buttons[name]=button
+        views.addStretch()
+        self.setToolTip("左ドラッグ: 自由回転 / 右ドラッグ: 平行移動 / ホイール: 拡大・縮小")
+
+    def _view_basis(self):
+        """Screen basis with a free rotation, retaining the legacy angle API."""
+        camera=self.camera_position;a,e=np.deg2rad([camera["azimuth"],camera["elevation"]])
+        right=np.array([-np.sin(a),np.cos(a),0.])
+        up=np.array([-np.cos(a)*np.sin(e),-np.sin(a)*np.sin(e),np.cos(e)])
+        return camera["rotation"]@np.array([right,up,np.cross(right,up)])
+
+    def set_view(self,name):
+        if name=="fit":self.fit_view();return
+        angles={"front":(0.,0.),"top":(-90.,90.),"side":(90.,0.),
+                "iso":(-45.,np.rad2deg(np.arctan(1/np.sqrt(2)))),"reset":(-45.,25.)}
+        azimuth,elevation=angles[name]
+        self.camera_position.update(azimuth=azimuth,elevation=elevation,rotation=np.eye(3))
+        self._last=None
+        self.fit_view();self.update()
+
+    def _trackball_point(self,point):
+        radius=max(1.,min(self.width(),self.height()-self._plot_top-25)/2)
+        x=(point.x()-self.width()/2)/radius
+        y=((self.height()+self._plot_top-25)/2-point.y())/radius
+        length=x*x+y*y
+        if length>1:
+            return np.array([x,y,0.])/np.sqrt(length)
+        return np.array([x,y,np.sqrt(max(0.,1-length))])
+
+    def _rotate_trackball(self,previous,current):
+        a,b=self._trackball_point(previous),self._trackball_point(current)
+        axis=np.cross(a,b);sine=np.linalg.norm(axis);cosine=float(np.clip(a@b,-1.,1.))
+        if sine<1e-12:
+            if cosine>0:return
+            # Opposite rim points still define a valid half turn.
+            axis=np.cross(a,np.eye(3)[np.argmin(np.abs(a))]);axis/=np.linalg.norm(axis)
+        else:axis/=sine
+        x,y,z=axis
+        skew=np.array([[0.,-z,y],[z,0.,-x],[-y,x,0.]])
+        rotation=np.eye(3)+sine*skew+(1-cosine)*(skew@skew)
+        u,_,vt=np.linalg.svd(rotation@self.camera_position["rotation"])
+        self.camera_position["rotation"]=u@np.diag([1.,1.,np.linalg.det(u@vt)])@vt
 
 
     def update_geometry(self,geometry,wall_chunks=None):
@@ -123,32 +176,30 @@ class Preview3D(QWidget):
         xyz=np.concatenate([points for points,color in self.lines.values()]
                            +[faces.reshape(-1,3) for faces,color in self.surfaces.values()])
         self.camera_position["center"]=(xyz.min(axis=0)+xyz.max(axis=0))/2
-        a,e=np.deg2rad([self.camera_position["azimuth"],self.camera_position["elevation"]])
-        right=np.array([-np.sin(a),np.cos(a),0]);up=np.array([-np.cos(a)*np.sin(e),-np.sin(a)*np.sin(e),np.cos(e)])
+        right,up,_=self._view_basis()
         relative=xyz-self.camera_position["center"]
         projected_center=np.array([(np.min(relative@axis)+np.max(relative@axis))/2 for axis in (right,up)])
         self.camera_position["center"]+=right*projected_center[0]+up*projected_center[1]
         projected=np.array([np.ptp(xyz@right),np.ptp(xyz@up)])
-        factor=min(max(self.width(),1)/max(projected[0],1e-6),max(self.height()-85,1)/max(projected[1],1e-6))/1.2
+        factor=min(max(self.width(),1)/max(projected[0],1e-6),max(self.height()-self._plot_top-25,1)/max(projected[1],1e-6))/1.2
         self.camera_position["scale"]=max(min(self.width(),self.height())/(2*factor),1e-6)
         self.camera_position["pan"]=np.array([0.,12.5/factor]);self.update()
 
     def paintEvent(self,event):
         painter=QPainter(self);painter.fillRect(self.rect(),QColor("#101c2b"))
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        camera=self.camera_position;a,e=np.deg2rad([camera["azimuth"],camera["elevation"]])
-        right=np.array([-np.sin(a),np.cos(a),0]);up=np.array([-np.cos(a)*np.sin(e),-np.sin(a)*np.sin(e),np.cos(e)])
+        camera=self.camera_position;right,up,_=self._view_basis()
         factor=min(self.width(),self.height())/(2*camera["scale"])
-        painter.save();painter.setClipRect(0,60,self.width(),max(0,self.height()-85))
+        painter.save();painter.setClipRect(0,self._plot_top,self.width(),max(0,self.height()-self._plot_top-25))
         self._paint_surfaces(painter,camera,right,up,factor)
         for points,color in self.visible_lines():
             relative=points-camera["center"]
             x=(relative@right+camera["pan"][0])*factor+self.width()/2
-            y=-(relative@up+camera["pan"][1])*factor+(self.height()+60)/2
+            y=-(relative@up+camera["pan"][1])*factor+(self.height()+self._plot_top)/2
             painter.setPen(QPen(QColor(color),1.4))
             painter.drawPolyline(QPolygonF([QPointF(float(xx),float(yy)) for xx,yy in zip(x,y)]))
         painter.restore();painter.setPen(QColor("#d1dae7"))
-        painter.drawText(12,52,self.model_label)
+        painter.drawText(12,self._plot_top-8,self.model_label)
         painter.drawText(12,self.height()-14,"XYZ [mm] • Z axis • revolved walls / blade wireframe")
         painter.end()
 
@@ -159,7 +210,7 @@ class Preview3D(QWidget):
         colors=[color for data,color in visible for _ in data]
         relative=faces-camera["center"]
         x=(relative@right+camera["pan"][0])*factor+self.width()/2
-        y=-(relative@up+camera["pan"][1])*factor+(self.height()+60)/2
+        y=-(relative@up+camera["pan"][1])*factor+(self.height()+self._plot_top)/2
         direction=np.cross(right,up)
         depth=np.mean(relative@direction,axis=1)
         normals=np.cross(faces[:,2]-faces[:,0],faces[:,3]-faces[:,1])
@@ -173,14 +224,16 @@ class Preview3D(QWidget):
             painter.drawPolygon(QPolygonF([QPointF(float(xx),float(yy)) for xx,yy in zip(x[i],y[i])]))
         painter.setBrush(Qt.BrushStyle.NoBrush)
 
-    def mousePressEvent(self,event):self._last=event.position();event.accept()
+    def mousePressEvent(self,event):
+        self._last=(event.position() if self._plot_top<=event.position().y()<self.height()-25 else None)
+        event.accept()
 
     def mouseMoveEvent(self,event):
         if self._last is None:return
-        delta=event.position()-self._last;self._last=event.position()
+        previous=self._last;delta=event.position()-previous;self._last=event.position()
         camera=self.camera_position
         if event.buttons() & Qt.MouseButton.LeftButton:
-            camera["azimuth"]+=delta.x()*.5;camera["elevation"]=float(np.clip(camera["elevation"]+delta.y()*.5,-89,89))
+            self._rotate_trackball(previous,event.position())
         elif event.buttons() & Qt.MouseButton.RightButton:
             factor=2*camera["scale"]/max(1,min(self.width(),self.height()))
             camera["pan"]+=np.array([delta.x(),-delta.y()])*factor

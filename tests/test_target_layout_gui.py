@@ -105,14 +105,14 @@ def test_right_edit_graph_and_numeric_tables_update_same_data(window, tab, attri
     assert w.get_parameters() == before
 
 
-def test_annulus_in_center_and_grouped_toolbar_preserves_settings(window):
+def test_annulus_in_center_and_view_menu_preserves_settings(window):
     w = window
     index = next(i for i in range(w.tabs.count()) if w.tabs.tabText(i) == "Full Annulus")
     w.tabs.setCurrentIndex(index)
     w.annulus_2d.setChecked(True)
     assert w.central_views.currentWidget() is w.annulus_plot
-    assert set(w.toolbar_groups) == {"Project", "Edit", "View", "Export"}
-    view_actions = {action.text(): action for action in w.toolbar_groups["View"].menu().actions()}
+    assert [action.text() for action in w.menuBar().actions()]==["File","Edit","View","Tools"]
+    view_actions = {action.text(): action for action in w.view_menu.actions()}
     view_actions["Output Settings"].trigger()
     dialog = w._tool_dialogs["Output Settings"]
     assert dialog.isVisible() and w.output_page.isVisible()
