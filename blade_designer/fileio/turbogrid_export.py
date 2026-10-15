@@ -54,6 +54,8 @@ def export_turbogrid(case_directory,params):
          if params.blade_rows is not None else None)
     stator=row is not None and row.kind == "diffuser"
     if stator:params=row_parameters(project,row)
+    if not stator and params.splitter is not None:
+        raise ValueError("Splitter TurboGrid export is not supported yet. No output was written.")
     geometry=generate_diffuser_3d(params) if stator else generate_impeller(params)
     edges=params.diffuser_edges if stator else params.impeller_edges
     settings=params.turbogrid;digits=params.export.significant_digits

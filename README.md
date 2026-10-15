@@ -32,6 +32,22 @@ Hub/ShroudのLine・Circular Arc子午面、Hub/Tip・中間Spanの翼断面、C
 
 ## 起動・検証
 
+インペラの「LE / TE」タブにある「TE Rake target / β保持」を有効にすると、TE Rake目標角を入力できます。無効（既定値）は従来の形状、有効で0°はTE Rakeを0°へ合わせる指定です。各翼列で独立して保存し、Undo/Redoに対応します。入力はEnter/フォーカス移動で確定します。
+
+本アプリのTE Rakeは、Hub/TipのTEキャンバー端点を結ぶ線と、その中点と回転軸を通る子午面との角度です。正は+Zから見て反時計回り（+θ）で、回転方向CW/CCWとは独立した幾何学的符号です。子午面R–Z内の傾きやHub/Tipのθ差そのものとは異なります。Hub断面・β分布・厚さ・子午面・TE半径を維持し、ImpellerParameterMapperで各Spanの開始θを決めます。TEのθはHubを基準にSpan方向へ線形に配置し、LEのθはTE目標位置からβの積分巻き角を引いて求めます。中間Spanそれぞれの局所Rake角を一定にする指定ではありません。丸い端部の頂点ではなくキャンバー終端を基準にします。
+
+TE Rakeの実測角とHub/TipのLE θを表示します。Rake有効時の「Hub Theta LE」はHubの配置基準で、TipのLE位置は独立入力ではありません。βは自動変更せず、表示・TurboGridは同じマッピング済み3Dを使用します。固定したTE半径とR/Zでは実現できない角度は拒否し、入力を修正するかUndoで戻します。未指定の旧JSONは同じ形状・形式を維持し、新しい任意項目impeller_te_rake_degは指定時だけ保存します。Rake指定JSONは対応版で開いてください。ユーザー原本と既定値ファイルは変更しません。
+
+既存の断面検証とRakeの到達性を確認します。Span間の面全体の交差・隣接翼との3D衝突・応力/CFD検証は今回追加していません。βを保持しても翼のSpan方向配置が変わるため、性能や強度が同じになるとは限りません。設計概念の参考: [CFturboのRake/Stacking](https://manual.cfturbo.com/en/sl.html)。本アプリの角度定義は上記のとおり明示しています。
+
+インペラの「Splitter」タブで「スプリッターを追加 / Enable Splitter」を有効にすると、各主翼間へ1枚ずつ追加します。主翼枚数Nに対してスプリッターN枚、合計2N枚です。既定値は無効で、既存の主翼・静翼・デフォルトJSONは変更しません。
+
+Hub/Tip開始位置は各主翼の物理的な子午面距離でLE=0%、TE=100%とした値です。50%なら後半を使用し、中間Spanの開始割合はHub/Tip間で線形補間します。「主翼間の位置」は回転方向へ1ピッチの割合で、50%は中間です。「厚さ倍率」は元の主翼分布へ掛けます。初期の連動状態ではβと厚さの分布を主翼上の元の位置から切り出し、短い翼の0〜100%へ元分布全体を引き伸ばしません。端部タイプは主翼を継承し、新しいLEを再生成します。TEは主翼の位置・外径Cutoff・TE Rakeに追従します。
+
+中央2D・3DとFull Annulusではスプリッターを緑色で表示します。右側に実際のHub/Tip LEのR/Zと枚数を表示します。翼列ごとに独立保存し、Undo/Redo・New・JSON往復に対応します。数値入力はEnter/フォーカス移動で確定します。初期状態は主翼連動です。「主翼からコピーして角度・厚さを独立編集」を選ぶと、その時点の主翼分布を形状を変えずにコピーし、専用のBlade Angle / Thicknessグラフ・表で調整できます。専用分布も横軸は元の主翼LE=0、TE=1で、開始位置以降を使用します。厚さグラフは倍率適用前の値です。独立編集後は主翼β・厚さの変更に追従しません。「現在の主翼から再コピー」で初期化でき、連動へ戻す操作もUndo可能です。主翼の中間Spanを後から追加した場合は、保存済み専用Span間で分布を補間します。独立モードでも端部・TE位置・Rakeは主翼に追従します。複数種類のスプリッターと翼間の3D干渉評価は今回含みません。
+
+**スプリッター付きインペラのTurboGrid出力は現在未対応です。** 主翼だけを誤って出力しないよう、書込み前に明示的なエラーにして既存ケースを保護します。スプリッター無効時の既存Impeller出力と静翼出力は維持します。スプリッター形状の保存には対応版のProject JSONを使用してください。
+
 3D画面は左ドラッグでトラックボール自由回転、右ドラッグで平行移動、ホイールで拡大・縮小できます。真上/真下を越えて回転でき、画面の縁では視線方向の傾きも変えられます。中央下部と別ウィンドウの両方に「正面（+X/YZ）・上面（+Z/XY）・側面（+Y/XZ）・等角・全体・リセット」ボタンがあります。「全体」は現在の向きを維持し、「リセット」は初期の斜め方向へ戻して全体を表示します。形状編集、Undo、翼列切替、Full Annulusで自由回転した向きを保持します。これは表示操作だけで、設計座標・JSON・CSV・TurboGrid出力は変更しません。
 
 このPCの専用環境はPython 3.12です。別環境ではPython 3.11以上とrequirements.txtの依存を使用してください。
@@ -300,7 +316,7 @@ OS標準ファイルダイアログの人による操作とTurboGrid実機Import
 - Gross Areaの法線断面と独立した翼LE/TE接続線は別のGeometryです。旧0.3は互換サンプリング格子で保持します。
 - Flow PathのDIF_LE/TEは流路の領域境界です。従来Diffuser 2Dの半径設定や指標は独立して保持します。今回のTurboGrid出力はImpeller断面です。
 - 次版候補: Fillet編集コマンド、B-spline Span補間、PyVistaのSurface Preview、TurboGrid実機検証。
-- 今回の対象外: Splitter、Tip clearance、専用Lean/Sweep/Rake、CFX・自動Meshing・Optimization実行、STEP/IGES/Solid CAD。
+- 今回の対象外: 複数種類のSplitter、Splitter付きTurboGrid出力、Tip clearance、専用Lean/Sweep/LE Rake、CFX・自動Meshing・Optimization実行、STEP/IGES/Solid CAD。TE Rake目標のスタッキングは対応しています。
 
 ## Rotation / Undo / Spanwise / Blade Edge 追加機能
 

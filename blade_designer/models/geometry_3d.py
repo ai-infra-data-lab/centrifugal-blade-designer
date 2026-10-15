@@ -48,3 +48,4 @@ class ImpellerGeometry:
     hub: MeridionalGeometry
     shroud: MeridionalGeometry
     sections: list[SectionGeometry3D]
+    splitter_sections: list[SectionGeometry3D] | None = None

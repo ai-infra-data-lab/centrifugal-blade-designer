@@ -6,7 +6,7 @@ import os
 import tempfile
 from ..models.parameters import (BladeParameters, GeometryParameters, BladeAngleParameters,
     ThicknessParameters, DistributionPoint, EdgeParameters, EdgeType, OutputPointParameters,
-    ExportParameters, SurfaceMapping, BladeSection, TurboGridParameters, RotationDirection)
+    ExportParameters, SurfaceMapping, BladeSection, TurboGridParameters, RotationDirection, SplitterParameters)
 from ..models.meridional import MeridionalCurveParameters,LineSegmentParameters,ArcSegmentParameters
 from ..models.resolution import GeometryResolutionParameters
 from ..models.flow_path import FlowPathParameters, ComponentStation, StationType
@@ -47,6 +47,10 @@ def save_project(path: str | Path, params: BladeParameters) -> None:
     payload = asdict(params)
     def omit_unassigned(value):
         if isinstance(value, dict):
+            if value.get("splitter", False) is None:
+                value.pop("splitter")
+            if value.get("impeller_te_rake_deg", False) is None:
+                value.pop("impeller_te_rake_deg")
             if value.get("blade_row", False) is None:
                 value.pop("blade_row")
             for child in value.values(): omit_unassigned(child)
@@ -118,6 +122,23 @@ def _decode_v03(data, row_snapshot=False):
             export=_group(data, "export", ExportParameters),
             surface_mapping=SurfaceMapping(data["surface_mapping"]),
             rotation_direction=RotationDirection(data.get("rotation_direction","ccw")))
+        params.impeller_te_rake_deg=data.get("impeller_te_rake_deg")
+        if data.get("splitter") is not None:
+            values=data["splitter"]
+            required={"hub_start_fraction","tip_start_fraction","pitch_fraction","thickness_scale"}
+            if not isinstance(values,dict) or not required<=set(values) or set(values)-required-{"sections"}:
+                raise ValueError("Invalid splitter fields.")
+            params.splitter=SplitterParameters(**values)
+            if params.splitter.sections is not None:
+                if not isinstance(params.splitter.sections,list):raise ValueError("Invalid splitter sections.")
+                profiles=[]
+                for v in params.splitter.sections:
+                    edge=EdgeParameters(**v["edge_parameters"])
+                    edge.le_type,edge.te_type=EdgeType(edge.le_type),EdgeType(edge.te_type)
+                    profiles.append(BladeSection(v["span"],
+                        BladeAngleParameters([DistributionPoint(**point) for point in v["blade_angle"]["points"]]),
+                        ThicknessParameters([DistributionPoint(**point) for point in v["thickness"]["points"]]),edge))
+                params.splitter.sections=profiles
         for distribution in (params.blade_angle, params.thickness):
             distribution.points = [DistributionPoint(**p) for p in distribution.points]
         params.edges.le_type = EdgeType(params.edges.le_type)

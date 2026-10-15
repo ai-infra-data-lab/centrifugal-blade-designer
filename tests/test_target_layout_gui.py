@@ -77,7 +77,7 @@ def test_selection_does_not_grow_window_and_central_view_matches_target(window):
         assert w.size() == size
         w.select_blade_row(kind)
         QTest.qWait(20)
-        assert visible_tabs(w) == ["Blade Angle", "Thickness", "LE / TE", "Full Annulus"]
+        assert visible_tabs(w) == ["Blade Angle", "Thickness", "LE / TE"] + (["Splitter"] if w._editing_target==0 else []) + ["Full Annulus"]
         assert w.central_views.currentWidget() is w.blade_plot
         assert w.size() == size
     after = w.get_parameters()
@@ -121,4 +121,4 @@ def test_annulus_in_center_and_view_menu_preserves_settings(window):
     assert w.get_parameters().geometry.vane_count == 13
     w.undo()
     assert w.get_parameters().geometry.vane_count == 20
-    assert visible_tabs(w) == ["Blade Angle", "Thickness", "LE / TE", "Full Annulus"]
+    assert visible_tabs(w) == ["Blade Angle", "Thickness", "LE / TE"] + (["Splitter"] if w._editing_target==0 else []) + ["Full Annulus"]

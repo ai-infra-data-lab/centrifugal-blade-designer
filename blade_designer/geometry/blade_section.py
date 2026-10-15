@@ -38,7 +38,7 @@ def resample_curve(curve,n_points):
     return Curve3D(*arrays,m_blade_norm,meridional_distance)
 
 
-def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts,mapping,resolution=None,flow_coordinates=None,rotation_sign=1,*,cutoff_radius=None):
+def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts,mapping,resolution=None,flow_coordinates=None,rotation_sign=1,*,cutoff_radius=None,start_fraction=0.,thickness_scale=1.,theta_te_rad=None):
     resolution=GeometryResolutionParameters() if resolution is None else resolution
     validate_section(section)
     wall_m,_=calculate_meridional(wall_zr[:,1],wall_zr[:,0])
@@ -51,7 +51,9 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
         te_m=cylinder_distance(wall_m,wall_zr,cutoff_radius,te_m)
     if not np.isfinite([le_m,te_m]).all() or te_m<=le_m:
         raise ValueError(f"Span {section.span}: physical m_TE must exceed m_LE.")
+    le_m=le_m+start_fraction*(te_m-le_m)
     m_blade_norm=np.linspace(0,1,resolution.profile_points);m=le_m+(te_m-le_m)*m_blade_norm
+    source_norm=start_fraction+(1-start_fraction)*m_blade_norm
     def wall_at(distance):
         distance=np.asarray(distance)
         if np.any(distance<-1e-9) or np.any(distance>wall_m[-1]+1e-9):
@@ -59,10 +61,11 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
         return np.column_stack([np.interp(distance,wall_m,wall_zr[:,i]) for i in (0,1)])
     zr=wall_at(m);r=zr[:,1]
     if np.any(r<=0): raise ValueError("Blade flow path radius must be > 0.")
-    beta_m_deg=interpolate_beta_m_deg(m_blade_norm,section.blade_angle.points)
+    beta_m_deg=interpolate_beta_m_deg(source_norm,section.blade_angle.points)
     beta_m_rad=np.deg2rad(beta_m_deg)
     theta_rad=theta_le_rad+rotation_sign*cumulative_trapezoid(np.tan(beta_m_rad)/r,m,initial=0)
-    thickness=generate_thickness(m_blade_norm,section.thickness)
+    if theta_te_rad is not None:theta_rad+=theta_te_rad-theta_rad[-1]
+    thickness=generate_thickness(source_norm,section.thickness)*thickness_scale
     camber=Curve3D(r,theta_rad,zr[:,0],m_blade_norm,m)
     # Intrinsic normal offset: delta_m=-t*sin(beta)/2, r*delta_theta=t*cos(beta)/2.
     def mapped(distance,theta,tangential,m_blade_norm=None):

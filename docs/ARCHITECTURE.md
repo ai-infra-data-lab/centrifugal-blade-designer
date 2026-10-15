@@ -16,6 +16,16 @@
 | docs/ / .vscode/ | 開発手順・調査結果・IDE設定 |
 
 流れ: main → gui → models / geometry / fileio / optimization。
+
+## インペラTE RakeのParameter Mapper（2026-10-15）
+
+BladeParameters.impeller_te_rake_degは任意の目標角（Noneで従来処理）です。generate_impellerは既存β積分と端部/外径処理後、geometry/impeller_parameter_mapper.ImpellerParameterMapperへ生成形状を渡します。MapperはHub固定、β・R/Z・厚さを保持して各断面を軸まわりに剛体回転します。既存の静翼最適化用optimization/parameter_mapperとは役割を分離し、Qt/ファイル形式へ依存しません。
+
+角度の基準はHub/Tip TEキャンバー端点の中点と軸を通る子午面です。chord=v、面法線=nθとしてgamma=atan2(v・nθ, |v-(v・nθ)nθ|)です。半径と軸方向距離から最大到達角を求め、小さいねじれ側の解をbrentqで求めます。正符号は絶対座標+θ（CCW）です。θTE(s)=θTE(Hub)+s*Δθ、θLE(s)=θTE(s)-積分巻き角とし、曲線配列の共有を考慮して一度だけ回転します。Hub/Tip全体の目標であり、Span毎の局所Rake一定や端部キャップ頂点基準ではありません。
+
+JSONはNoneの項目をsnapshotも含めて省略し、旧schema 0.3を維持します。新規項目なしの旧JSON・デフォルト・数値参照を変更しません。GUIはLE/TEタブのチェック付き入力と実測表示を追加し、読み込んだ未編集値は画面丸めで上書きしません。_bind_history_inputsへRake入力を含めてCtrl+Zを維持し、翼列別snapshot・Undo/Redo・New・保存読込へ既存経路で接続します。静翼3D生成はマッピングしません。
+
+tests/test_impeller_te_rake.pyは一定R=120 mm・Hub/Tip軸間隔20 mmの解析式Δθ=2 asin(20 tan(gamma)/(2*120))、β積分、R/Z不変、3D弦からの独立測定、JSON/出力一致、到達不能時の既存ファイル保護を検証します。GUIテストは独立翼列、Undo、入力確定、表示/保存、精度、無効時の表示保持を確認します。3D面全体の交差や空力/応力評価は追加しません。
 geometryからQtを呼ぶ構成ではありません。3DはQPainterによる回転面と翼wireframeで、PyVista/VTK/OpenGLの依存はありません。
 
 MainWindowの上部メニューはFile/Edit/View/Toolsの順で1つずつ作り、ツールバーは作りません。ExportはFile、最適化別ウィンドウはTools、回転方向/反転はEdit、投影面はViewへ配置します。回転方向は排他的QActionGroupから非表示の既存radio状態へ渡し、radio変更をメニューへ同期します。投影面も非表示の既存comboへ渡し、_sync_projection_menuで選択値と対象別の有効状態を同期します。非表示Widgetは既存の計算/保存/Undo経路との接続を維持するための内部状態です。ファイル操作や各解析ウィンドウのcallback・ショートカットを変更せず、入口と順序だけを整理します。
@@ -116,3 +126,13 @@ MainWindowは子午面選択中の出力を拒否し、翼列選択時は保留�
 tests/fixtures/turbogrid_impeller_sha256.jsonは実装変更前のb751f27で生成した3ケース/12ファイルのLF正規化ASCIIハッシュです。歴史的な出力互換性の基準であり解析解ではありません。静翼は別途、円錐壁面の解析座標・回転/単位・所属端点・独立設定・GUI出力と現在3Dの一致を検証します。
 
 既存の詳細仕様・変更報告はプロジェクト直下のV03_*.md、各EDITOR_REPORT.md等を維持しています。最新のユーザー要求を優先し、旧仕様から動作を勝手に戻さないでください。
+
+## スプリッター（主翼連動/専用分布、2026-10-15）
+
+BladeParameters.splitterは任意のSplitterParameters（Hub/Tip開始割合、ピッチ割合、厚さ倍率、任意の専用sections）です。Noneは無効で、JSONの追加キーをsnapshot内も含めて省略します。旧schema 0.3・既定値は維持し、任意フィールドのあるJSONは対応版で開きます。
+
+generate_impellerは主翼とTE Rakeの生成を完了した後、geometry/splitter.pyへ渡します。主翼配列は変更せず、ImpellerGeometry.splitter_sectionsに別の断面リストを保持します。生成はQt/ファイル形式に依存しません。各Spanで主翼の実効m_LE/m_TE（Cutoff後）を使い、m_start=m_LE+f(s)*(m_TE-m_LE)、f(s)=(1-s)*fHub+s*fTipとします。generate_sectionの任意引数で開始位置・厚さ倍率・TE周方向目標を指定し、β・厚さの評価座標はf+(1-f)*m_splitterです。各断面のTE θを主翼TE θ + rotation_sign*2π/N*pitch_fractionへ配置し、主翼TE Rakeを継承します。新しいLE端部を生成し、既存の断面検証と一定外径Cutoffを再利用します。
+
+GUIはImpeller専用のSplitterタブ内にSplitterEditorを配置します。未編集値の精度、入力確定、Undo、独立翼列snapshot、New/JSON読込へ接続します。2D・Full Annulus・中央/別3D・子午面選択時の全翼列3Dは同じsplitter_sectionsを描画し、各翼列の主翼数Nで複製します。初期はsections=Noneで主翼連動、独立チェック時に主翼の各Spanの制御点を深いコピーで取得します。専用β・厚さの座標軸も元の主翼の0〜1とし、開始位置で切り出すことでコピー時の形状を完全維持します。専用ProfileDistributionEditorは初回使用時に生成し、追加・削除・ドラッグ・表入力・Undoへ接続します。厚さの曲線は倍率適用前です。主翼に新しいSpanが増えた場合、splitter.independent_profileで保存済み専用Spanの間を補間します。専用分布と主翼分布は保存/復元後も別オブジェクトです。複数種類・3D翼間干渉は追加していません。
+
+TurboGridの複数翼セットに対応する出力形式はこの実装の範囲外です。export_turbogridはスプリッター付きImpellerをファイル作成前に拒否し、主翼だけの不完全な出力を防ぎます。静翼と無効時の既存出力は変更しません。tests/test_splitter.pyは解析β巻き角・分布切出し・主翼不変・Rake/Cutoff/CW/CCW・JSON精度・出力保護を、tests/test_splitter_gui.pyは編集確定・Undo・独立翼列・同一表示座標・全周枚数・保存読込を検証します。

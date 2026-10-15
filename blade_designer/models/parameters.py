@@ -113,6 +113,15 @@ class TurboGridParameters:
 
 
 @dataclass
+class SplitterParameters:
+    hub_start_fraction: float = 0.5
+    tip_start_fraction: float = 0.5
+    pitch_fraction: float = 0.5
+    thickness_scale: float = 1.0
+    sections: list[BladeSection] | None = None
+
+
+@dataclass
 class BladeParameters:
     geometry: GeometryParameters = field(default_factory=GeometryParameters)
     blade_angle: BladeAngleParameters = field(default_factory=BladeAngleParameters)
@@ -137,6 +146,8 @@ class BladeParameters:
     resolution: GeometryResolutionParameters = field(default_factory=GeometryResolutionParameters)
     blade_rows: list[BladeRow] | None = None
     active_blade_row: str | None = None
+    impeller_te_rake_deg: float | None = None
+    splitter: SplitterParameters | None = None
 
     def __post_init__(self):
         if self.flow_path is None:

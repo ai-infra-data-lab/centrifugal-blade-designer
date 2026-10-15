@@ -20,7 +20,21 @@ def configure_plot(plot: pg.PlotWidget, xlabel: str, ylabel: str) -> None:
         plot.getAxis(name).setPen("#8e9caf")
 
 
-class BladePlotWidget(pg.PlotWidget):
+class SplitterPlotMixin:
+    def update_splitter(self,section,projection,blade_count=1):
+        if not hasattr(self,"splitter_curves"):self.splitter_curves={}
+        if section is None:
+            for curve in self.splitter_curves.values():curve.setData([],[])
+            return
+        for name in COLORS:
+            if name not in self.splitter_curves:
+                self.splitter_curves[name]=self.plot(pen=pg.mkPen("#8deb87",width=2),name="Splitter "+name)
+            segment=getattr(section,"master_"+name.lower())
+            x,y=project_annulus(segment.x,segment.y,segment.z,blade_count,projection)
+            self.splitter_curves[name].setData(x,y,connect="finite")
+
+
+class BladePlotWidget(SplitterPlotMixin,pg.PlotWidget):
     def __init__(self) -> None:
         super().__init__(background="#101c2b")
         configure_plot(self,"X [mm]","Y [mm]")
@@ -48,7 +62,7 @@ class BladePlotWidget(pg.PlotWidget):
         self.disableAutoRange()
 
 
-class FullAnnulusPlotWidget(pg.PlotWidget):
+class FullAnnulusPlotWidget(SplitterPlotMixin,pg.PlotWidget):
     def __init__(self) -> None:
         super().__init__(background="#101c2b")
         configure_plot(self,"X [mm]","Y [mm]")

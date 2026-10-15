@@ -89,9 +89,20 @@ class Preview3D(QWidget):
 
     @staticmethod
     def _profile_lines(geometry):
-        spanwise=build_spanwise_wireframe(geometry.sections)
+        lines,spanwise=Preview3D._section_lines(geometry.sections)
+        if geometry.splitter_sections:
+            extra,connections=Preview3D._section_lines(geometry.splitter_sections)
+            for name,(xyz,_) in extra.items():
+                label="Spanwise Splitter "+name[9:] if name.startswith("Spanwise ") else "Splitter "+name
+                lines[label]=(xyz,"#8deb87")
+            spanwise.extend(connections)
+        return lines,spanwise
+
+    @staticmethod
+    def _section_lines(sections):
+        spanwise=build_spanwise_wireframe(sections)
         lines={}
-        for section in geometry.sections:
+        for section in sections:
             label="Hub" if section.span==0 else "Tip" if section.span==1 else f"Span {section.span:.6g}"
             for name,color in (("le","#e5c76b"),("ps","#56d9e0"),("te","#eead72"),("ss","#f6948c"),("camber","#aab4c5")):
                 lines[f"{label} {name}"]=(getattr(section,"master_"+name if name!="camber" else name).xyz,color)

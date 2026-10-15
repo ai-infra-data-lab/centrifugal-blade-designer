@@ -11,7 +11,14 @@ from ..models.parameters import EdgeType,BladeSection
 
 
 def generate_impeller(params):
-    return _generate_row(params,params.sections,params.impeller_edges,impeller_cutoff=True)
+    geometry=_generate_row(params,params.sections,params.impeller_edges,impeller_cutoff=True)
+    if params.impeller_te_rake_deg is not None:
+        from .impeller_parameter_mapper import ImpellerParameterMapper
+        geometry=ImpellerParameterMapper.map_te_rake(geometry,params.impeller_te_rake_deg)
+    if params.splitter is not None:
+        from .splitter import generate_splitter
+        geometry.splitter_sections=generate_splitter(params,geometry)
+    return geometry
 
 
 def generate_diffuser_3d(params):

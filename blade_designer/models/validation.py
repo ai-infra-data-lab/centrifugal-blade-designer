@@ -83,4 +83,31 @@ def validate_parameters(params: BladeParameters) -> list[ValidationIssue]:
         error("repeat_first_point", "Must be a boolean.")
     if not isinstance(params.surface_mapping, SurfaceMapping):
         error("surface_mapping", "Unknown surface mapping.")
+    rake=params.impeller_te_rake_deg
+    if rake is not None and (not is_finite_number(rake) or not -90<rake<90):
+        error("impeller_te_rake_deg", "TE Rake must be finite and strictly between -90 and 90 degrees.")
+    from .parameters import SplitterParameters
+    splitter=params.splitter
+    if splitter is not None:
+        if not isinstance(splitter,SplitterParameters):
+            error("splitter", "Invalid splitter parameters.")
+        else:
+            for name in ("hub_start_fraction","tip_start_fraction","pitch_fraction"):
+                value=getattr(splitter,name)
+                if not is_finite_number(value) or not 0<value<1:
+                    error("splitter."+name, "Splitter fractions must be finite and strictly between 0 and 1.")
+            if splitter.sections is not None:
+                profiles=splitter.sections
+                from .parameters import BladeSection
+                if not isinstance(profiles,list) or len(profiles)<2 or any(not isinstance(s,BladeSection) or not is_finite_number(s.span) for s in profiles):
+                    error("splitter.sections", "Splitter requires valid Hub/Tip profiles.")
+                else:
+                    spans=[s.span for s in profiles]
+                    if spans[0]!=0 or spans[-1]!=1 or any(b<=a for a,b in zip(spans,spans[1:])):
+                        error("splitter.sections", "Splitter spans must increase from Hub 0 to Tip 1.")
+                    for s in profiles:
+                        issues.extend(validate_control_points(s.blade_angle.points,"blade_angle"))
+                        issues.extend(validate_control_points(s.thickness.points,"thickness"))
+            if not is_finite_number(splitter.thickness_scale) or splitter.thickness_scale<=0:
+                error("splitter.thickness_scale", "Splitter thickness scale must be finite and > 0.")
     return issues

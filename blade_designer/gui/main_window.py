@@ -4,7 +4,9 @@ import numpy as np
 from PySide6.QtCore import QTimer, Qt, QEvent
 from PySide6.QtGui import QAction, QActionGroup, QUndoStack
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QApplication, QAbstractSpinBox, QLineEdit, QRadioButton, QCheckBox, QSplitter, QSizePolicy, QComboBox, QLabel, QTabWidget, QScrollArea, QFileDialog, QMessageBox, QPlainTextEdit, QStackedWidget, QDialog)
+    QApplication, QAbstractSpinBox, QLineEdit, QRadioButton, QCheckBox, QSplitter, QSizePolicy, QComboBox, QLabel, QTabWidget, QScrollArea, QFileDialog, QMessageBox, QPlainTextEdit, QStackedWidget, QDialog, QGroupBox, QFormLayout)
+from .control_point_editor import CompactDoubleSpinBox
+from .splitter_editor import SplitterEditor
 from ..models.parameters import BladeParameters, BladeRow, RotationDirection
 from ..models.blade_rows import initial_rows, row_snapshot, row_parameters,visible_edge_rows,reconcile_visible_row_edges
 from .design_navigator import DesignNavigator
@@ -95,6 +97,21 @@ class MainWindow(QMainWindow):
         edge_layout.addWidget(self.edge_scope_label)
         for name in ("Leading Edge","Trailing Edge"):
             edge_layout.addWidget(self.panel.groups[name])
+        self.rake_group=QGroupBox("TE Rake target / β保持");self.rake_group.setCheckable(True);self.rake_group.setChecked(False)
+        rake_form=QFormLayout(self.rake_group)
+        self.te_rake=CompactDoubleSpinBox();self.te_rake.setDecimals(12);self.te_rake.setRange(-89.999999999,89.999999999);self.te_rake.setKeyboardTracking(False)
+        self._rake_display_value=self.te_rake.value()
+        self.te_rake.setToolTip("Hub→TipのTEキャンバー端点の傾き。正は+Zから見てCCW。Hubとβを保ち、LEの周方向位置は変化します。")
+        rake_form.addRow("TE Rake [deg]",self.te_rake)
+        self.te_rake_status=QLabel();self.te_rake_status.setWordWrap(True);rake_form.addRow(self.te_rake_status)
+        self.rake_group.toggled.connect(self._rake_changed);self.te_rake.valueChanged.connect(self._rake_changed)
+        edge_layout.addWidget(self.rake_group)
+        self.splitter_editor=SplitterEditor()
+        self.splitter_editor.parametersChanged.connect(self._splitter_changed)
+        self.splitter_editor.copyRequested.connect(self._copy_splitter_profiles)
+        self.splitter_editor.dragStarted.connect(self._begin_drag)
+        self.splitter_editor.dragFinished.connect(self._end_drag)
+        self.splitter_editor.editFinished.connect(self.commit_edit)
         edge_layout.addStretch()
         output_page = QWidget();output_layout = QVBoxLayout(output_page)
         self.output_page = output_page
@@ -110,9 +127,9 @@ class MainWindow(QMainWindow):
         annulus_layout.addWidget(self.annulus_2d);annulus_layout.addWidget(self.annulus_3d);annulus_layout.addStretch()
         for label,widget in (("Blade Angle",self.angle_editor),("Thickness",self.thickness_editor),
                 ("LE / TE",edge_page),("Meridional",self.meridional_editor),("Output",output_page),
-                ("Full Annulus",annulus_page),
+                ("Splitter",self.splitter_editor),("Full Annulus",annulus_page),
                 ("Diffuser Curvature",self.curvature_plot)):
-            if widget in (edge_page,output_page,self.panel,self.meridional_editor,self.optimization_widget):
+            if widget in (edge_page,output_page,self.panel,self.meridional_editor,self.optimization_widget,self.splitter_editor):
                 scroll = QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(widget)
                 self.tabs.addTab(scroll,label)
             else:self.tabs.addTab(widget,label)
@@ -305,6 +322,7 @@ class MainWindow(QMainWindow):
 
     def _configure_editor_tabs(self):
         allowed = {"Meridional"} if self._editing_meridional else {"Blade Angle", "Thickness", "LE / TE", "Full Annulus"}
+        if not self._editing_meridional and self._editing_target==0:allowed.add("Splitter")
         if self.mode == "optimization" and not self._editing_meridional:
             allowed.add("Optimization")
         self.tabs.blockSignals(True)
@@ -416,7 +434,11 @@ class MainWindow(QMainWindow):
 
     def get_parameters(self) -> BladeParameters:
         p = self.panel.get_parameters()
+        p.splitter=self.splitter_editor.get_parameters()
         p.rotation_direction=RotationDirection.CCW if self.rotation_ccw.isChecked() else RotationDirection.CW
+        if not self.rake_group.isChecked():p.impeller_te_rake_deg=None
+        elif p.impeller_te_rake_deg is None or self.te_rake.value()!=self._rake_display_value:
+            p.impeller_te_rake_deg=self.te_rake.value()
         self.meridional_editor.blade_edges.apply_to(p)
         self.output_editor.apply_to(p)
         p.hub,p.shroud = self.meridional_editor.get_curves()
@@ -453,6 +475,12 @@ class MainWindow(QMainWindow):
         self._bind_history_inputs()
 
     def _set_parameters(self, params):
+        self.splitter_editor.set_parameters(params.splitter)
+        self.rake_group.blockSignals(True);self.te_rake.blockSignals(True)
+        self.rake_group.setChecked(params.impeller_te_rake_deg is not None)
+        self.te_rake.setValue(params.impeller_te_rake_deg if params.impeller_te_rake_deg is not None else 0.)
+        self._rake_display_value=self.te_rake.value()
+        self.rake_group.blockSignals(False);self.te_rake.blockSignals(False)
         if params.blade_rows is None:
             self._row_seed = row_snapshot(params)
         self._blade_rows = deepcopy(params.blade_rows)
@@ -514,6 +542,9 @@ class MainWindow(QMainWindow):
         self.panel.groups["Geometry"].setTitle("Diffuser Dimensions / Blade Count" if self._editing_target else "Blade Placement / Blade Count")
         self.section_selector.combo.setToolTip("Select blade view and Full Annulus section. Impeller LE/TE shape is common to all sections.")
         self.edge_scope_label.setText("Impeller LE/TE Shape • Shared Across All Sections" if self._editing_target==0 else "Diffuser LE/TE Shape")
+        self.splitter_editor.setVisible(self._editing_target==0)
+        self.rake_group.setVisible(self._editing_target==0)
+        self._update_rake_scope()
         self.output_editor.setVisible(self._editing_target==0)
         self.section_selector.setVisible(self._editing_target==0)
         self.projection.setEnabled(self._editing_target==0)
@@ -794,6 +825,25 @@ class MainWindow(QMainWindow):
             if not self.timer.isActive():self.timer.start(50)
         else:self.timer.start(150)
 
+    def _copy_splitter_profiles(self):
+        self._store_section()
+        self.splitter_editor.set_profiles(self._sections)
+        self._bind_history_inputs();self._splitter_changed()
+
+    def _splitter_changed(self):
+        if self._restoring or not hasattr(self,"timer"):return
+        self._schedule_update();self.commit_edit()
+
+    def _rake_changed(self,*args):
+        if self._restoring or not hasattr(self,"timer"):return
+        self._update_rake_scope()
+        self._schedule_update();self.commit_edit()
+
+    def _update_rake_scope(self):
+        form=self.panel.groups["Geometry"].layout()
+        form.labelForField(self.panel.controls["theta_le_deg"]).setText(
+            "Hub Theta LE [deg]" if self._editing_target==0 and self.rake_group.isChecked() else "Theta LE [deg]")
+
     def _display_geometry(self, geometry: BladeGeometry, params: BladeParameters, impeller=None) -> None:
         impeller = self.designer.generate_3d(params) if impeller is None else impeller
         diffuser=None;diffuser_error=None
@@ -804,6 +854,12 @@ class MainWindow(QMainWindow):
         self.flow_area_result=area
         self.flow_area_widget.update_result(area,params.flow_path)
         self.impeller_geometry = impeller
+        self.splitter_editor.show_geometry(impeller,params.geometry.vane_count)
+        if self._editing_target==0 and params.impeller_te_rake_deg is not None:
+            from ..geometry.impeller_parameter_mapper import measure_te_rake
+            le=[np.rad2deg(s.camber.theta_rad[0]) for s in impeller.sections]
+            self.te_rake_status.setText(f"Actual: {measure_te_rake(impeller):.6g}° • LE θ Hub/Tip: {le[0]:.6g}° / {le[-1]:.6g}°")
+        else:self.te_rake_status.setText("β・子午面を保持 / LE周方向位置はMapperで決定")
         self._selected_3d_geometry=impeller if self._editing_target==0 else diffuser
         self._central_preview_state=None
         if self._editing_target == 0:
@@ -835,6 +891,9 @@ class MainWindow(QMainWindow):
             self.blade_plot.disableAutoRange()
         else:
             self.blade_plot.update_geometry(geometry,params.geometry.vane_count)
+        splitter=impeller.splitter_sections[self._section_index] if self._editing_target==0 and impeller.splitter_sections else None
+        self.blade_plot.update_splitter(splitter,plane)
+        self.annulus_plot.update_splitter(splitter,plane,params.geometry.vane_count)
         if self._editing_target==0:
             self.annulus_plot.update_impeller_annulus(selected,params.geometry.vane_count,plane)
         else:self.annulus_plot.update_annulus(geometry,params.geometry.vane_count)
@@ -985,8 +1044,9 @@ class MainWindow(QMainWindow):
 
     def _bind_history_inputs(self):
         if not hasattr(self,"output_editor"):return
-        for root in (self.panel,self.angle_editor,self.thickness_editor,self.meridional_editor,self.output_editor,*self.panel.groups.values(),self.panel.export_settings):
+        for root in (self.panel,self.angle_editor,self.thickness_editor,self.meridional_editor,self.output_editor,self.rake_group,self.splitter_editor,*self.panel.groups.values(),self.panel.export_settings):
             for box in root.findChildren(QAbstractSpinBox):
+                if root is self.splitter_editor:box.setKeyboardTracking(False)
                 if not getattr(box,"_history_bound",False):
                     box._history_bound=True;box.editingFinished.connect(self.commit_edit)
                     box.installEventFilter(self);box.lineEdit().installEventFilter(self)
