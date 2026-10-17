@@ -209,6 +209,16 @@ def _wall_cut_radius(section, wall, hit, expected, tangent):
 
 
 def _area_cut(row, station, pitch, sign):
+    # A normal to a folded return path can also cross a remote upstream blade.
+    # Keep only stations whose Hub foot lies on this row's physical LE–TE run.
+    # Do not mistake the remote intersection for a displaced Hub section.
+    distances=row.sections[0].camber.meridional_distance
+    if distances is not None:
+        from .blade_edge import project_to_wall
+        fraction,_=project_to_wall(row.hub,[station.hub_z,station.hub_r])
+        distance=fraction*row.hub.length;tolerance=row.hub.length*1e-6
+        if distance<distances[0]-tolerance or distance>distances[-1]+tolerance:
+            return None
     h = np.array([station.hub_z, station.hub_r])
     s = np.array([station.shroud_z, station.shroud_r])
     length = np.linalg.norm(s-h)

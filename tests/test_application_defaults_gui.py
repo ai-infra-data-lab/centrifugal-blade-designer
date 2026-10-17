@@ -39,7 +39,7 @@ def test_startup_and_new_use_independent_template(window):
 
 def test_visible_blade_count_is_per_row_with_undo_save_and_annulus(window, tmp_path):
     w = window
-    # The saved template now opens Diffuser; select Impeller for this scenario.
+    # The saved template opens RC; select Impeller for this scenario.
     w.select_blade_row("row-1")
     assert w.blade_count_widget.isVisible()
     original = deepcopy(w.get_parameters())
@@ -55,7 +55,7 @@ def test_visible_blade_count_is_per_row_with_undo_save_and_annulus(window, tmp_p
     w.select_blade_row("row-1"); assert w.blade_count.value() == 13
     path = tmp_path / "counts.json"
     w.save_to_path(path)
-    assert [r.parameters.geometry.vane_count for r in load_project(path).blade_rows] == [13,17]
+    assert [r.parameters.geometry.vane_count for r in load_project(path).blade_rows] == [13,17,20]
     w.new_project(); w.load_from_path(path)
     assert w.blade_count.value() == 13
     w._select_meridional(); assert not w.blade_count_widget.isVisible()

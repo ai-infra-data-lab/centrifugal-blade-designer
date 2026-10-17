@@ -78,6 +78,9 @@ def test_curved_packaged_default_has_exact_casing_extension_and_unchanged_displa
     p=row_parameters(project,project.blade_rows[0]);p.blade_rows=deepcopy(project.blade_rows)
     p.active_blade_row='row-1';p.tip_clearance=TipClearanceParameters(le,te)
     p.blade_rows[0].parameters.tip_clearance=deepcopy(p.tip_clearance)
+    # This test isolates casing extension. The new user template has a
+    # splitter, whose unsupported TurboGrid path is tested separately.
+    p.splitter=None;p.blade_rows[0].parameters.splitter=None
     # Use a complete export domain on this disposable default-model copy.
     for wall in (p.hub,p.shroud):
         for segment in wall.segments:segment.blade_row='row-1'

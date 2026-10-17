@@ -18,6 +18,12 @@
 
 流れ: main → gui → models / geometry / fileio / optimization。
 
+## RCと静翼の中央2D表示（2026-10-17）
+
+中央2Dは、有効なgenerate_diffuser_3dのHub masterを直接XY投影します。Full Annulusは同じ断面をZ軸回転し、翼列名・Hub・XYを表示します。旧generate_diffuserの100→160 mm等の独立した半径設定を表示形状の正本にしません。RCは既存の子午面LE→TEで外径から内径へ生成でき、数値計算・LE/TE／βの符号・JSON kindを変更しません。旧2D計算・Metrics／Curvature・CSVは互換経路として維持し、Passage／TurboGridは実3Dの経路です。既定JSONは今回指定の原本から3翼列・RC選択の状態をコピーしました。詳細は[RETURN_CHANNEL_DISPLAY.md](RETURN_CHANNEL_DISPLAY.md)。
+
+Passageの断面測定は、生成Hub camberのmeridional_distanceと壁面上の実Hub足点を対応させて、その翼列の実LE〜TE内に限定します。戻り部の法線が遠方の上流翼にも交わる場合の誤対応を除きます。局所的に壁面からずれた断面の検証は保持します。
+
 ## インペラ派生カット（2026-10-17）
 
 models/parameters.pyの任意`impeller_trim`は翼列snapshotに保持し、未指定の既定値・JSONには追加しません。数値・モードはmodels/validation.pyで検証します。geometry/impeller_trim.pyは元のImpeller生成・TE Rake・Splitter処理の後に、固定した元平均線の断面面積から派生ケーシングを求め、元の離散翼面を円筒座標でSpan補間して切り出します。外径は元のPS/SS・camberを円筒で切断し、平らなTEを接続します。Qt・ファイル形式へ依存しません。

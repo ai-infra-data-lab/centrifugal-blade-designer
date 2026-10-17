@@ -89,9 +89,9 @@ class FullAnnulusPlotWidget(SplitterPlotMixin,pg.PlotWidget):
         self.vane_count = vane_count
         self.disableAutoRange()
 
-    def update_impeller_annulus(self, section, blade_count: int, projection: str) -> None:
+    def update_impeller_annulus(self, section, blade_count: int, projection: str, row_name="Impeller") -> None:
         name = "Hub" if section.span == 0 else "Tip" if section.span == 1 else f"Span {section.span:.6g}"
-        self.setTitle(f"Impeller • {name} • {projection} • {blade_count} blades")
+        self.setTitle(f"{row_name} • {name} • {projection} • {blade_count} blades")
         self.setLabel("bottom", projection[0] + " [mm]")
         self.setLabel("left", projection[1] + " [mm]")
         for name, curve in self.curves.items():

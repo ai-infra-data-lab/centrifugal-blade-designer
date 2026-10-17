@@ -922,7 +922,8 @@ class MainWindow(QMainWindow):
         for context in (self.context_meridional, self.meridional_editor.context):
             context.update_geometry(source_impeller,params.flow_path,params.resolution.mean_points)
             context.update_blade_edges(source_impeller,params)
-        selected = impeller.sections[self._section_index]
+        selected = (impeller.sections[self._section_index] if self._editing_target==0 or diffuser is None
+                    else diffuser.sections[0])
         section_name = "Hub" if selected.span==0 else "Tip" if selected.span==1 else f"Span {selected.span:.6g}"
         plane=self.projection.currentText()
         row_name = "Impeller" if self._editing_target == 0 else "Vaned Diffuser"
@@ -936,11 +937,11 @@ class MainWindow(QMainWindow):
             self._selected_3d_geometry if not self._editing_meridional else None,
             params.geometry.vane_count, params.rotation_direction.sign, row_name,
             params.resolution.area_points, params.resolution.mean_points)
-        self.blade_plot.setTitle(f"{row_name} • {section_name} • {plane} projection" if self._editing_target==0 else f"{row_name} • XY")
+        self.blade_plot.setTitle(f"{row_name} • {section_name} • {plane} projection" if self._editing_target==0 or diffuser is not None else f"{row_name} • legacy 2D / 3D unavailable")
         axes=plane.lower() if self._editing_target==0 else "xy"
         self.blade_plot.setLabel("bottom",axes[0].upper()+" [mm]")
         self.blade_plot.setLabel("left",axes[1].upper()+" [mm]")
-        if self._editing_target == 0:
+        if self._editing_target == 0 or diffuser is not None:
             self.blade_plot.camber_curve.setData(getattr(selected.camber,axes[0]),getattr(selected.camber,axes[1]))
             for name,curve in self.blade_plot.curves.items():
                 segment = getattr(selected,"master_"+name.lower())
@@ -953,8 +954,8 @@ class MainWindow(QMainWindow):
         splitter=impeller.splitter_sections[self._section_index] if self._editing_target==0 and impeller.splitter_sections else None
         self.blade_plot.update_splitter(splitter,plane)
         self.annulus_plot.update_splitter(splitter,plane,params.geometry.vane_count)
-        if self._editing_target==0:
-            self.annulus_plot.update_impeller_annulus(selected,params.geometry.vane_count,plane)
+        if self._editing_target==0 or diffuser is not None:
+            self.annulus_plot.update_impeller_annulus(selected,params.geometry.vane_count,plane,row_name)
         else:self.annulus_plot.update_annulus(geometry,params.geometry.vane_count)
         if self._editing_target==0:
             for profile in source_impeller.sections:

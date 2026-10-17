@@ -102,7 +102,7 @@ def test_annulus_rotates_selected_impeller_in_xyz_before_projection(window, plan
     w.angle_editor.series[section.span].table.cellWidget(1, 1).setValue(43); w.update_geometry()
     np.testing.assert_allclose(view.viewRange(), ranges)
     w.view_mode.setCurrentIndex(1)
-    source = w.geometry.master_surfaces.ps; x, y = w.annulus_plot.curves["PS"].getData()
+    source = w.diffuser_geometry.sections[0].master_ps; x, y = w.annulus_plot.curves["PS"].getData()
     np.testing.assert_array_equal(x[:len(source.x)], source.x)
     np.testing.assert_array_equal(y[:len(source.y)], source.y)
     assert "Diffuser" in w.annulus_plot.plotItem.titleLabel.text

@@ -1,5 +1,7 @@
 # Centrifugal Compressor Blade Designer v0.3
 
+起動・Newの既定モデルを指定の`blade_v03.json`（Impeller／Diffuser／RC、RC選択）へ更新しました。静翼の中央2Dは、3Dで生成したHub断面のXY投影を単翼／全周で表示します。RCは子午面に沿って外径側LEから内径側TEへ進みます。元の入力・JSON形式・3D計算は保持します。旧2D Metrics／CSVは別の計算経路のため、子午面ベースのRC形状と区別してください。[原因・操作と確認範囲](docs/RETURN_CHANNEL_DISPLAY.md)。
+
 アプリ名・バージョン・角度定義は`About → About Blade Designer`で確認できます。画面内の大きなヘッダーを除き、編集に使える領域を広げました。詳細は[Aboutメニュー](docs/ABOUT.md)。
 
 Impellerの`LE / TE → 派生設計 / Shroud・外径カット`で、元の基準Gross面積に対する一定削減率と、指定外径[mm]／元外径からの切削率[%]を設定できます。角度・厚さ・子午面の元データを保持し、元の翼面から主翼とSplitterを切り出します。翼Tipとケーシングを変更し、既存の絶対クリアランスを維持します。中央の形状と流路解析は派生形状、編集グラフは元設計です。派生形状のTurboGrid／CAD出力は未対応で、書き込み前に拒否します。操作・定義・制限は[派生カット](docs/IMPELLER_TRIM_SPEC.md)を参照してください。

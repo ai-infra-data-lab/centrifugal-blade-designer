@@ -60,8 +60,8 @@ def test_projection_uses_true_section_coordinates(window,plane):
     assert plane+" projection" in w.blade_plot.plotItem.titleLabel.text
     w.view_mode.setCurrentIndex(1)
     assert not w.projection.isEnabled() and w.projection.currentText()=="XY"
-    np.testing.assert_array_equal(w.blade_plot.camber_curve.xData,w.geometry.camber.x)
-    np.testing.assert_array_equal(w.blade_plot.camber_curve.yData,w.geometry.camber.y)
+    np.testing.assert_array_equal(w.blade_plot.camber_curve.xData,w.diffuser_geometry.sections[0].camber.x)
+    np.testing.assert_array_equal(w.blade_plot.camber_curve.yData,w.diffuser_geometry.sections[0].camber.y)
     w.view_mode.setCurrentIndex(0)
     assert w.projection.isEnabled() and w.projection.currentText()==plane
 
