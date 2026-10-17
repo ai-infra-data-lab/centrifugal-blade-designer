@@ -27,6 +27,8 @@ Hub/Tipは`geometry/blade_edge.py::blade_wall_parameters`の共通参照LE/TE節
 
 ### G01 — 表示と旧指標／CSV／最適化の形状正本が異なる [P1・A/B]
 
+**部分対応（Stage 2A）**: 実断面指標とmaster XYZ CSVの新経路を追加し、旧経路をlegacyとして識別。旧計算／参考Impellerの実行失敗を静翼表示から分離した。旧数値・XY CSV・JSON検証契約は維持。共通入力検証のlegacy依存を分離するStage 2Bが残るため、G01全体の完了とはしない。[定義・検証](GEOMETRY_SOURCE_CONTRACT.md)。以下は監査時の記録。
+
 - **対象**: `geometry/designer.py::generate_diffuser/diffuser_design_parameters/generate`、`gui/main_window.py::_display_geometry/update_geometry/export_to_path`、`optimization/feasibility.py::evaluate_candidate`。
 - **再現**: 現既定のRCを選択。実3D HubはR130→90、Z95 mmだが、旧camberはR100→160。`artifacts/implementation-audit/probe-results.json`に両値を保存。
 - **影響**: 中央2Dと3D／TurboGridは一致しても、Metrics・Curvature・status Throat・CSV・最適化制約が別形状を評価する。`update_geometry`は先に旧2Dを生成するため、旧パラメータエラーが実3Dの更新を止める経路もある（後者はコード確認、今回のGUI再現は未実施）。

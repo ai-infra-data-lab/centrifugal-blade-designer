@@ -34,6 +34,9 @@ from .combined_profile_editor import CombinedProfileEditor
 from .plot_fitting import fit_visible_plots
 from .plot_widgets import BladePlotWidget, FullAnnulusPlotWidget, CurvaturePlotWidget
 from .metrics_widget import MetricsWidget
+from .row_metrics_widget import RowMetricsWidget
+from ..fileio.geometry_source import geometry_source
+from ..fileio.row_xyz_csv import export_row_xyz_csv
 from .passage_widget import PassageWidget
 from .optimization_widget import OptimizationWidget
 
@@ -87,6 +90,10 @@ class MainWindow(QMainWindow):
         self.thickness_editor = CombinedProfileEditor("thickness")
         self.curvature_plot = CurvaturePlotWidget()
         self.metrics_widget = MetricsWidget()
+        self.row_metrics_widget = RowMetricsWidget()
+        self.row_metrics_widget.refreshRequested.connect(self.update_geometry)
+        self.geometry_sources = {}
+        self._wall_geometry = None
         self.passage_widget = PassageWidget()
         self.cad_editor=CadEditor()
         self.cad_editor.parametersChanged.connect(self._cad_settings_changed)
@@ -243,8 +250,11 @@ class MainWindow(QMainWindow):
         fit_action=self.view_menu.addAction("Fit View");fit_action.triggered.connect(self.fit_view)
         self.view_menu.addSeparator()
         self.view_menu.addAction("Output Settings").triggered.connect(self.show_output_settings)
-        for label in ("Flow Area", "Passage Area / Throat", "Metrics", "3D Preview", "Diffuser Curvature"):
-            self.view_menu.addAction(label).triggered.connect(lambda checked=False, name=label: self.show_analysis_view(name))
+        for label in ("Flow Area", "Passage Area / Throat", "Metrics", "3D Preview", "Diffuser Curvature", "Selected Row Metrics"):
+            action=self.view_menu.addAction(label)
+            action.triggered.connect(lambda checked=False, name=label: self.show_analysis_view(name))
+            if label in ('Metrics','Diffuser Curvature'):
+                action.setToolTip('Legacy radial 2D. Use Selected Row Metrics for the actual XYZ model.')
         # Retain the existing rotation controls as hidden state adapters.
         rotation_widget=QWidget(root);rotation_layout=QHBoxLayout(rotation_widget)
         rotation_widget.hide()
@@ -277,8 +287,11 @@ class MainWindow(QMainWindow):
         self.projection.currentIndexChanged.connect(self._projection_changed)
         self.file_menu.addSeparator()
         export_menu = self.file_menu.addMenu("Export")
-        for label,callback in (("Diffuser Segments CSV",self.export_segments_dialog),("Diffuser Contour CSV",self.export_contour_dialog),("TurboGrid Export",self.export_turbogrid_dialog),("Export Readiness",self.show_export_readiness)):
-            export_menu.addAction(label).triggered.connect(callback)
+        for label,callback in (("Diffuser Segments CSV",self.export_segments_dialog),("Diffuser Contour CSV",self.export_contour_dialog),("TurboGrid Export",self.export_turbogrid_dialog),("Export Readiness",self.show_export_readiness),("Selected Row XYZ CSV",self.export_row_xyz_dialog)):
+            action=export_menu.addAction(label)
+            action.triggered.connect(callback)
+            if label in ('Diffuser Segments CSV','Diffuser Contour CSV'):
+                action.setToolTip('Legacy radial 2D compatibility CSV. Selected Row XYZ CSV exports the actual master.')
         self.file_menu.addSeparator()
         self.file_menu.addAction("Exit").triggered.connect(self.close)
         self.tools_menu.addAction("Open Optimization Mode in Separate Window").triggered.connect(self.open_optimization_mode)
@@ -382,7 +395,7 @@ class MainWindow(QMainWindow):
             self._presented_plot_key=key
 
     def _update_central_preview(self):
-        if self.geometry is None or self.impeller_geometry is None:return False
+        if self._wall_geometry is None:return False
         if self._restoring and not self._displaying_geometry:return False
         params=self.get_parameters()
         state=(self._editing_meridional,self._editing_target,params)
@@ -398,7 +411,7 @@ class MainWindow(QMainWindow):
                     entries.append((row.identifier,row.name,g,p.geometry.vane_count))
                 except (ValueError,ArithmeticError) as exc:
                     errors.append(f"ERROR — 3D {row.name}: {exc} (row omitted)")
-            self.model_preview_3d.update_rows(entries,self.impeller_geometry)
+            self.model_preview_3d.update_rows(entries,self._wall_geometry)
             for context in (self.context_meridional,self.meridional_editor.context):
                 context.update_tip_profiles([(f'{name} [{identifier}]',g) for identifier,name,g,_ in entries if g.tip is not None or g.trim_report is not None])
         elif self._selected_3d_geometry is not None:
@@ -447,7 +460,8 @@ class MainWindow(QMainWindow):
     def show_analysis_view(self, name):
         widget = {"Flow Area": self.flow_area_widget, "Metrics": self.metrics_widget,
                   "Passage Area / Throat": self.passage_widget,
-                  "3D Preview": self.preview_3d, "Diffuser Curvature": self.curvature_plot}[name]
+                  "3D Preview": self.preview_3d, "Diffuser Curvature": self.curvature_plot,
+                  "Selected Row Metrics": self.row_metrics_widget}[name]
         return self._show_tool_dialog(name, widget)
 
     def open_optimization_mode(self):
@@ -473,7 +487,7 @@ class MainWindow(QMainWindow):
         self.context_meridional.fit_view()
         self.flow_area_widget.fit_view()
         for plot in (self.blade_plot,self.annulus_plot,self.angle_editor.plot,self.thickness_editor.plot,
-                     self.curvature_plot.plot,self.metrics_widget.plot,
+                     self.curvature_plot.plot,self.metrics_widget.plot,self.row_metrics_widget.plot,
                      *([self.optimization_widget.plot] if self.optimization_widget is not None else [])):
             plot.autoRange()
             plot.disableAutoRange()
@@ -517,6 +531,7 @@ class MainWindow(QMainWindow):
         return params
 
     def set_parameters(self, params: BladeParameters) -> None:
+        self.row_metrics_widget.invalidate()
         self._invalidate_export_readiness()
         params=self._with_shared_impeller_edges(params)
         previous=self._restoring;self._restoring=True
@@ -666,6 +681,7 @@ class MainWindow(QMainWindow):
                 if row.identifier!=self._active_row for key in ("impeller_edges","diffuser_edges")]
 
     def _select_meridional(self):
+        self.row_metrics_widget.invalidate("左側で翼列を選択してください。")
         self.commit_edit()
         self._editing_meridional = True
         self.passage_widget.set_source()
@@ -878,6 +894,7 @@ class MainWindow(QMainWindow):
         self.output_editor.set_parameters(p)
 
     def _schedule_update(self) -> None:
+        self.row_metrics_widget.invalidate()
         self._invalidate_export_readiness()
         self._bind_history_inputs()
         self.passage_widget.set_source()
@@ -910,19 +927,24 @@ class MainWindow(QMainWindow):
         form.labelForField(self.panel.controls["theta_le_deg"]).setText(
             "Hub Theta LE [deg]" if self._editing_target==0 and self.rake_group.isChecked() else "Theta LE [deg]")
 
-    def _display_geometry(self, geometry: BladeGeometry, params: BladeParameters, impeller=None) -> None:
-        impeller = self.designer.generate_3d(params) if impeller is None else impeller
-        diffuser=None;diffuser_error=None
-        if self._editing_target != 0:
-            try:diffuser=self.designer.generate_diffuser_3d(params)
-            except (ValueError,ArithmeticError) as exc:diffuser_error=str(exc)
-        area=calculate_flow_area(impeller.hub,impeller.shroud,params.flow_path,points=params.resolution.area_points,strict=False,mean_points=params.resolution.mean_points)
+    def _display_geometry(self, geometry: BladeGeometry, params: BladeParameters, impeller=None, legacy_error=None) -> None:
+        diffuser = self.designer.generate_diffuser_3d(params) if self._editing_target != 0 else None
+        reference_error = None
+        if impeller is None:
+            try:impeller = self.designer.generate_3d(params)
+            except (ValueError, ArithmeticError) as exc:
+                if self._editing_target == 0:raise
+                reference_error = str(exc)
+        wall_geometry = impeller if self._editing_target == 0 else diffuser
+        self._wall_geometry = wall_geometry
+        area=calculate_flow_area(wall_geometry.hub,wall_geometry.shroud,params.flow_path,points=params.resolution.area_points,strict=False,mean_points=params.resolution.mean_points)
         self.flow_area_result=area
         self.flow_area_widget.update_result(area,params.flow_path)
         self.impeller_geometry = impeller
-        source_impeller=impeller.source_geometry or impeller
-        self.trim_editor.show_geometry(impeller)
-        self.splitter_editor.show_geometry(impeller,params.geometry.vane_count)
+        source_geometry=wall_geometry.source_geometry or wall_geometry
+        if impeller is not None:
+            self.trim_editor.show_geometry(impeller)
+            self.splitter_editor.show_geometry(impeller,params.geometry.vane_count)
         if self._editing_target==0 and params.impeller_te_rake_deg is not None:
             from ..geometry.impeller_parameter_mapper import measure_te_rake
             le=[np.rad2deg(s.camber.theta_rad[0]) for s in impeller.sections]
@@ -936,8 +958,8 @@ class MainWindow(QMainWindow):
             self.diffuser_geometry = diffuser
             self.preview_3d.update_diffuser(diffuser)
         for context in (self.context_meridional, self.meridional_editor.context):
-            context.update_geometry(source_impeller,params.flow_path,params.resolution.mean_points)
-            context.update_blade_edges(source_impeller,params)
+            context.update_geometry(source_geometry,params.flow_path,params.resolution.mean_points)
+            context.update_blade_edges(source_geometry,params)
         selected = (impeller.sections[self._section_index] if self._editing_target==0 or diffuser is None
                     else diffuser.sections[0])
         section_name = "Hub" if selected.span==0 else "Tip" if selected.span==1 else f"Span {selected.span:.6g}"
@@ -974,51 +996,90 @@ class MainWindow(QMainWindow):
             self.annulus_plot.update_impeller_annulus(selected,params.geometry.vane_count,plane,row_name)
         else:self.annulus_plot.update_annulus(geometry,params.geometry.vane_count)
         if self._editing_target==0:
-            for profile in source_impeller.sections:
+            for profile in source_geometry.sections:
                 self.angle_editor.update_profile_distribution(profile.span,profile.camber.m_blade_norm,profile.beta_m_deg)
                 self.thickness_editor.update_profile_distribution(profile.span,profile.camber.m_blade_norm,profile.thickness)
         else:
-            self.angle_editor.update_distribution(geometry.camber.m_norm,np.rad2deg(geometry.camber.beta_m_rad))
-            self.thickness_editor.update_distribution(geometry.camber.m_norm,geometry.thickness)
-        sections=source_impeller.splitter_sections if self._editing_target==0 else None
+            if geometry is not None:
+                self.angle_editor.update_distribution(geometry.camber.m_norm,np.rad2deg(geometry.camber.beta_m_rad))
+                self.thickness_editor.update_distribution(geometry.camber.m_norm,geometry.thickness)
+            else:
+                self.angle_editor.update_distribution(selected.camber.m_blade_norm,selected.beta_m_deg)
+                self.thickness_editor.update_distribution(selected.camber.m_blade_norm,selected.thickness)
+        sections=source_geometry.splitter_sections if self._editing_target==0 else None
         independent=sections is not None and params.splitter.sections is not None
         for host,peer in ((self.angle_editor,self.splitter_editor.angle_editor),(self.thickness_editor,self.splitter_editor.thickness_editor)):
             host.set_splitter(sections,params.splitter,peer if independent else None)
-        self.curvature_plot.update_geometry(geometry)
-        self.metrics_widget.update_geometry(geometry,params.geometry.vane_count)
-        self.geometry = geometry
+        actual_source=geometry_source(params, 'meridional_3d', kind='impeller' if self._editing_target==0 else 'diffuser',
+                                      variant='derived' if wall_geometry.trim_report else 'base')
+        self.geometry_sources={'actual':actual_source}
+        if self._editing_meridional:
+            self.row_metrics_widget.invalidate('左側で翼列を選択してください。')
+        else:self.row_metrics_widget.update_geometry(wall_geometry,actual_source,params.geometry.vane_count)
+        self._display_legacy_geometry(geometry,params,legacy_error)
         self._displaying_geometry=True
         try:self._refresh_model_view()
         finally:self._displaying_geometry=False
-        messages = [f"{i.level.value.upper()} — {i.field}: {i.message}" for i in geometry.warnings]
+        messages = [f"{i.level.value.upper()} — {i.field}: {i.message}" for i in geometry.warnings] if geometry is not None else []
         messages.extend(self._central_preview_errors)
-        if impeller.trim_report:
+        if wall_geometry.trim_report:
             messages.append('TRIM — 中央表示・Flow Area・Passageは派生形状。角度・厚さとLE/TE編集は元設計です。Flow Areaは変更後平均線の断面であり、指定カット率の元基準断面とは異なります。TurboGrid/CAD出力は未対応。')
-        if diffuser_error:
-            messages.append(f"ERROR — Diffuser 3D: {diffuser_error}\n3D preview shows the last valid geometry; 2D remains updated.")
+        if reference_error:messages.append('REFERENCE Impeller unavailable: '+reference_error+'; selected stator remains current.')
+        if legacy_error:messages.append('LEGACY 2D ERROR — '+legacy_error+'; selected XYZ model is current.')
         if area.errors:messages.append(f"FLOW AREA — {len(area.errors)} unavailable cross-sections: {area.errors[0]}")
         self.messages.setPlainText("\n".join(messages) if messages else "Ready")
-        t = geometry.metrics.throat
+        t = geometry.metrics.throat if geometry is not None else None
         throat_text = "N/A" if t is None else f"{t.width:.6f} mm"
-        self.statusBar().showMessage(f"Impeller: {len(impeller.sections)} sections  |  Diffuser {'WARNING' if messages else 'Ready'}  |  Throat = {throat_text}  |  PS: {geometry.resolved_mapping.value}")
+        self.statusBar().showMessage(f"{row_name}: XYZ current  |  {'LEGACY 2D ERROR' if legacy_error else 'WARNING' if messages else 'Ready'}  |  Legacy 2D throat = {throat_text}  |  Actual metrics: View → Selected Row Metrics")
+
+    def _display_legacy_geometry(self, geometry, params, legacy_error=None):
+        self.geometry_sources.pop('legacy',None)
+        if geometry is not None:
+            legacy_source=geometry_source(params,'legacy_radial_2d',kind='impeller' if self._editing_target==0 else 'diffuser')
+            self.geometry_sources['legacy']=legacy_source
+            self.curvature_plot.update_geometry(geometry)
+            self.metrics_widget.update_geometry(geometry,params.geometry.vane_count)
+            self.curvature_plot.plot.setTitle(f'Legacy radial 2D | {legacy_source.row_name} [{legacy_source.row_id}] | {legacy_source.snapshot_hash[:12]}')
+            self.metrics_widget.plot.setTitle(f'Legacy radial 2D | {legacy_source.row_name} [{legacy_source.row_id}] | {legacy_source.snapshot_hash[:12]}')
+            for widget in (self.curvature_plot,self.metrics_widget):widget.setToolTip('Snapshot: '+legacy_source.snapshot_hash+'; not the central XYZ model.')
+            self.geometry = geometry
+        else:
+            for widget in (self.curvature_plot,self.metrics_widget):
+                widget.geometry=None
+                widget.setToolTip('Legacy radial 2D unavailable: '+str(legacy_error))
+                widget.plot.setTitle('Legacy radial 2D unavailable: '+str(legacy_error))
+            self.metrics_widget.table.setRowCount(0);self.metrics_widget.curve.setData([],[])
+            self.curvature_plot.ps_curve.setData([],[]);self.curvature_plot.ss_curve.setData([],[])
 
     def update_geometry(self) -> None:
         self._invalidate_export_readiness()
         self.timer.stop()
+        params=geometry=None
         try:
             params = self.get_parameters()
-            geometry = self.designer.generate_diffuser(params)
-            self._display_geometry(geometry,params)
+            try:geometry = self.designer.generate_diffuser(params);legacy_error=None
+            except (ValueError, ArithmeticError) as exc:geometry=None;legacy_error=str(exc)
+            self._display_geometry(geometry,params,legacy_error=legacy_error)
         except (ValueError, ArithmeticError) as exc:
             self.passage_widget.set_source()
+            self.row_metrics_widget.invalidate("現在の形状が無効です。最終有効表示の測定値は使用しません。")
+            self.geometry_sources={}
+            if geometry is not None and params is not None:
+                try:
+                    self._display_legacy_geometry(geometry,params)
+                    if self._editing_target==1:
+                        self.angle_editor.update_distribution(geometry.camber.m_norm,np.rad2deg(geometry.camber.beta_m_rad))
+                        self.thickness_editor.update_distribution(geometry.camber.m_norm,geometry.thickness)
+                except (ValueError,ArithmeticError) as source_error:
+                    self._display_legacy_geometry(None,params,str(source_error))
             if self.trim_editor.isChecked():self.trim_editor.status.setText(f'計算不可: {exc}')
-            text = f"ERROR — {exc}\nShowing last valid geometry."
+            text = f"ERROR — {'Diffuser 3D: ' if self._editing_target==1 else ''}{exc}\nShowing last valid geometry."
             self.messages.setPlainText(text)
             self.statusBar().showMessage("ERROR — correct input values; showing last valid geometry.")
 
     def new_project(self) -> None:
         self.set_parameters(deepcopy(self._default_parameters))
-        if self.optimization_widget is not None:self.optimization_widget.set_baseline(diffuser_design_parameters(self.get_parameters()))
+        if self.optimization_widget is not None:self._set_optimization_baseline(self.get_parameters())
         self.project_path = None
         self._reset_history()
         self.update_geometry()
@@ -1029,7 +1090,7 @@ class MainWindow(QMainWindow):
         geometry = self.designer.generate_diffuser(params)
         impeller = self.designer.generate_3d(params)
         self.set_parameters(params)
-        if self.optimization_widget is not None:self.optimization_widget.set_baseline(diffuser_design_parameters(params))
+        if self.optimization_widget is not None:self._set_optimization_baseline(params)
         self.project_path = Path(path)
         self._reset_history()
         self.timer.stop()
@@ -1045,13 +1106,30 @@ class MainWindow(QMainWindow):
         self.project_path = Path(path)
         self.statusBar().showMessage(f"Saved: {path}")
 
+    def export_row_xyz_to_path(self, path):
+        if self._editing_meridional:raise ValueError('Select a blade row for XYZ CSV export.')
+        params=self.get_parameters()
+        geometry=(self.designer.generate_3d(params) if self._editing_target==0 else self.designer.generate_diffuser_3d(params))
+        source=geometry_source(params,'meridional_3d',kind='impeller' if self._editing_target==0 else 'diffuser',
+                               variant='derived' if geometry.trim_report else 'base')
+        export_row_xyz_csv(path,geometry,source,params.export.significant_digits)
+        self.statusBar().showMessage('Exported actual XYZ master: '+str(path)+' | '+source.label)
+
+    def export_row_xyz_dialog(self):
+        if self._editing_meridional:
+            QMessageBox.warning(self,'XYZ CSV','Select a blade row for XYZ CSV export.');return
+        path,_=QFileDialog.getSaveFileName(self,'Export Selected Row XYZ master (mm / Z axis)','','CSV (*.csv)')
+        if path:
+            try:self.export_row_xyz_to_path(path)
+            except (ValueError,ArithmeticError,OSError) as exc:QMessageBox.warning(self,'XYZ CSV',str(exc))
+
     def export_to_path(self, path: str | Path, contour: bool = False) -> None:
         if self._blade_rows is not None and self._editing_target != 1:
             raise ValueError("Select a Diffuser blade row for CSV export.")
         params = self.get_parameters()
         geometry = self.designer.generate_diffuser(params)
         (export_contour_csv if contour else export_segments_csv)(path,geometry,params.export)
-        self.statusBar().showMessage(f"Exported: {path}")
+        self.statusBar().showMessage(f"Exported legacy radial 2D: {path}")
 
     def open_project_dialog(self) -> None:
         path,_ = QFileDialog.getOpenFileName(self,"Open Project","","Project JSON (*.json)")
@@ -1066,7 +1144,7 @@ class MainWindow(QMainWindow):
             except (OSError,ValueError) as exc: QMessageBox.warning(self,"Save Project",str(exc))
 
     def _export_dialog(self, contour: bool) -> None:
-        path,_ = QFileDialog.getSaveFileName(self,"Export Closed Contour CSV" if contour else "Export Segments CSV",
+        path,_ = QFileDialog.getSaveFileName(self,"Export Legacy radial 2D Contour CSV" if contour else "Export Legacy radial 2D Segments CSV",
                      "blade_contour.csv" if contour else "blade_segments.csv","CSV (*.csv)")
         if path:
             try: self.export_to_path(path,contour)
@@ -1078,6 +1156,10 @@ class MainWindow(QMainWindow):
     def export_contour_dialog(self) -> None:
         self._export_dialog(True)
 
+    def _set_optimization_baseline(self, params):
+        self.optimization_widget.set_baseline(diffuser_design_parameters(params),
+            geometry_source(params,'legacy_radial_2d',kind='diffuser'))
+
     def capture_optimization_baseline(self) -> None:
         if self.optimization_widget is None:return
         if self._blade_rows is not None and self._editing_target != 1:
@@ -1086,7 +1168,7 @@ class MainWindow(QMainWindow):
         try:
             params = self.get_parameters()
             self.designer.generate_diffuser(params)
-            if self.optimization_widget is not None:self.optimization_widget.set_baseline(diffuser_design_parameters(params))
+            if self.optimization_widget is not None:self._set_optimization_baseline(params)
         except (ValueError, ArithmeticError) as exc:
             self.optimization_widget.report.setPlainText(f"Cannot capture baseline: {exc}")
 
@@ -1222,6 +1304,7 @@ class MainWindow(QMainWindow):
 
 
     def _cad_settings_changed(self,*args):
+        self.row_metrics_widget.invalidate()
         self._invalidate_export_readiness()
         if self._restoring or not hasattr(self,"timer"):return
         self._bind_history_inputs();self.commit_edit();self._sync_cad_preview()

@@ -205,3 +205,9 @@ geometry/span_extension.extend_tip_to_shroudは実Tipと直前のSpanから円�
 ## 出力入力条件の診断（Stage 1C）
 
 `fileio/export_readiness.py`は設計のcopyから経路別Checkとsnapshot hashを返す。Qt／OCP・書込み・CAD起動に依存しない。Profile Pointsは共通のpure prepareを利用し、CADは入力条件と未実施のkernel検証を区別する。`gui/export_readiness_widget.py`が読取り専用表示を担当し、MainWindowはメニュー入口と失効通知のみを追加する。新たな設計値・永続設定・Undoコマンドは追加しない。既存出力の対応制限は維持する。詳細は[検証記録](EXPORT_QUALITY_IMPROVEMENTS.md)。
+
+## 実断面の識別と測定（Stage 2A）
+
+`models/geometry_source.py`は結果のrow context・engine・variant・snapshot IDを表す非永続型。`fileio/geometry_source.py`がCADと同じcanonical snapshot hashを付ける。`geometry/section_measurements.py`は実camber／master曲線からXYZ指標を計算し、`gui/row_metrics_widget.py`が読取り専用で表示する。中央2D／3DとPassageには同じ生成結果を渡す。新しい`fileio/row_xyz_csv.py`は現在入力を再生成したmaster点をmm/Z座標でatomicな単一ファイル出力にする。旧writer／旧数値生成器は変更しない。
+
+MainWindowはlegacy計算失敗時にlegacy表・曲線・current sourceを解除し、有効な選択3Dの表示を継続する。静翼の参考Impellerが失敗しても共有壁面には選択静翼を使える。`MainWindow.geometry`の最後のlegacyオブジェクトは互換APIとして残るが、currentには使わない。共通入力検証とJSON全体検証の既存契約はStage 2B以降の対象。定義・精度・GUI・CSV・検証の詳細は[形状正本の契約](GEOMETRY_SOURCE_CONTRACT.md)。

@@ -6,7 +6,7 @@
 
 根元フィレットの受入れ条件は、その後の利用者指示により**対象形状で成立する半径で実フィレットを生成できること**とする。R8は必須ではない。R8未満の明示的な試行を認め、成功した半径でBREP・結合・STEP再読込み・半径測定を確認する。試行値を記録し、既定値やユーザー入力を黙って小さくしない。過去のR8失敗記録と独立fixture R8試験は履歴・回帰として保持する。
 
-実装進捗: **Stage 1A完了**（全832一意件成功、既存出力参照不変）。**Stage 1B完了**（全860一意件成功、保持バックアップ・中断復旧、既存16出力bytes不変）。**Stage 1C完了**（全872一意件成功。入力診断とCAD／ANSYS未実施を区別）。Stage 2以降は未完了。監査時の不具合記録と現在の対応状況を区別する。[変更・検証記録](EXPORT_QUALITY_IMPROVEMENTS.md)。
+実装進捗: **Stage 1A完了**（全832一意件成功、既存出力参照不変）。**Stage 1B完了**（全860一意件成功、保持バックアップ・中断復旧、既存16出力bytes不変）。**Stage 1C完了**（全872一意件成功。入力診断とCAD／ANSYS未実施を区別）。**Stage 2A完了**（実断面指標・XYZ CSV・正本識別。全906一意件成功、原本・既定・数値fixture不変）。Stage 2B（共通入力／Load・Save検証契約の分離）以降は未完了。監査時の不具合記録と現在の対応状況を区別する。[変更・検証記録](EXPORT_QUALITY_IMPROVEMENTS.md)。
 
 ## 優先順位
 
@@ -28,6 +28,7 @@
 | 1B: 安全な公開 | E02。生成・検証・公開を分離し世代別case／manifestで一括参照 | 0。1Aの検証器を利用 | 各replace、権限不足、ディスクエラー、Windowsロック、取消／プロセス異常の故障注入。旧一式か検証済み新一式のみ有効。既存成功report、STEP、curve、manifestのhashを保護。クラッシュ復旧手順も検証 |
 | 1C: Readiness | D01、C01。選択row、所属範囲、Splitter、trim、gap、CAD backend／ディスク／根元の可否を分離 | 0 | 現既定でProfile PointsのSplitter制限と所属エラー、CADの未成立を別理由として表示。診断だけで設計値・原本・出力を変更しない。Blade Only PASSをR8 PASSにしない |
 | 2: 形状正本と指標 | G01。row ID・snapshot・geometry種別を付け、実3D指標を新経路にする | 1C | RC R130→90と旧100→160を混同しない。中央2D/3D、Passage、CSV、新指標が同じmasterに対応。旧CSVは明示legacyで互換保持。失敗した旧2Dが無関係な3D更新を遮断しない |
+| 2B: 検証契約の分離 | G01。共通validate_parameters、3D generator、JSON全体チェックに残る旧2D／未選択Impeller依存を分離 | 2Aの正本識別・互換fixture | 無関係な旧半径・未選択行の値を仮の既定値へ置換しない。各対象が使う値を検査し、保存時の設計成立性ポリシーと旧JSONの受入れを明示。正当な既存拒否・精度を維持する |
 | 3A: Surface契約 | G05。streamwise／Span対応と共通surface評価器 | 2 | 正本が線形／高次のどちらか明示。Hub/Tip・中間Span、強ねじれ、Rake、gap、Splitter、trimの密な対応点でpreview/CAD/trimを比較。密度収束と誤差予算を保存 |
 | 3B: 3D品質ゲート | G02/G07。Span面自己交差・隣接周期翼・主翼/Splitter干渉 | 3A。高速検査は2後に先行可能 | 高翼数1000、極端pitch_fraction、強Spanねじれで意図的FAIL。断面上だけ正常な不成立面を独立fixtureで検出。正常旧fixture不変。出力前に全経路で実行し、未検査は未検査と返す |
 | 3C: 定義と局所精度 | G03/G04/G06。端部接線、実肉厚、クリアランス | 3A。定義の説明は0後から可能 | 厚み勾配ありでG0/G1/曲率を別測定。既存定義を保持した実最小肉厚・gap測定。Line/Arc解析解、曲率限界とadaptive収束を照合。形状方式の変更には互換選択が必要 |

@@ -1,6 +1,8 @@
 # 既存機能一覧
 
 
+2026-10-17 品質改善Stage 2A: `View → Selected Row Metrics`で中央表示と同じ実断面のXYZ弦長・翼線長・空間曲率を測定し、Main/Splitter・Spanを選択可能にした。`File → Export → Selected Row XYZ CSV`へ同じmaster点・単位mm/Z軸・row ID・snapshot・有効桁数を含む新CSVを追加。既存Metrics／Curvature／XY CSV／最適化はlegacy radial 2Dと明示して互換維持。旧2D計算や参考Impellerの計算エラーは有効な静翼表示から分離し、旧結果をcurrentとして扱わない。新規34件を含む最終全回帰906一意件成功（通常871件・実CAD35件、failure/error/skip/実行漏れ/重複なし）。固定237入力、原本と既定JSONの不変を確認。native操作・高DPI・ANSYSは未検証。点編集のcurrent cellと選択範囲が独立に変わる場合の端点削除ボタン保護も補強。共通入力検証／Load・Saveのlegacy依存の分離はStage 2Bとして残す。設計値・JSON・TurboGrid・既存数値fixtureは変更しない。[形状正本と測定の契約](docs/GEOMETRY_SOURCE_CONTRACT.md)。
+
 2026-10-17 品質改善Stage 1C: `File → Export → Export Readiness`へ選択翼列の読取り専用診断を追加。Profile Points／Mechanical STEP／TurboGrid CADを分け、入力段階の制限・所属・ディスク・backend実行ファイルの有無を表示。CAD kernel、指定Rのフィレット、全面3D干渉、ANSYS Import/Meshは未実施として区別する。設計・Undo・Camera・原本・出力を変更せず、編集後は古い診断を失効させる。新規12件、関連19件成功。最終全回帰872一意件成功（通常268/262/307件、実CAD35件）、failure/error/skip/実行漏れ/重複なし。固定229入力・原本／既定JSON不変。native操作・対象形状の根元fillet成立・ANSYS Import/Meshは未検証／未解決。[出力品質の記録](docs/EXPORT_QUALITY_IMPROVEMENTS.md)。
 
 2026-10-17 品質改善Stage 1B: TurboGrid／CADケースを別領域で完成・検証してからディレクトリを切替。既存ケースをバックアップへ保持し、中断復旧・OSロック・容量不足・hash不一致・metadata失敗を検査。2回のrename間は保存先名が一時不在となるため、単一の原子的切替や実停電耐久性は保証しない。全860一意件成功（実CAD35件を含む）、skipなし、従来16出力のraw bytes不変。出力用の専用フォルダを指定し、保持バックアップは内容確認後に整理する。[詳細・制約](docs/EXPORT_QUALITY_IMPROVEMENTS.md)。

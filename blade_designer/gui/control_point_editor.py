@@ -113,6 +113,8 @@ class ControlPointEditor(QWidget):
         self.add_button.clicked.connect(self.add_point)
         self.delete_button.clicked.connect(self.delete_point)
         self.table.itemSelectionChanged.connect(self._selection_changed)
+        # Current cell and selected rows can change independently (e.g. keyboard focus).
+        self.table.currentCellChanged.connect(lambda *_: self._selection_changed())
         actions.addWidget(self.add_button)
         actions.addWidget(self.delete_button)
         actions.addStretch()

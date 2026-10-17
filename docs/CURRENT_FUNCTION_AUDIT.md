@@ -109,3 +109,7 @@ Mechanicalはsolid数・結合・根元半径・実機ディスク寸法・周�
 ## Stage 1Cの追記
 
 選択翼列の出力入力条件を`File → Export → Export Readiness`で診断する。根拠は`fileio/export_readiness.py`、`gui/export_readiness_widget.py`、`MainWindow.show_export_readiness`。新規`test_export_readiness.py`9件と`test_readiness_widget.py`3件、既存メニュー7件の関連試験が成功。3経路の未対応理由を別々に表示し、CAD生成やANSYS実行の成功にはしない。原本・既定・出力・設計値を変えない。全面3D干渉や対象形状の根元filletの成立は未検証／未解決のまま。最終回帰記録は[実装ログ](EXPORT_QUALITY_IMPROVEMENTS.md)を参照。
+
+## Stage 2Aの追記（G01は部分対応）
+
+新経路の実断面指標とXYZ CSVは中央表示のmeridional_3d masterを使い、row ID／snapshot／geometry種別を付ける。旧Metrics／Curvature／XY CSV／最適化はlegacyとして明示する。根拠: `geometry/section_measurements.py`、`models/geometry_source.py`、`fileio/geometry_source.py`、`fileio/row_xyz_csv.py`、`gui/row_metrics_widget.py`とMainWindowの接続。新規34ケースは`test_section_measurements.py`、`test_row_xyz_csv.py`、`test_row_measurements_gui.py`。共通入力検証・JSON全体検証のlegacy依存や最適化の実3D制約化は未完了。精度と検証結果は[GEOMETRY_SOURCE_CONTRACT.md](GEOMETRY_SOURCE_CONTRACT.md)。

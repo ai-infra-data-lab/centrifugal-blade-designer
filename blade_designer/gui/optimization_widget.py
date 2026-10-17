@@ -11,6 +11,7 @@ from ..optimization.presets import default_parameters,GROUPS
 from ..optimization.parameter_mapper import ParameterMapper
 from ..optimization.feasibility import evaluate_candidate
 from .control_point_editor import CompactDoubleSpinBox
+from ..fileio.geometry_source import geometry_source
 from .plot_widgets import configure_plot,COLORS
 
 CONSTRAINT_LABELS = {
@@ -36,6 +37,10 @@ class OptimizationWidget(QWidget):
         self.rows: list[dict] = []
         self.last_result: CandidateResult | None = None
         layout = QVBoxLayout(self)
+        self.source_label=QLabel('Legacy radial 2D screening / candidate preview. Not the selected meridional XYZ model; no CFD or full 3D interference test.')
+        self.source_label.setWordWrap(True);layout.addWidget(self.source_label)
+        self.baseline_source=None
+        self.candidate_source=None
         toolbar = QHBoxLayout()
         self.mode = QComboBox()
         self.mode.addItem("Geometry Optimization",OptimizationMode.GEOMETRY.value)
@@ -127,10 +132,14 @@ class OptimizationWidget(QWidget):
         spin.setSingleStep(.1)
         return spin
 
-    def set_baseline(self, design: BladeParameters) -> None:
+    def set_baseline(self, design: BladeParameters, source=None) -> None:
         errors = [i for i in validate_parameters(design) if i.level == ValidationLevel.ERROR]
         if errors:
             raise ValueError("; ".join(i.message for i in errors))
+        self.baseline_source=source
+        self.source_label.setText('Legacy radial 2D screening / candidate preview. No CFD or full 3D interference test.\n'+
+                                  ('Baseline: '+source.label if source else 'API baseline: no project row identity.'))
+        self.source_label.setToolTip('Snapshot: '+source.snapshot_hash if source else '')
         self._baseline = deepcopy(design)
         self._reset_parameters()
 
@@ -190,6 +199,7 @@ class OptimizationWidget(QWidget):
         if self._loading:
             return
         self.last_result = None
+        self.candidate_source = None
         self.apply_button.setEnabled(False)
         self.report.setPlainText("Not evaluated. Generate a candidate to check feasibility. No CFD is executed.")
         for curve in self.curves.values():
@@ -225,12 +235,15 @@ class OptimizationWidget(QWidget):
     def preview_candidate(self) -> None:
         self.apply_button.setEnabled(False)
         self.last_result = None
+        self.candidate_source = None
         for curve in self.curves.values():
             curve.setData([],[])
         try:
             mapper = ParameterMapper(self.get_parameters(),self._baseline,OptimizationMode(self.mode.currentData()))
             result = evaluate_candidate(mapper,mapper.initial_vector(),self.get_constraints())
             self.last_result = result
+            self.candidate_source=(geometry_source(result.design,'legacy_radial_2d',kind='diffuser',variant='candidate')
+                                   if result.design is not None else None)
             header = "FEASIBLE — candidate can be applied." if result.feasible else "REJECTED — do not pass this candidate to CFD."
             lines = [header,f"Active vector dimensions: {len(mapper.active_parameters)}"]
             for check in result.feasibility.checks:
@@ -244,6 +257,7 @@ class OptimizationWidget(QWidget):
                 if t is not None:
                     lines.append(f"Throat location: {t.blade1_segment} / adjacent {t.blade2_segment} (edge location is allowed)")
                 self.plot.disableAutoRange()
+            lines.insert(0,"Legacy radial 2D candidate snapshot: "+(self.candidate_source.snapshot_hash if self.candidate_source else "unavailable (invalid candidate)"))
             self.report.setPlainText("\n".join(lines))
             self.apply_button.setEnabled(result.feasible)
         except (ValueError,ArithmeticError) as exc:
