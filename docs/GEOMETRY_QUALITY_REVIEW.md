@@ -61,6 +61,8 @@ Hub/Tipは`geometry/blade_edge.py::blade_wall_parameters`の共通参照LE/TE節
 
 ### G05 — Span間の連続面とCAD近似の一致保証に穴がある [P1・B]
 
+**部分対応（Stage 3A-1）**: 非Qt／非OCPの共通数値評価器を追加し、CAD spline構築とtrim列補間を共通化。独立解析面と実OCCT内部点比較を検証した。既存の3方式は変更しておらず、同一面にはなっていない。診断用の対応座標を揃えたモデル差を、現行preview／trimの誤差や公差超過と断定しない。実対応座標・source_spanの統一、正本の適用、全面保証はStage 3A-2以降。[方式・誤差の区別](SURFACE_EVALUATION_CONTRACT.md)。以下は監査時の記録。
+
 - **対象**: `geometry/span.py::interpolate_span_position`、`gui/preview_3d.py::_section_lines`、`cad/occt_backend.py::create_surface/create_blade_solid`、`geometry/impeller_trim.py::_span_curve`。
 - **条件**: Impellerに3断面以上を置き、Spanごとに大きくβ／厚み／Stackingを変える。CADはSpan方向に最大3次の補間、通常previewは既存断面間の接続線、派生カットは円筒座標の区分線形補間。2断面の静翼には同じ3次overshoot問題をそのまま適用しない。
 - **証拠**: CADのmaster偏差は入力した各Span上のmaster点で測定し、Span間の密な対応点は検証していない。CAD補間の連続性と交差の不存在は別。実形状で規定公差を超えたと今回断定してはいない。

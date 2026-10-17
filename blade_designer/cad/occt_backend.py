@@ -43,15 +43,11 @@ class OcctBackend:
     version=version("cadquery-ocp")
 
     def create_surface(self,rows,count,parameters=None,spans=None,tangents=None):
-        from scipy.interpolate import make_interp_spline
+        from ..geometry.surface_evaluation import fit_surface_spline
         from OCP.Geom import Geom_BSplineSurface
         from OCP.collections import Array1_double,Array1_int
-        xi=np.linspace(0,1,count)
-        parameters=parameters or [np.linspace(0,1,len(row)) for row in rows]
-        spans=np.linspace(0,1,len(rows)) if spans is None else np.asarray(spans)
-        samples=np.array([np.column_stack([np.interp(xi,source,row[:,k]) for k in range(3)]) for row,source in zip(rows,parameters)])
-        along=make_interp_spline(xi,samples,k=min(3,count-1),axis=1,bc_type=None if tangents is None else ([(1,tangents[0])],[(1,tangents[1])]))
-        across=make_interp_spline(spans,along.c,k=min(3,len(rows)-1),axis=1)
+        numeric=fit_surface_spline(rows,count,parameters or None,spans,tangents)
+        along,across=numeric.along,numeric.across
         # scipy coefficients are (span pole, streamwise pole, xyz).
         poles=across.c
         grid=Array2_gp_Pnt(1,poles.shape[0],1,poles.shape[1])

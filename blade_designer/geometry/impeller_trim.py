@@ -14,6 +14,7 @@ from .meridional_segments import sample_meridional, validate_flow_path
 from .flow_path import sample_mean_line
 from .flow_area import crossflow_pair
 from .blade_section import resample_curve
+from .surface_evaluation import interpolate_span_columns as _blend
 
 
 def trim_active(settings):
@@ -114,13 +115,6 @@ class _Boundary:
         index=indices[np.arange(len(points)),choice]
         normal=self.normals[index]
         return np.einsum('ij,ij->i',residual[np.arange(len(points)),choice],normal)
-
-
-def _blend(values,spans,target):
-    index=np.clip(np.searchsorted(spans,target,side='right')-1,0,len(spans)-2)
-    f=(target-spans[index])/(spans[index+1]-spans[index])
-    col=np.arange(len(target))
-    return values[index,col]*(1-f)+values[index+1,col]*f
 
 
 def _span_curve(sections,name,boundary,fraction):

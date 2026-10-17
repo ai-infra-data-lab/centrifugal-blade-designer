@@ -54,6 +54,8 @@ UTF-8 BOM付きCSV。長さmm、回転軸Zの内部XYZをそのまま出力す�
 
 最適化の実3D制約化、全Span／周期翼／主翼-Splitter干渉、実スロート面、CADとの共通surface契約、根元フィレットの成立は未完了。native操作・ANSYS Import/Meshはこの変更では検証しない。
 
+Stage 3A-1で[翼面評価の数値基盤](SURFACE_EVALUATION_CONTRACT.md)を追加したが、master曲線・source identity・既存CSVは変えていない。現行3方式を別々に評価して差を測る段階であり、実preview／trim／CADが同じ面を共有すると保証する変更ではない。
+
 ## 検証
 
 新規34ケース（形状正本・断面・CSVの32件と、current-cell端点保護の2件）。独立解析解は直線・円筒らせんの空間曲率、弦長、長さ・密度収束、剛体変換不変・一様拡大の逆曲率。統合は3翼列の全master点、CW/Rake/gap/trim/Splitterの実断面、既存CSV bytes、未選択計算の故障注入、無効現在形状と既存出力保護、snapshot、camera／history、Main/Splitter選択保持を確認する。

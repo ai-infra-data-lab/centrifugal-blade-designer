@@ -1,5 +1,7 @@
 # 現行機能の実装監査
 
+Stage 3A-1追記: 共通の非Qt翼面評価器を追加。CADの係数構築と派生カットのSpan列補間を共通層へ移し、数値評価と実OCCTの内部点比較を追加した。現行のXYZ接続／円筒補間／CAD splineは異なる方式として保持する。G05は部分対応で、実経路の対応座標統一と単一正本の適用は未完了。[翼面評価の契約](SURFACE_EVALUATION_CONTRACT.md)。
+
 Stage 2B-2追記: 3D生成に続き、row一覧ありのJSONを保存値の整合性と宣言翼種の実3D検証へ分離。未使用の旧2D順序・参考Impellerの幾何成立性によるLoad／Save拒否を除き、全宣言rowは検査する。row一覧なしの旧JSON／旧2D APIは従来契約を保持。G01は実3D最適化等が残るため部分対応。[生成時検証](ROW_VALIDATION_CONTRACT.md)、[保存検証・互換境界](ROW_PROJECT_VALIDATION.md)。
 
 監査日: 2026-10-17。対象ソース: `6b8d3be`。対象はcentrifugal_blade_designerのみ。

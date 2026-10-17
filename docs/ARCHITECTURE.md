@@ -18,6 +18,10 @@
 
 流れ: main → gui → models / geometry / fileio / optimization。
 
+## 翼面評価の数値層（Stage 3A-1）
+
+`geometry/surface_evaluation.py`はrole別対応座標とSpanで区分線形面／tensor splineを評価する。NumPy／SciPyだけに依存し、OCP・Qt・ファイル形式をimportしない。`cad/occt_backend.py::create_surface`は共通の従来係数構築結果をOCPへ移し、`geometry/impeller_trim.py::_blend`は共通の列補間を呼ぶ。Previewの既存wireframeは維持する。XYZ／円筒座標、表示index／master m_norm、派生source_spanは同一視しない。対応点差は全面誤差保証や干渉判定ではない。[方式・検証・残課題](SURFACE_EVALUATION_CONTRACT.md)。
+
 ## 翼種別の生成時検証（Stage 2B-1）
 
 `models/validation.py::validate_row_settings`は3Dで使用する共通設定と翼種固有設定を検査する。実断面・Span・壁面・選択LE/TEは`geometry/geometry_3d.py`以下が検査する。旧`validate_parameters`はlegacy 2Dとrow一覧なしのJSONの従来契約を保持する。Stage 2B-1の検証記録は[検証契約](ROW_VALIDATION_CONTRACT.md)。
