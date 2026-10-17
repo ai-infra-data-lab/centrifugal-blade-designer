@@ -85,6 +85,8 @@
 
 現既定のImpellerをメモリ上で選び、既存の仮ディスク生成を適用してMechanicalを実行した（原本未変更）。`artifacts/implementation-audit/current-default-r8/result.json`で主翼・Splitterのsolid生成とHub単体は通り、`TRUE CAD FILLET / main`で`R8: ChFi3d_Builder:only 2 faces`となった。現仮ディスクは内径20 mm、外径182 mm、裏面Z75 mm。STEPの正式出力はなく、debug STEPを完成品としない。元処理を変えない別診断でも同じ失敗を再現し、根元候補10本中7本で4個のdistinct faceの共有を確認した（`root-topology.json`）。詳しい原因範囲は品質レビュー参照。
 
+利用者の追加指示により、根元フィレットの完成条件を「R8必須」ではなく「対象形状に合う指定Rで実生成・STEP再読込み・半径測定を確認」に変更した。同じ現既定＋仮ディスクでR2／R1／R0.5 mmを独立snapshotとして実OCCTへ渡したが、3ケースとも主翼の根元フィレット段階で同じ`ChFi3d_Builder:only 2 faces`となった。小径での成功はまだ確認できていない。結果は`artifacts/implementation-audit/small-radius-results.json`。原本、既定値、計算コード、公差、既存出力は不変。この追記は文書変更と診断であり、新たな全回帰実行やANSYS確認を行った意味ではない。
+
 調査用コマンドでは最初のsandbox内Gitに親ディレクトリへのアクセスエラー、資料一覧の標準出力にCP932エンコードエラーが発生した。権限付きGitとUTF-8の出力で再確認した。アプリ／pytestの失敗ではない。数値プローブの成功、CAD失敗、環境エラーを混同しない。
 
 ## 文書とコードの差異

@@ -91,14 +91,29 @@ Hub/Tipは`geometry/blade_edge.py::blade_wall_parameters`の共通参照LE/TE節
 
 ### C01 — 現既定＋仮ディスクのR8は未成立 [P1・A]
 
+**受入れ条件の更新**: 利用者の追加指示により、対象形状で成立する小さい指定Rで実フィレットの生成を確認できればよく、R8成功は必須としない。下記R8の失敗は観測記録として残す。小径試行と、その成功／失敗は別に記録する。
+
 - **対象**: `cad/occt_backend.py::boolean_union/root_edges/apply_fillet`、`cad/worker.py::execute`、`geometry/provisional_disk.py::make_provisional_disk`。
 - **再現**: 現既定JSONをメモリへ読込み、Impellerを選択。既存機能で仮ディスクを設定し、Mechanical Blade+Hub、R8、TurboGrid CAD無効で実OCCT処理。原本・元設定は書き換えない。現仮ディスク内径20、外径182、裏面Z75 mm。
 - **結果**: 主翼solid、Splitter solid、Hub単体は有効。主翼Boolean後のroot分類を通過し、`TRUE CAD FILLET / main`で`R8: ChFi3d_Builder:only 2 faces`。`artifacts/implementation-audit/current-default-r8/result.json`。正式STEP成功はない。debugの`NO_FILLET_OR_INCOMPLETE.step`は完成出力ではない。
 - **原因の範囲**: フィレットへ渡す根元の二面隣接が崩れている。元処理を変えずroot選択後の位相だけを計測した別診断では、**現既定の根元候補10本中7本が4個のdistinct faceを共有**した。重複occurrenceを数えただけではない。該当roleはHub流路面・`BLADE_HUB_CAP`・PS/SS/LE/TEのいずれかで、主翼capの残る結合位相をfillet builderへ渡している。`artifacts/implementation-audit/root-topology.json`、`diagnose_root.py`、`current-default-r8-topology/result.json`。同じR8例外を再現した。旧既定の「15本中4本」という記録とは別の測定である。
 - **まだ特定していないこと**: 曲面Hubと近似capの位置関係、Booleanの面分割・内部面処理のどの段階がこの位相を作るかは追加調査が必要。今回の証拠は直接の二面隣接違反までで、修復後にR8が幾何的に収まることまでは示さない。
 - **既存の検査**: BRepCheck、BRepAlgoAPI_Check、閉shell、正体積・積分収束、Boolean後1solidを確認する。それらの成功だけでfillet builderが必要とする根元の二面隣接・面履歴が保証されたことにはならない。`root_edges`はroleの一意性を検査するが隣接面数2を明示確認していない。
-- **修正案**: Boolean前後の根元face/edge履歴、重複occurrenceとdistinct face、内部面・微小エッジ・cap接続を定量化し、根元を二面隣接の一意なループへ修復する。根拠なしの候補間引き・公差緩和・自動R縮小はしない。位相修復後に別途R8の幾何的収まりと干渉を評価する。真にR8が収まらない場合は設計不成立として返す。
+- **修正案**: 対象形状に合わせた小径を明示的に試す。小径でも失敗する場合はBoolean前後の根元face/edge履歴、重複occurrenceとdistinct face、内部面・微小エッジ・cap接続を定量化し、根元を二面隣接の一意なループへ修復する。根拠なしの候補間引き・公差緩和・入力値の無断縮小はしない。成立した指定Rについて幾何的収まり・干渉・STEP前後の半径を検証する。R8が収まらないだけでアプリ機能全体を未成立と判定しない。
 - **回帰**: 独立曲がり翼R8、直線翼R1、可変R2.5、狭Span R8失敗／sentinel保護を維持し、今回の既定caseを追加する。
+
+#### 小径での追加試行（利用者指示後）
+
+同じ現既定Impeller＋仮ディスク、同じ入力master座標・公差0.01 mm・Blade+Hub条件で、指定Rだけを変えた独立snapshotを実OCCTへ渡した。主翼とSplitterは有効のまま。各ケースを最初から生成し直し、既存ケースへの公開は行っていない。
+
+| 指定R [mm] | 結果 | 停止段階・例外 |
+|---|---|---|
+| 2 | FAIL | `TRUE CAD FILLET / main`、`R2: ChFi3d_Builder:only 2 faces` |
+| 1 | FAIL | 同段階、`R1: ChFi3d_Builder:only 2 faces` |
+| 0.5 | FAIL | 同段階、`R0.5: ChFi3d_Builder:only 2 faces` |
+
+結果は`artifacts/implementation-audit/small-radius-results.json`、各`current-default-r2`／`current-default-r1`／`current-default-r0.5`の`result.json`、再現スクリプトは`try_small_root_radii.py`。snapshot hashと試行Rをケースごとに記録する。これは成功試験ではなく、不成立診断3ケースである。
+今回の形状では半径を小さくするだけではフィレットを確認できなかった。同じ位相エラーが続くため、まず既に確認した四面共有の根元結合を修復する必要がある。修復後はR8を要求せず、形状に適した小さい指定Rで成功・STEP再読込み・半径を検証する。原本JSONと既定R8、形状生成コード、公差は変更していない。
 
 ### C02 — STEP再読込みの検査は全翼面の偏差保証ではない [P1・B]
 
