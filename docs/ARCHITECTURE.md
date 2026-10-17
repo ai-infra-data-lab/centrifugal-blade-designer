@@ -18,6 +18,10 @@
 
 流れ: main → gui → models / geometry / fileio / optimization。
 
+## TurboGridの整形後検査（2026-10-17、Stage 1A）
+
+fileio/turbogrid_export.pyの_validate_profile_coordinatesは、実際に丸めたXYZ文字列を再読込みし、有限値・閉鎖・連続点重複・LE/TEマーカーと各Spanの輪郭点数対応を全Profile Points経路で検査します。geometryや出力文字列は修復せず、出力先作成前に拒否します。旧通常精度のbytesは維持します。3D干渉検査とは別です。定義・全回帰832件の記録は[出力品質](EXPORT_QUALITY_IMPROVEMENTS.md)を参照。
+
 ## RCと静翼の中央2D表示（2026-10-17）
 
 中央2Dは、有効なgenerate_diffuser_3dのHub masterを直接XY投影します。Full Annulusは同じ断面をZ軸回転し、翼列名・Hub・XYを表示します。旧generate_diffuserの100→160 mm等の独立した半径設定を表示形状の正本にしません。RCは既存の子午面LE→TEで外径から内径へ生成でき、数値計算・LE/TE／βの符号・JSON kindを変更しません。旧2D計算・Metrics／Curvature・CSVは互換経路として維持し、Passage／TurboGridは実3Dの経路です。既定JSONは今回指定の原本から3翼列・RC選択の状態をコピーしました。詳細は[RETURN_CHANNEL_DISPLAY.md](RETURN_CHANNEL_DISPLAY.md)。

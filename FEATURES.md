@@ -2,6 +2,8 @@
 
 確認日: 2026-10-17。対象: Centrifugal Compressor Blade Designer v0.3と任意CAD機能v0.4。
 
+2026-10-17 品質改善Stage 1A: 通常Impellerも含め、TurboGrid Profile Pointsの丸め後の閉鎖・連続点重複・LE/TEマーカー・Span間点数を出力前に検査するよう修正。無効なら既存出力を変更せず、新規出力先も作成しない。点削除・桁数自動変更・形状変更は行わない。新規64件を含む全回帰832一意件成功（通常259/247/291件、実CAD35件）、実行漏れ・失敗・error・skipなし。歴史的ASCIIハッシュと原本JSONは保持。ANSYS Import/Mesh・native操作は未検証。[出力品質の記録](docs/EXPORT_QUALITY_IMPROVEMENTS.md)を参照。
+
 2026-10-17 根元フィレットの受入れ条件更新: 利用者指示に基づき、R8を必須とせず対象形状に成立する指定Rで生成・STEP再読込み・半径確認を行う方針へ変更。同じ現既定＋仮ディスクをR2／R1／R0.5 mmで実OCCT処理したが、3件とも主翼の根元で`ChFi3d_Builder:only 2 faces`となり、小径成功は未確認。原本・既定R・数値計算・公差・既存出力は変更せず、位相修復後も小さいRでの確認を認める。[品質レビューの小径試行](docs/GEOMETRY_QUALITY_REVIEW.md)と[改善計画](docs/DEVELOPMENT_ROADMAP.md)に記録した。全回帰の再実行・ANSYS検証はこの追記では行っていない。
 
 2026-10-17 実装・品質監査: 直前の検証済みRC修正15ファイルを`6b8d3be`へ記録し、設計アルゴリズム・入力・既存出力を変更せずレビュー資料を追加。[現行機能](docs/CURRENT_FUNCTION_AUDIT.md)、[幾何・CAD品質](docs/GEOMETRY_QUALITY_REVIEW.md)、[改善順序](docs/DEVELOPMENT_ROADMAP.md)を参照。固定済み全回帰768件の記録・221入力hashを照合、追加の既存試験81件成功。通常Impellerの丸め後重複点、周期干渉の出力前検査不足、途中I/O失敗時のcase部分更新を再現。現既定＋仮ディスクの実OCCT R8はFAILで、根元候補10本中7本が4面共有することを別診断で確認。既存fixture R8成功・Blade Only成功・実モデルR8失敗・ANSYS未検証を区別。今回これらの問題のアルゴリズム修正は実施していない。利用者の指示に基づき今後の機能修正は検証後commitまで行い、pushは別指示とする。

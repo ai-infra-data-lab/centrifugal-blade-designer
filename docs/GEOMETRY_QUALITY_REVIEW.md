@@ -134,6 +134,8 @@ Hub/Tipは`geometry/blade_edge.py::blade_wall_parameters`の共通参照LE/TE節
 
 ### E01 — 主翼のみのProfile Pointsは丸め後に重複点を出力する [P1・A]
 
+**対応済み（Stage 1A）**: 通常Impellerを含む全経路の整形後検査を追加。下記の低精度再現は現在、書込み前に拒否される。新規64件＋既存768件、全832一意件成功。既存ASCII参照は不変。[実装・検証記録](EXPORT_QUALITY_IMPROVEMENTS.md)。以下の原因・再現値は修正前の監査記録。
+
 - **対象**: `fileio/turbogrid_export.py::export_turbogrid`の`if stator or clearance`、`_coordinates`。
 - **再現**: `BladeParameters()`、significant_digits=1、Splitterなし、gapなし。設定範囲内だが出力後Hub147箇所、Tip180箇所で連続点が一致する。閉輪郭の先頭と終点の一致とは別の内部重複。
 - **原因**: 丸め後の重複・marker数・断面点数対応の検査が静翼または正gapに限られる。通常主翼は同じ検査を通らない。

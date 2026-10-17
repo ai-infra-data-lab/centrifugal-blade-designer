@@ -47,6 +47,24 @@ def _coordinates(xyz,digits,markers=None):
                    +(" "+markers[i] if markers and i in markers else "")+"\n" for i,row in enumerate(xyz))
 
 
+def _validate_profile_coordinates(coordinates):
+    """Validate the actual rounded file, without changing its points or precision."""
+    lines=[line.split() for line in coordinates.splitlines()]
+    rounded=np.asarray([[float(value) for value in line[:3]] for line in lines])
+    if (rounded.ndim!=2 or rounded.shape[1]!=3 or len(rounded)<4
+            or not np.isfinite(rounded).all()
+            or not np.array_equal(rounded[0],rounded[-1])
+            or np.any(np.linalg.norm(np.diff(rounded,axis=0),axis=1)==0)):
+        raise ValueError("Blade profile collapses or is not closed at the selected output precision.")
+    markers=[(index,line[3]) for index,line in enumerate(lines) if len(line)==4]
+    if (any(len(line) not in (3,4) for line in lines)
+            or sorted(name for _,name in markers)!=['le','te']
+            or any(index==len(lines)-1 for index,_ in markers)
+            or np.array_equal(rounded[markers[0][0]],rounded[markers[1][0]])):
+        raise ValueError("Blade profile requires distinct LE/TE markers at the selected output precision.")
+    return len(rounded)
+
+
 def export_turbogrid(case_directory,params):
     from ..models.blade_rows import validate_rows, row_parameters
     validate_rows(params)
@@ -89,15 +107,10 @@ def export_turbogrid(case_directory,params):
         if clearance and index==len(geometry.sections)-1:label="Shroud_extension"
         xyz,markers=closed_profile(section)
         coordinates=_coordinates(_external_xyz(xyz,settings),digits,markers)
-        if stator or clearance:
-            # Reject collapsed output after rounding, before touching the case.
-            rounded=np.array([[float(v) for v in line.split()[:3]] for line in coordinates.splitlines()])
-            if len(rounded)<4 or np.any(np.linalg.norm(np.diff(rounded,axis=0),axis=1)==0) or len(markers)!=2:
-                raise ValueError(("Static blade" if stator else "Blade")+" profile collapses at the selected output precision.")
-            profile_counts.append(len(rounded))
+        profile_counts.append(_validate_profile_coordinates(coordinates))
         profiles.append(f"# {label}\n"+coordinates)
-    if (stator or clearance) and len(set(profile_counts))!=1:
-        raise ValueError(("Static Hub and Tip" if stator else "Hub, Tip and Shroud")+" profiles must have matching contour point counts.")
+    if len(set(profile_counts))!=1:
+        raise ValueError("Blade profiles must have matching contour point counts.")
     contents[filenames[2]]="".join(profiles)
     def end_type(choice,side):
         if choice not in ('auto','EllipseEnd','CutOffEnd','SquareEnd'):
