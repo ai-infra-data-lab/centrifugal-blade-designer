@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+品質改善Stage 2B-1完了: 3D生成の検証を翼種別に分離。未使用の旧2D半径・別翼種のLE/TEの幾何成立性や分布が、有効な選択3Dを止めないようにした。両翼種のLE/TE端点の有限性・0〜1範囲、ImpellerのRake／trim／clearance／Splitterと選択対象の幾何検査は維持。旧2D APIとJSONの全体検証・保存時の既存ファイル保護を保持し、値の置換は行わない。修正後の関連93件成功、新規50件を含む最終全回帰956一意件成功（通常921件・実CAD35件、failure/error/skip/漏れ/重複なし）。固定239入力、原本・既定JSON・数値fixture不変。native／ANSYS未検証。JSON受入れ自体の分離はStage 2B-2に残す。詳細は[翼種別検証](docs/ROW_VALIDATION_CONTRACT.md)。
+
 
 2026-10-17 品質改善Stage 2A: `View → Selected Row Metrics`で中央表示と同じ実断面のXYZ弦長・翼線長・空間曲率を測定し、Main/Splitter・Spanを選択可能にした。`File → Export → Selected Row XYZ CSV`へ同じmaster点・単位mm/Z軸・row ID・snapshot・有効桁数を含む新CSVを追加。既存Metrics／Curvature／XY CSV／最適化はlegacy radial 2Dと明示して互換維持。旧2D計算や参考Impellerの計算エラーは有効な静翼表示から分離し、旧結果をcurrentとして扱わない。新規34件を含む最終全回帰906一意件成功（通常871件・実CAD35件、failure/error/skip/実行漏れ/重複なし）。固定237入力、原本と既定JSONの不変を確認。native操作・高DPI・ANSYSは未検証。点編集のcurrent cellと選択範囲が独立に変わる場合の端点削除ボタン保護も補強。共通入力検証／Load・Saveのlegacy依存の分離はStage 2Bとして残す。設計値・JSON・TurboGrid・既存数値fixtureは変更しない。[形状正本と測定の契約](docs/GEOMETRY_SOURCE_CONTRACT.md)。
 

@@ -65,6 +65,29 @@ def test_legacy_and_unselected_impeller_failures_do_not_block_current_rc(window,
     assert (tmp_path/'actual.csv').is_file()
 
 
+def test_real_invalid_legacy_radius_does_not_block_rc_metrics_or_xyz(window, monkeypatch, tmp_path):
+    w = window
+    params = deepcopy(w.get_parameters())
+    expected = w.diffuser_geometry.sections[0].master_ps.xyz.copy()
+    params.geometry.r_le = -1
+    params.geometry.r_te = -2
+    # Inject input only: both geometry engines and the CSV writer run normally.
+    monkeypatch.setattr(w, 'get_parameters', lambda: deepcopy(params))
+    w.update_geometry()
+    assert 'LEGACY 2D ERROR' in w.messages.toPlainText()
+    assert 'legacy' not in w.geometry_sources
+    assert w.row_metrics_widget.geometry is w.diffuser_geometry
+    assert w.row_metrics_widget.source.row_name == 'RC'
+    np.testing.assert_array_equal(w.diffuser_geometry.sections[0].master_ps.xyz, expected)
+    assert w.row_metrics_widget.measurements.radii[[0, -1]] == pytest.approx([130, 90])
+    target = tmp_path / 'valid-rc.csv'
+    w.export_row_xyz_to_path(target)
+    with target.open(encoding='utf-8-sig', newline='') as stream:
+        rows = list(csv.DictReader(stream))
+    assert rows and {r['row_name'] for r in rows} == {'RC'}
+    assert {r['snapshot_hash'] for r in rows} == {w.geometry_sources['actual'].snapshot_hash}
+
+
 def test_invalid_current_shape_invalidates_measurements_and_protects_xyz_export(window,tmp_path):
     w=window;target=tmp_path/'RC.csv';w.export_row_xyz_to_path(target);before=target.read_bytes()
     previous=w.diffuser_geometry

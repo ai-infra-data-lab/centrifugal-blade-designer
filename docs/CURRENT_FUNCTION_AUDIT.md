@@ -1,5 +1,7 @@
 # 現行機能の実装監査
 
+Stage 2B-1追記: 3D生成の検証を翼種別に分離し、未使用の旧半径・別翼種のLE/TE／分布／Impeller固有設定に依存する拒否を除いた。旧2Dと全体JSONの受入れは保持。G01は部分対応で、JSON検証契約の分離はStage 2B-2へ残す。[範囲・検証・制約](ROW_VALIDATION_CONTRACT.md)。
+
 監査日: 2026-10-17。対象ソース: `6b8d3be`。対象はcentrifugal_blade_designerのみ。
 本監査では設計アルゴリズム、設計値、ユーザーJSON、既存出力、テスト期待値を変更していない。
 前作業の検証済みRC表示・既定モデル・折返し流路修正15ファイルを先に上記commitへ記録した。
@@ -112,4 +114,4 @@ Mechanicalはsolid数・結合・根元半径・実機ディスク寸法・周�
 
 ## Stage 2Aの追記（G01は部分対応）
 
-新経路の実断面指標とXYZ CSVは中央表示のmeridional_3d masterを使い、row ID／snapshot／geometry種別を付ける。旧Metrics／Curvature／XY CSV／最適化はlegacyとして明示する。根拠: `geometry/section_measurements.py`、`models/geometry_source.py`、`fileio/geometry_source.py`、`fileio/row_xyz_csv.py`、`gui/row_metrics_widget.py`とMainWindowの接続。新規34ケースは`test_section_measurements.py`、`test_row_xyz_csv.py`、`test_row_measurements_gui.py`。共通入力検証・JSON全体検証のlegacy依存や最適化の実3D制約化は未完了。精度と検証結果は[GEOMETRY_SOURCE_CONTRACT.md](GEOMETRY_SOURCE_CONTRACT.md)。
+新経路の実断面指標とXYZ CSVは中央表示のmeridional_3d masterを使い、row ID／snapshot／geometry種別を付ける。旧Metrics／Curvature／XY CSV／最適化はlegacyとして明示する。根拠: `geometry/section_measurements.py`、`models/geometry_source.py`、`fileio/geometry_source.py`、`fileio/row_xyz_csv.py`、`gui/row_metrics_widget.py`とMainWindowの接続。新規34ケースは`test_section_measurements.py`、`test_row_xyz_csv.py`、`test_row_measurements_gui.py`。その後のStage 2B-1で3D生成時の検証を翼種別に分離したが、両翼種LE/TE端点の入力整合性は維持する。JSON全体検証のlegacy依存や最適化の実3D制約化は未完了。精度と検証結果は[GEOMETRY_SOURCE_CONTRACT.md](GEOMETRY_SOURCE_CONTRACT.md)、[翼種別検証](ROW_VALIDATION_CONTRACT.md)。

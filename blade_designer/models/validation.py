@@ -63,6 +63,23 @@ def validate_control_points(points: list[DistributionPoint], kind: str) -> list[
 
 
 def validate_parameters(params: BladeParameters) -> list[ValidationIssue]:
+    """Preserve the complete legacy radial-2D/project validation contract."""
+    return _validate_settings(params, source="legacy")
+
+
+def validate_row_settings(params: BladeParameters, kind: str) -> list[ValidationIssue]:
+    """Validate 3D row settings; the generator validates actual sections/walls.
+
+    Legacy radial extents and Hub aliases are not inputs to stator geometry.
+    No values are repaired or substituted. Export precision remains a shared
+    settings constraint, independent of the chosen geometry engine.
+    """
+    if kind not in ("impeller", "diffuser"):
+        raise ValueError("Unknown 3D blade row kind.")
+    return _validate_settings(params, source=kind)
+
+
+def _validate_settings(params: BladeParameters, *, source: str) -> list[ValidationIssue]:
     issues = []
     def error(field: str, message: str) -> None:
         issues.append(ValidationIssue(ValidationLevel.ERROR, field, message))
@@ -70,25 +87,26 @@ def validate_parameters(params: BladeParameters) -> list[ValidationIssue]:
     if not isinstance(params.rotation_direction, RotationDirection):
         error("rotation_direction", "Unknown rotation direction.")
     g = params.geometry
-    for name in ("r_le", "r_te", "theta_le_deg"):
+    for name in (("r_le", "r_te", "theta_le_deg") if source == "legacy" else ("theta_le_deg",)):
         if not is_finite_number(getattr(g, name)):
             error(name, "Must be a finite number.")
-    if not issues:
+    if source == "legacy" and not issues:
         if g.r_le <= 0:
             error("r_le", "R LE must be > 0.")
         if g.r_te <= g.r_le:
             error("r_te", "R TE must be > R LE.")
     if isinstance(g.vane_count, bool) or not isinstance(g.vane_count, Integral) or g.vane_count < 1:
         error("vane_count", "Vane count must be an integer >= 1.")
-    issues.extend(validate_control_points(params.blade_angle.points, "blade_angle"))
-    issues.extend(validate_control_points(params.thickness.points, "thickness"))
-    for name in ("le_type", "te_type"):
-        if not isinstance(getattr(params.edges, name), EdgeType):
-            error(name, "Unknown edge type.")
-    for name in ("le_ellipse_ratio", "te_ellipse_ratio"):
-        value = getattr(params.edges, name)
-        if not is_finite_number(value) or value <= 0:
-            error(name, "Ellipse ratio must be finite and > 0.")
+    if source == "legacy":
+        issues.extend(validate_control_points(params.blade_angle.points, "blade_angle"))
+        issues.extend(validate_control_points(params.thickness.points, "thickness"))
+        for name in ("le_type", "te_type"):
+            if not isinstance(getattr(params.edges, name), EdgeType):
+                error(name, "Unknown edge type.")
+        for name in ("le_ellipse_ratio", "te_ellipse_ratio"):
+            value = getattr(params.edges, name)
+            if not is_finite_number(value) or value <= 0:
+                error(name, "Ellipse ratio must be finite and > 0.")
     for name, value in vars(params.output_points).items():
         if isinstance(value, bool) or not isinstance(value, Integral) or value < 2:
             error(name, "Each segment requires an integer point count >= 2.")
@@ -99,6 +117,8 @@ def validate_parameters(params: BladeParameters) -> list[ValidationIssue]:
         error("repeat_first_point", "Must be a boolean.")
     if not isinstance(params.surface_mapping, SurfaceMapping):
         error("surface_mapping", "Unknown surface mapping.")
+    if source == "diffuser":
+        return issues
     rake=params.impeller_te_rake_deg
     if rake is not None and (not is_finite_number(rake) or not -90<rake<90):
         error("impeller_te_rake_deg", "TE Rake must be finite and strictly between -90 and 90 degrees.")

@@ -32,10 +32,16 @@ def interpolate_edge_position(edge,hub,shroud,span):
     a,b=edge_endpoints(edge,hub,shroud)
     return (1-span)*a+span*b
 
-def validate_blade_edges(edges,hub=None,shroud=None):
+def validate_blade_edge_bounds(edges):
+    """Basic data integrity, including edges not used by the selected row."""
     values=np.array([[e.hub_m_flow_norm,e.shroud_m_flow_norm] for e in (edges.leading_edge,edges.trailing_edge)])
     if not np.isfinite(values).all() or np.any(values<0) or np.any(values>1):
         raise ValueError("Blade edge positions must be finite within [0,1].")
+    return values
+
+
+def validate_blade_edges(edges,hub=None,shroud=None):
+    values=validate_blade_edge_bounds(edges)
     if np.any(values[1]<=values[0]):raise ValueError("Blade edges require TE > LE on Hub, Shroud and every span.")
     refs=[edges.reference_le_fraction,edges.reference_te_fraction]
     if not np.isfinite(refs).all() or not 0<=refs[0]<refs[1]<=1:

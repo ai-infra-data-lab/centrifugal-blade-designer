@@ -36,6 +36,11 @@ def _check(params: BladeParameters, check_ownership=True) -> None:
         raise ValueError("; ".join(f"{i.field}: {i.message}" for i in errors))
     from ..geometry.geometry_3d import generate_impeller
     generate_impeller(params)
+    # Load/Save still validates the entire legacy project, including the
+    # unselected stator edges formerly checked inside generate_impeller.
+    from ..geometry.blade_edge import validate_blade_edges
+    from ..geometry.meridional_segments import generate_meridional
+    validate_blade_edges(params.diffuser_edges, generate_meridional(params.hub), generate_meridional(params.shroud))
     from ..geometry.designer import BladeDesigner
     BladeDesigner().generate_diffuser(params)
     if (params.sections[0].blade_angle,params.sections[0].thickness,params.sections[0].edge_parameters)!=(params.blade_angle,params.thickness,params.edges):

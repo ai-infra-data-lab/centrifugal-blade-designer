@@ -18,6 +18,10 @@
 
 流れ: main → gui → models / geometry / fileio / optimization。
 
+## 翼種別の生成時検証（Stage 2B-1）
+
+`models/validation.py::validate_row_settings`は3Dで使用する共通設定と翼種固有設定を検査する。実断面・Span・壁面・選択LE/TEは`geometry/geometry_3d.py`以下が検査する。旧`validate_parameters`はlegacy 2Dと全体JSONの従来契約を保持する。JSON側は未選択静翼のLE/TEも元壁面に対して明示検査し、生成時検証の分離を保存受入れの緩和へ波及させない。詳細は[検証契約](ROW_VALIDATION_CONTRACT.md)。
+
 ## TurboGridの整形後検査（2026-10-17、Stage 1A）
 
 fileio/turbogrid_export.pyの_validate_profile_coordinatesは、実際に丸めたXYZ文字列を再読込みし、有限値・閉鎖・連続点重複・LE/TEマーカーと各Spanの輪郭点数対応を全Profile Points経路で検査します。geometryや出力文字列は修復せず、出力先作成前に拒否します。旧通常精度のbytesは維持します。3D干渉検査とは別です。定義・全回帰832件の記録は[出力品質](EXPORT_QUALITY_IMPROVEMENTS.md)を参照。
@@ -210,4 +214,4 @@ geometry/span_extension.extend_tip_to_shroudは実Tipと直前のSpanから円�
 
 `models/geometry_source.py`は結果のrow context・engine・variant・snapshot IDを表す非永続型。`fileio/geometry_source.py`がCADと同じcanonical snapshot hashを付ける。`geometry/section_measurements.py`は実camber／master曲線からXYZ指標を計算し、`gui/row_metrics_widget.py`が読取り専用で表示する。中央2D／3DとPassageには同じ生成結果を渡す。新しい`fileio/row_xyz_csv.py`は現在入力を再生成したmaster点をmm/Z座標でatomicな単一ファイル出力にする。旧writer／旧数値生成器は変更しない。
 
-MainWindowはlegacy計算失敗時にlegacy表・曲線・current sourceを解除し、有効な選択3Dの表示を継続する。静翼の参考Impellerが失敗しても共有壁面には選択静翼を使える。`MainWindow.geometry`の最後のlegacyオブジェクトは互換APIとして残るが、currentには使わない。共通入力検証とJSON全体検証の既存契約はStage 2B以降の対象。定義・精度・GUI・CSV・検証の詳細は[形状正本の契約](GEOMETRY_SOURCE_CONTRACT.md)。
+MainWindowはlegacy計算失敗時にlegacy表・曲線・current sourceを解除し、有効な選択3Dの表示を継続する。静翼の参考Impellerが失敗しても共有壁面には選択静翼を使える。`MainWindow.geometry`の最後のlegacyオブジェクトは互換APIとして残るが、currentには使わない。Stage 2B-1で3D生成の入力検証を分離した。両翼種のLE/TE端点の有限性・0〜1範囲は共通の入力整合性として維持し、JSON全体検証の分離はStage 2B-2に残す。定義・精度・GUI・CSV・検証の詳細は[形状正本の契約](GEOMETRY_SOURCE_CONTRACT.md)。

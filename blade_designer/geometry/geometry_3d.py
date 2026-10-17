@@ -1,7 +1,7 @@
 import numpy as np
 from copy import deepcopy
 from ..models.geometry_3d import ImpellerGeometry
-from ..models.validation import validate_parameters,ValidationLevel
+from ..models.validation import validate_row_settings,ValidationLevel
 from .meridional_segments import generate_meridional,validate_flow_path
 from .flow_path import validate_component_stations
 from .resolution import validate_resolution
@@ -34,7 +34,8 @@ def generate_diffuser_3d(params):
 
 def _generate_row(params,profiles,edges,*,impeller_cutoff=False):
     validate_resolution(params.resolution)
-    errors=[i.message for i in validate_parameters(params) if i.level==ValidationLevel.ERROR]
+    kind="impeller" if impeller_cutoff else "diffuser"
+    errors=[i.message for i in validate_row_settings(params,kind) if i.level==ValidationLevel.ERROR]
     if errors: raise ValueError('; '.join(errors))
     if not profiles or len(profiles)<2:
         raise ValueError("At least Hub and Tip sections are required.")
@@ -44,9 +45,10 @@ def _generate_row(params,profiles,edges,*,impeller_cutoff=False):
     validate_component_stations(params.flow_path)
     hub=generate_meridional(params.hub);shroud=generate_meridional(params.shroud)
     validate_flow_path(hub,shroud)
-    from .blade_edge import validate_blade_edges,edge_endpoints
-    validate_blade_edges(params.impeller_edges,hub,shroud)
-    validate_blade_edges(params.diffuser_edges,hub,shroud)
+    from .blade_edge import validate_blade_edges,validate_blade_edge_bounds,edge_endpoints
+    for candidate in (params.impeller_edges,params.diffuser_edges):
+        validate_blade_edge_bounds(candidate)
+    validate_blade_edges(edges,hub,shroud)
     cutoff_radius=float(edge_endpoints(edges.trailing_edge,hub,shroud)[0,1])
     le_reference,te_reference=edges.reference_le_fraction,edges.reference_te_fraction
     flow_coordinates=np.linspace(0,1,params.resolution.wall_points)

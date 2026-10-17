@@ -50,7 +50,7 @@ UTF-8 BOM付きCSV。長さmm、回転軸Zの内部XYZをそのまま出力す�
 
 ## 未完了の境界（Stage 2B以降）
 
-これはG01の完全解消ではない。現行の共通`validate_parameters`は旧r_le/r_te等も検査し、3D generatorもその契約を使う。旧半径の不正など共通検証段階の失敗を、選択行専用検証へ分離する作業は残す。JSONのLoad/Saveも従来の全設計検証を維持し、不成立な旧2DやImpellerの保存・読込みを許す変更はしない。数値エラーを適当な既定値へ置換して迂回しない。
+これはG01の完全解消ではない。Stage 2B-1で3D generatorを翼種別`validate_row_settings`へ分離し、未使用の旧r_le/r_te・他翼種の分布／LE/TE／Impeller固有設定が有効な3Dを止める経路を除いた。既存`validate_parameters`とJSONのLoad/Saveは従来の全設計検証を維持し、不成立な旧2DやImpellerの保存・読込みを許す変更はしない。JSON受入れの分離はStage 2B-2として残す。数値エラーを適当な既定値へ置換して迂回しない。[検証契約と制約](ROW_VALIDATION_CONTRACT.md)。
 
 最適化の実3D制約化、全Span／周期翼／主翼-Splitter干渉、実スロート面、CADとの共通surface契約、根元フィレットの成立は未完了。native操作・ANSYS Import/Meshはこの変更では検証しない。
 
