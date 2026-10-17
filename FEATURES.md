@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+品質改善Stage 3A-2a完了: 実表示indexからmaster/CAD xiへの写像、派生source_spanの由来、現行trimの共通index面、実wireframeと参照splineの標本比較を読取り専用APIとして追加。表示・生成・CAD・出力の既存経路は変更しない。新規21件を含む全1,049一意件成功（通常1,012・実CAD37、failure/error/skip/漏れ/重複なし）。既存1,028 ID・固定246入力不変。正本の全面適用、物理的対応、全面偏差保証は未完了。[実対応座標](docs/SURFACE_CORRESPONDENCE.md)。
+
 品質改善Stage 3A-1完了: 非Qt／非OCPの翼面評価器を追加し、従来CADのtensor spline構築と派生カットのSpan列補間を共通数値層へ移した。XYZ／円筒座標の区分線形面とCAD splineの対応点差を測定可能にしたが、表示／カット／CADの方式は変更しない。新規26件を含む全1,028一意件成功（通常991・実CAD37、failure/error/skip/漏れ/重複なし）。既存1,002 ID・固定244入力不変。変更前と40曲面の全pole／knot／degree、30カット曲線が一致。共通正本の適用・全面誤差保証・3D干渉検査は未完了。native／ANSYS未検証。[翼面評価の契約](docs/SURFACE_EVALUATION_CONTRACT.md)。
 
 品質改善Stage 2B-2完了: row一覧のあるJSONを、保存値の整合性と宣言翼種の実3D成立性に分けて検証。未使用の旧半径の順序・参考Impellerの幾何成立性への依存を除き、全宣言rowとroot編集snapshotは検証する。row一覧なしの旧JSON／移行／旧2D APIは従来契約を維持。GUI Load／Saveも対応し、旧2D不成立のprojectを読んだ最適化画面では以前のbaselineを解除する。新規46件を含む全1,002一意件成功（通常967・実CAD35、failure/error/skip/漏れ/重複なし）。既存956 ID・固定241入力不変。原本・既定・生成式・JSON項目・数値期待値は変更なし。native／ANSYSは未検証。[保存検証の契約](docs/ROW_PROJECT_VALIDATION.md)。

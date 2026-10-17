@@ -72,6 +72,10 @@ queryのNaN・範囲外・空配列は拒否し、自動clamp／外挿はしな�
 
 129／257格子と513格子の差も保存した。全7条件で今回の標本差は格子増加に伴い小さくなったが、513格子が真値である保証や面全域の誤差上限ではない。Diffuser／RCと派生カットの汎用spline評価は診断用途であり、未対応CAD出力の成功としない。根拠は`artifacts/quality-stage3a1-final/surface-probe.json`と再現用`probe_surfaces.py`。
 
+## Stage 3A-2aの進展
+
+実表示indexとCAD xi、trim共通index、派生source_spanを明示する読取り専用診断を追加した。Stage 3A-1の同一座標モデル診断と区別した結果・限界は[実対応座標](SURFACE_CORRESPONDENCE.md)を参照。既存の表示・生成・出力方式は維持する。
+
 ## 残るStage 3A-2
 
 実際のpreview／trim／CADが使う異なる対応座標と、派生カットの`source_span`を明示して比較する。今回の診断用の同一座標モデル比較を、そのまま現行表示誤差として報告しない。密度差は参照513格子との標本差であり、誤差上限や収束保証ではない。
