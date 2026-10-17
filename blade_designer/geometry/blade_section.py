@@ -11,6 +11,7 @@ from .meridional import calculate_meridional
 from .edges import generate_edge
 from .checks import has_self_intersection
 from .cylindrical_cutoff import cylinder_distance, cut_surface
+from .curve_source import resample_source_map
 
 
 
@@ -36,7 +37,8 @@ def resample_curve(curve,n_points):
     m_blade_norm=None if curve.m_blade_norm is None else np.interp(target,arc[keep],curve.m_blade_norm[keep])
     meridional_distance=None if curve.meridional_distance is None else np.interp(target,arc[keep],curve.meridional_distance[keep])
     source_span=None if curve.source_span is None else np.interp(target,arc[keep],curve.source_span[keep])
-    return Curve3D(*arrays,m_blade_norm,meridional_distance,source_span)
+    provenance=resample_source_map(curve.source_map,arc,keep,target)
+    return Curve3D(*arrays,m_blade_norm,meridional_distance,source_span,provenance)
 
 
 def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts,mapping,resolution=None,flow_coordinates=None,rotation_sign=1,*,cutoff_radius=None,start_fraction=0.,thickness_scale=1.,theta_te_rad=None,distributions_from_le=False):

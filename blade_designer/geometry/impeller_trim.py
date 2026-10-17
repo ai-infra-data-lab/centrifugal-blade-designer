@@ -15,6 +15,7 @@ from .flow_path import sample_mean_line
 from .flow_area import crossflow_pair
 from .blade_section import resample_curve
 from .surface_evaluation import interpolate_span_columns as _blend
+from .curve_source import source_map, blend_source_map, ROLES
 
 
 def trim_active(settings):
@@ -117,9 +118,12 @@ class _Boundary:
         return np.einsum('ij,ij->i',residual[np.arange(len(points)),choice],normal)
 
 
-def _span_curve(sections,name,boundary,fraction):
+def _span_curve(sections,name,boundary,fraction,source_set='sections'):
     curves=[getattr(s,name) for s in sections]
-    if fraction==0:return deepcopy(curves[0])
+    if fraction==0:
+        result=deepcopy(curves[0])
+        result.source_map=source_map(0.,len(result.r),name,source_set)
+        return result
     spans=np.array([s.span for s in sections]);n=max(len(c.r) for c in curves)
     values={key:np.array([np.interp(np.linspace(0,1,n),np.linspace(0,1,len(c.r)),getattr(c,key)) for c in curves])
             for key in ('r','theta_rad','z','m_blade_norm','meridional_distance') if getattr(curves[0],key) is not None}
@@ -136,7 +140,9 @@ def _span_curve(sections,name,boundary,fraction):
         inside=boundary.signed(points)>=0
         lo=np.where(inside,mid,lo);hi=np.where(inside,hi,mid)
     target=(lo+hi)/2*fraction
-    return Curve3D(**{key:_blend(v,spans,target) for key,v in values.items()},source_span=target)
+    provenance=source_map(0.,n,name,source_set,'trim_common_index')
+    provenance.coordinates[:,0,0]=target
+    return Curve3D(**{key:_blend(v,spans,target) for key,v in values.items()},source_span=target,source_map=provenance)
 
 
 def _crop_curve(curve,radius):
@@ -151,6 +157,8 @@ def _crop_curve(curve,radius):
         v=getattr(curve,key)
         result[key]=None if v is None else np.r_[v[:i+1],v[i]+f*(v[i+1]-v[i])]
     result['r'][-1]=radius
+    result['source_map']=blend_source_map(curve.source_map,
+        np.r_[np.arange(i+1),i],np.r_[np.arange(i+1),i+1],np.r_[np.zeros(i+1),f])
     return Curve3D(**result)
 
 
@@ -172,6 +180,11 @@ def apply_trim(base,params):
     settings=params.impeller_trim
     if not trim_active(settings):return base
     result=deepcopy(base);result.source_geometry=base
+    for source_set in ('sections','splitter_sections'):
+        for section in getattr(result,source_set) or []:
+            for role in ROLES:
+                curve=getattr(section,role)
+                curve.source_map=source_map(section.span,len(curve.r),role,source_set)
     base_diameter=2*float(base.sections[0].camber.r[-1])
     diameter=(settings.diameter_mm if settings.diameter_mode=='diameter' else
               base_diameter*(1-settings.diameter_cut_percent/100))
@@ -201,7 +214,7 @@ def apply_trim(base,params):
             target=getattr(result,attr)
             for s in target:
                 for name in ('camber','master_ps','master_ss','master_le','master_te'):
-                    setattr(s,name,_span_curve(source,name,boundary,s.span))
+                    setattr(s,name,_span_curve(source,name,boundary,s.span,attr))
                 for name in ('ps','ss','le','te'):
                     setattr(s,name,resample_curve(getattr(s,'master_'+name),len(getattr(s,name).r)))
     if od:

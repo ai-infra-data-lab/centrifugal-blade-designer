@@ -1,5 +1,7 @@
 # 現行機能の実装監査
 
+Stage 3A-2b追記: 派生曲線の元集合・role・Span/indexと補間比を保持し、共通の円筒補間面を参照して再構成可能にした。外径切断後の位置をカット後indexと同一視しない。新加工TEは参照対象外。既存形状・JSON・出力は維持し、表示/CADの単一正本適用は残る。[派生由来](DERIVED_SOURCE_CONTRACT.md)。
+
 Stage 3A-2a追記: 実表示点の対応写像と派生source_spanの読取り専用診断を追加。既定Impeller等の実wireframeを参照splineと比較できるが、物理対応・単一正本適用・全面保証は未完了。既存生成・出力は変更しない。[実対応座標](SURFACE_CORRESPONDENCE.md)。
 
 Stage 3A-1追記: 共通の非Qt翼面評価器を追加。CADの係数構築と派生カットのSpan列補間を共通層へ移し、数値評価と実OCCTの内部点比較を追加した。現行のXYZ接続／円筒補間／CAD splineは異なる方式として保持する。G05は部分対応で、実経路の対応座標統一と単一正本の適用は未完了。[翼面評価の契約](SURFACE_EVALUATION_CONTRACT.md)。

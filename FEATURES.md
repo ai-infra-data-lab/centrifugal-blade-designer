@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+品質改善Stage 3A-2b完了: 派生曲線へ元の翼集合・role・Span/index・補間比を内部metadataとして保持し、共通の円筒補間面から外径交点や表示再サンプル点を再構成可能にした。新しい加工TEは元TEと区別して再構成を拒否する。生成形状・保存形式・出力ガードは維持。新規30件を含む全1,079一意件成功（通常1,042・実CAD37、failure/error/skip/漏れ/重複なし）。既存1,049 ID・固定248入力不変。変更前と12条件648曲線の座標・従来metadataが一致。表示/CAD全面の単一正本適用は未完了。[派生元面の参照契約](docs/DERIVED_SOURCE_CONTRACT.md)。
+
 品質改善Stage 3A-2a完了: 実表示indexからmaster/CAD xiへの写像、派生source_spanの由来、現行trimの共通index面、実wireframeと参照splineの標本比較を読取り専用APIとして追加。表示・生成・CAD・出力の既存経路は変更しない。新規21件を含む全1,049一意件成功（通常1,012・実CAD37、failure/error/skip/漏れ/重複なし）。既存1,028 ID・固定246入力不変。正本の全面適用、物理的対応、全面偏差保証は未完了。[実対応座標](docs/SURFACE_CORRESPONDENCE.md)。
 
 品質改善Stage 3A-1完了: 非Qt／非OCPの翼面評価器を追加し、従来CADのtensor spline構築と派生カットのSpan列補間を共通数値層へ移した。XYZ／円筒座標の区分線形面とCAD splineの対応点差を測定可能にしたが、表示／カット／CADの方式は変更しない。新規26件を含む全1,028一意件成功（通常991・実CAD37、failure/error/skip/漏れ/重複なし）。既存1,002 ID・固定244入力不変。変更前と40曲面の全pole／knot／degree、30カット曲線が一致。共通正本の適用・全面誤差保証・3D干渉検査は未完了。native／ANSYS未検証。[翼面評価の契約](docs/SURFACE_EVALUATION_CONTRACT.md)。

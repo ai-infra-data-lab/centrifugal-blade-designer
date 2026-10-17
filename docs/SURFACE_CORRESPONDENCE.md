@@ -18,7 +18,11 @@ Preview比較では、各表示点に対応するmaster xiを断面ごとに求�
 
 Rake mapperはmasterと表示を再サンプリング後に別々に剛体回転する。その後にXYZ長を再計算すると浮動小数点丸めが生じるため、resample同一性の確認に`64 × machine epsilon × max(1, master XYZ最大絶対値)`の成分差上限を使う。これは読取り専用診断の入力同一性確認であり、CAD/BREP/fillet/STEPの公差変更ではない。数値差を消すために設計形状を書き換えない。
 
-## 派生形状の追跡と不足情報
+## Stage 3A-2bの進展
+
+元のSpan/indexを単純に平均すると交差項が失われるため、元位置と合成重みを保持する内部結果型を追加した。共通の円筒補間面から再構成できる範囲と、新しい加工TEの拒否条件は[派生元面の参照契約](DERIVED_SOURCE_CONTRACT.md)を参照。生成形状・JSONは維持する。
+
+## Stage 3A-2a時点の派生形状の追跡と不足情報
 
 Shroudカットは共通indexの各列で元翼のSpanを探索し、その値を`source_span`へ残す。公称Tip=1が元翼のSpan=1を意味するわけではない。独立した円筒補間の解析例と、現行`_span_curve`が返す点を同じ共通index・source_spanで再構成して照合する。
 

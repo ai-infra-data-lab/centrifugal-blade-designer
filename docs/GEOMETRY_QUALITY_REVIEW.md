@@ -61,7 +61,9 @@ Hub/Tipは`geometry/blade_edge.py::blade_wall_parameters`の共通参照LE/TE節
 
 ### G05 — Span間の連続面とCAD近似の一致保証に穴がある [P1・B]
 
-**Stage 3A-2a追記**: 実表示indexとCAD xiの対応差を測り、source_spanと公称Spanを分離した診断を追加。外径カット前indexの独立metadataがないため、加工後indexを元面の座標と同一視しない。元TEと新加工TEの比較も分離する。物理対応・全面正本適用は残る。[実経路の記録](SURFACE_CORRESPONDENCE.md)。
+**Stage 3A-2b追記**: 派生曲線に元集合/roleと重み付き元座標を保持し、外径交点と再サンプリング点を共通の円筒補間面から再構成可能にした。新TEを元TEへ誤対応させず拒否する。既存形状は維持し、表示/CADの方式統一や全面品質は未完了。[派生元面の参照](DERIVED_SOURCE_CONTRACT.md)。
+
+**Stage 3A-2a時点の記録**: 実表示indexとCAD xiの対応差を測り、source_spanと公称Spanを分離した診断を追加。外径カット前indexの独立metadataがないため、加工後indexを元面の座標と同一視しない。元TEと新加工TEの比較も分離する。物理対応・全面正本適用は残る。[実経路の記録](SURFACE_CORRESPONDENCE.md)。
 
 **部分対応（Stage 3A-1）**: 非Qt／非OCPの共通数値評価器を追加し、CAD spline構築とtrim列補間を共通化。独立解析面と実OCCT内部点比較を検証した。既存の3方式は変更しておらず、同一面にはなっていない。診断用の対応座標を揃えたモデル差を、現行preview／trimの誤差や公差超過と断定しない。実対応座標・source_spanの統一、正本の適用、全面保証はStage 3A-2以降。[方式・誤差の区別](SURFACE_EVALUATION_CONTRACT.md)。以下は監査時の記録。
 

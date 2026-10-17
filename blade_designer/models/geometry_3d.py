@@ -5,6 +5,19 @@ from .meridional import MeridionalGeometry
 
 
 @dataclass
+class CurveSourceMap:
+    """Internal cylindrical provenance: weighted (source span, raw index) pairs.
+
+    Not design parameters and not part of the project JSON schema.
+    """
+    source_set: str
+    role: str
+    law: str
+    coordinates: FloatArray
+    weights: FloatArray
+
+
+@dataclass
 class Curve3D:
     r: FloatArray
     theta_rad: FloatArray
@@ -12,6 +25,7 @@ class Curve3D:
     m_blade_norm: FloatArray | None = None
     meridional_distance: FloatArray | None = None
     source_span: FloatArray | None = None
+    source_map: CurveSourceMap | None = None
 
     @property
     def m_norm(self):return self.m_blade_norm

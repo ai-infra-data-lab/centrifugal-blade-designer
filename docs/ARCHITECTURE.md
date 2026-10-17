@@ -24,6 +24,8 @@
 
 Stage 3A-2aの`geometry/surface_correspondence.py`は実表示index→CAD xi、派生source_spanと公称Span、trim共通indexを分離して読取り専用で診断する。既存generatorやGUI／CAD clientの依存先は変更しない。実wireframeとの対応点比較は全面偏差の保証ではない。[契約・限界](SURFACE_CORRESPONDENCE.md)。
 
+Stage 3A-2bでは`models/geometry_3d.py::CurveSourceMap`と`geometry/curve_source.py`が派生曲線の元集合・role・Span/indexと合成重みを保持する。trimと表示用resampleは形状を変えず由来を継承し、共通数値層から元の円筒補間面を参照する。設計JSONへ保存せず生成時に再作成する。新加工TEは元TEの由来を持たない。[契約と検証](DERIVED_SOURCE_CONTRACT.md)。
+
 ## 翼種別の生成時検証（Stage 2B-1）
 
 `models/validation.py::validate_row_settings`は3Dで使用する共通設定と翼種固有設定を検査する。実断面・Span・壁面・選択LE/TEは`geometry/geometry_3d.py`以下が検査する。旧`validate_parameters`はlegacy 2Dとrow一覧なしのJSONの従来契約を保持する。Stage 2B-1の検証記録は[検証契約](ROW_VALIDATION_CONTRACT.md)。
