@@ -27,7 +27,7 @@ Hub/Tipは`geometry/blade_edge.py::blade_wall_parameters`の共通参照LE/TE節
 
 ### G01 — 表示と旧指標／CSV／最適化の形状正本が異なる [P1・A/B]
 
-**部分対応（Stage 2A／2B-1）**: 実断面指標とmaster XYZ CSVの新経路を追加し、旧経路をlegacyとして識別。旧計算／参考Impellerの実行失敗を静翼表示から分離した。さらに3D生成の入力検証を翼種別に分け、旧半径・他翼種のLE/TE／分布／固有設定への依存を除いた。旧数値・XY CSV・JSON検証契約は維持。JSON受入れの分離はStage 2B-2に残り、G01全体の完了とはしない。[定義・検証](GEOMETRY_SOURCE_CONTRACT.md)、[翼種別検証](ROW_VALIDATION_CONTRACT.md)。以下は監査時の記録。
+**部分対応（Stage 2A／2B）**: 実断面指標とmaster XYZ CSVを追加し、旧経路をlegacyとして識別。旧計算／参考Impellerの失敗を静翼表示から分離し、生成時検証も翼種別にした。Stage 2B-2でrow一覧ありのLoad／Saveを保存値の整合性と宣言翼種の実3D検証へ分離。未使用の旧2D／参考Impellerへの幾何依存を外し、全宣言rowとroot編集snapshotを検証する。row一覧なしの旧契約・旧数値・XY CSVは維持。最適化の実3D制約化等が残るためG01全体の完了とはしない。[形状正本](GEOMETRY_SOURCE_CONTRACT.md)、[生成時検証](ROW_VALIDATION_CONTRACT.md)、[保存検証](ROW_PROJECT_VALIDATION.md)。以下は監査時の記録。
 
 - **対象**: `geometry/designer.py::generate_diffuser/diffuser_design_parameters/generate`、`gui/main_window.py::_display_geometry/update_geometry/export_to_path`、`optimization/feasibility.py::evaluate_candidate`。
 - **再現**: 現既定のRCを選択。実3D HubはR130→90、Z95 mmだが、旧camberはR100→160。`artifacts/implementation-audit/probe-results.json`に両値を保存。

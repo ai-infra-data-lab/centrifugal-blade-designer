@@ -1087,21 +1087,36 @@ class MainWindow(QMainWindow):
 
     def load_from_path(self, path: str | Path) -> None:
         params = self._with_shared_impeller_edges(reconcile_visible_row_edges(load_project(path)))
-        geometry = self.designer.generate_diffuser(params)
-        impeller = self.designer.generate_3d(params)
+        legacy_error = None
+        if params.blade_rows is None:
+            geometry = self.designer.generate_diffuser(params)
+            impeller = self.designer.generate_3d(params)
+        else:
+            active = next(row for row in params.blade_rows if row.identifier == params.active_blade_row)
+            # Required selected geometry is checked before changing GUI/history.
+            if active.kind == 'diffuser':self.designer.generate_diffuser_3d(params)
+            try:impeller = self.designer.generate_3d(params)
+            except (ValueError, ArithmeticError):
+                if active.kind == 'impeller':raise
+                impeller = None
+            try:geometry = self.designer.generate_diffuser(params)
+            except (ValueError, ArithmeticError) as exc:
+                geometry = None;legacy_error = str(exc)
         self.set_parameters(params)
-        if self.optimization_widget is not None:self._set_optimization_baseline(params)
+        if self.optimization_widget is not None:
+            if legacy_error:self.optimization_widget.clear_baseline(legacy_error)
+            else:self._set_optimization_baseline(params)
         self.project_path = Path(path)
         self._reset_history()
         self.timer.stop()
-        self._display_geometry(geometry,params,impeller)
+        self._display_geometry(geometry,params,impeller,legacy_error=legacy_error)
         self.fit_view()
 
     def save_to_path(self, path: str | Path) -> None:
         if not self.cad_editor.apply_pending_disk():raise ValueError(self.cad_editor.status.text())
         self.commit_edit()
         params = self.get_parameters()
-        self.designer.generate_3d(params)
+        if params.blade_rows is None:self.designer.generate_3d(params)
         save_project(path,params)
         self.project_path = Path(path)
         self.statusBar().showMessage(f"Saved: {path}")

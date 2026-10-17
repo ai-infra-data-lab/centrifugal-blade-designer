@@ -79,6 +79,15 @@ def validate_row_settings(params: BladeParameters, kind: str) -> list[Validation
     return _validate_settings(params, source=kind)
 
 
+def validate_stored_settings(params: BladeParameters) -> list[ValidationIssue]:
+    """Typed value constraints for multi-row storage, without a radial flow assumption.
+
+    Both legacy radii remain finite and positive, but their relative order is
+    a legacy geometry constraint checked only when that engine is requested.
+    """
+    return _validate_settings(params, source="stored")
+
+
 def _validate_settings(params: BladeParameters, *, source: str) -> list[ValidationIssue]:
     issues = []
     def error(field: str, message: str) -> None:
@@ -87,7 +96,7 @@ def _validate_settings(params: BladeParameters, *, source: str) -> list[Validati
     if not isinstance(params.rotation_direction, RotationDirection):
         error("rotation_direction", "Unknown rotation direction.")
     g = params.geometry
-    for name in (("r_le", "r_te", "theta_le_deg") if source == "legacy" else ("theta_le_deg",)):
+    for name in (("r_le", "r_te", "theta_le_deg") if source in ("legacy", "stored") else ("theta_le_deg",)):
         if not is_finite_number(getattr(g, name)):
             error(name, "Must be a finite number.")
     if source == "legacy" and not issues:
@@ -95,9 +104,13 @@ def _validate_settings(params: BladeParameters, *, source: str) -> list[Validati
             error("r_le", "R LE must be > 0.")
         if g.r_te <= g.r_le:
             error("r_te", "R TE must be > R LE.")
+    if source == "stored":
+        for name in ("r_le", "r_te"):
+            if is_finite_number(getattr(g, name)) and getattr(g, name) <= 0:
+                error(name, "Stored radius must be > 0.")
     if isinstance(g.vane_count, bool) or not isinstance(g.vane_count, Integral) or g.vane_count < 1:
         error("vane_count", "Vane count must be an integer >= 1.")
-    if source == "legacy":
+    if source in ("legacy", "stored"):
         issues.extend(validate_control_points(params.blade_angle.points, "blade_angle"))
         issues.extend(validate_control_points(params.thickness.points, "thickness"))
         for name in ("le_type", "te_type"):

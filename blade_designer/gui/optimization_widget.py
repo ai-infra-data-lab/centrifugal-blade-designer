@@ -122,7 +122,7 @@ class OptimizationWidget(QWidget):
         self._reset_parameters()
 
     @property
-    def baseline(self) -> BladeParameters:
+    def baseline(self) -> BladeParameters | None:
         return deepcopy(self._baseline)
 
     def _spin(self) -> CompactDoubleSpinBox:
@@ -141,9 +141,23 @@ class OptimizationWidget(QWidget):
                                   ('Baseline: '+source.label if source else 'API baseline: no project row identity.'))
         self.source_label.setToolTip('Snapshot: '+source.snapshot_hash if source else '')
         self._baseline = deepcopy(design)
+        self.preview_button.setEnabled(True)
         self._reset_parameters()
 
+    def clear_baseline(self, reason):
+        """A loaded XYZ project must not retain a previous legacy baseline."""
+        self._baseline = None
+        self.baseline_source = None
+        self._invalidate()
+        self.tree.clear();self.rows = []
+        self.preview_button.setEnabled(False)
+        self.baseline_label.setText('Legacy baseline unavailable.')
+        self.source_label.setText('Legacy radial 2D unavailable: '+reason)
+        self.source_label.setToolTip('')
+        self.report.setPlainText('Legacy baseline unavailable: '+reason)
+
     def _reset_parameters(self) -> None:
+        if self._baseline is None:return
         self._loading = True
         try:
             self.tree.clear()
@@ -233,6 +247,9 @@ class OptimizationWidget(QWidget):
         return constraints
 
     def preview_candidate(self) -> None:
+        if self._baseline is None:
+            self.report.setPlainText('Legacy baseline unavailable. Capture a valid legacy 2D design first.')
+            return
         self.apply_button.setEnabled(False)
         self.last_result = None
         self.candidate_source = None

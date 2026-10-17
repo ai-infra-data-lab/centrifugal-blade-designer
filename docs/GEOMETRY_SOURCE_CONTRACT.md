@@ -48,9 +48,9 @@ UTF-8 BOM付きCSV。長さmm、回転軸Zの内部XYZをそのまま出力す�
 
 現在の選択3D形状が無効なら、従来の最終有効プレビューを保持してエラーを示し、新指標とPassageの元を解除する。この場合でも旧2Dが有効なら、legacyとして旧指標・編集用分布・`MainWindow.geometry`を更新する。3Dの失敗と2Dの失敗を同一視しない。新CSVは表示キャッシュを使わず現在入力を再生成し、旧形状を誤出力しない。設計変更予約・project設定・CAD設定・子午面選択で新指標を失効させる。Camera・Undo・設計値は指標の閲覧や断面選択で変えない。
 
-## 未完了の境界（Stage 2B以降）
+## 未完了の境界（Stage 3以降）
 
-これはG01の完全解消ではない。Stage 2B-1で3D generatorを翼種別`validate_row_settings`へ分離し、未使用の旧r_le/r_te・他翼種の分布／LE/TE／Impeller固有設定が有効な3Dを止める経路を除いた。既存`validate_parameters`とJSONのLoad/Saveは従来の全設計検証を維持し、不成立な旧2DやImpellerの保存・読込みを許す変更はしない。JSON受入れの分離はStage 2B-2として残す。数値エラーを適当な既定値へ置換して迂回しない。[検証契約と制約](ROW_VALIDATION_CONTRACT.md)。
+これはG01の完全解消ではない。Stage 2B-1で3D generatorを翼種別`validate_row_settings`へ分離した。Stage 2B-2ではrow一覧ありのJSONを保存値の整合性と全宣言rowの実3D成立性へ分け、未使用の旧半径順序や参考Impellerの幾何不成立によるLoad／Save拒否を除いた。row一覧なしの旧JSONと`validate_parameters`の契約は維持。値域不正・非有限値・不成立な宣言翼列は拒否する。数値エラーを既定値へ置換しない。[生成時検証](ROW_VALIDATION_CONTRACT.md)、[保存検証と互換境界](ROW_PROJECT_VALIDATION.md)。
 
 最適化の実3D制約化、全Span／周期翼／主翼-Splitter干渉、実スロート面、CADとの共通surface契約、根元フィレットの成立は未完了。native操作・ANSYS Import/Meshはこの変更では検証しない。
 

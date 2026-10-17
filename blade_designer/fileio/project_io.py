@@ -22,15 +22,13 @@ def _check(params: BladeParameters, check_ownership=True) -> None:
     if params.cad_export.disk.backside is not None:
         from ..geometry.meridional_segments import generate_meridional
         generate_meridional(params.cad_export.disk.backside)
-    from ..models.blade_rows import validate_rows, row_parameters
+    from ..models.blade_rows import validate_rows
     validate_rows(params)
+    if params.blade_rows is not None:
+        _check_row_project(params)
+        return
     if check_ownership and params.blade_rows is None and any(segment.blade_row is not None for curve in (params.hub,params.shroud) for segment in curve.segments):
         raise ValueError("Meridional ownership requires a blade row list.")
-    for row in params.blade_rows or []:
-        try:
-            _check(row_parameters(params, row), check_ownership=False)
-        except ValueError as exc:
-            raise ValueError(f"{row.name}: {exc}") from exc
     errors = [i for i in validate_parameters(params) if i.level == ValidationLevel.ERROR]
     if errors:
         raise ValueError("; ".join(f"{i.field}: {i.message}" for i in errors))
@@ -50,6 +48,69 @@ def _check(params: BladeParameters, check_ownership=True) -> None:
         raise ValueError("Unknown TurboGrid axis or unit.")
     if any(v not in ("auto","EllipseEnd","CutOffEnd","SquareEnd") for v in (settings.leading_edge_type,settings.trailing_edge_type)):
         raise ValueError("Unknown TurboGrid edge type.")
+
+
+def _check_stored_row(params):
+    """Validate every persisted value, without generating an unused blade type."""
+    from ..models.validation import validate_stored_settings
+    from ..models.cad import validate_cad_parameters
+    from ..geometry.blade_section import validate_section
+    from ..geometry.blade_edge import validate_blade_edge_bounds
+    from ..geometry.meridional_segments import generate_meridional
+    from ..geometry.flow_path import validate_component_stations
+    from ..geometry.resolution import validate_resolution
+    from ..models.validation import is_finite_number
+    # Reject non-finite persisted values even in unused settings. Never repair
+    # or omit them to make serialization succeed.
+    json.dumps(asdict(params), allow_nan=False, default=lambda v: v.value if isinstance(v, Enum) else v)
+    errors = [i for i in validate_stored_settings(params) if i.level == ValidationLevel.ERROR]
+    if errors:
+        raise ValueError("; ".join(f"{i.field}: {i.message}" for i in errors))
+    validate_cad_parameters(params.cad_export)
+    for curve in (params.hub, params.shroud, params.cad_export.disk.backside):
+        if curve is not None:generate_meridional(curve)
+    validate_resolution(params.resolution)
+    validate_component_stations(params.flow_path)
+    profiles = params.sections
+    if not isinstance(profiles, list) or len(profiles) < 2 or any(not isinstance(s, BladeSection) for s in profiles):
+        raise ValueError("At least Hub and Tip sections are required for storage.")
+    spans = [s.span for s in profiles]
+    if (any(not is_finite_number(s) for s in spans) or spans[0] != 0 or spans[-1] != 1
+            or any(b <= a for a, b in zip(spans, spans[1:]))):
+        raise ValueError("Stored section spans must increase from Hub 0 to Tip 1.")
+    if not isinstance(params.diffuser_profile, BladeSection) or params.diffuser_profile.span != 0:
+        raise ValueError("A diffuser profile with span 0 is required.")
+    for profile in [*profiles, params.diffuser_profile, *((params.splitter.sections or []) if params.splitter else [])]:
+        validate_section(profile)
+    for edges in (params.impeller_edges, params.diffuser_edges):
+        validate_blade_edge_bounds(edges)
+        a, b = edges.reference_le_fraction, edges.reference_te_fraction
+        if not is_finite_number(a) or not is_finite_number(b) or not 0 <= a < b <= 1:
+            raise ValueError("Stored blade correspondence knots require 0 <= LE < TE <= 1.")
+        if not isinstance(edges.legacy_uniform_sampling, bool):
+            raise ValueError("Invalid blade sampling flag.")
+    settings = params.turbogrid
+    if settings.rotation_axis not in ('X', 'Y', 'Z') or settings.geometry_unit not in ('MM', 'CM', 'M'):
+        raise ValueError("Unknown TurboGrid axis or unit.")
+    if any(v not in ("auto", "EllipseEnd", "CutOffEnd", "SquareEnd") for v in (settings.leading_edge_type, settings.trailing_edge_type)):
+        raise ValueError("Unknown TurboGrid edge type.")
+
+
+def _check_row_project(params):
+    from ..models.blade_rows import row_parameters
+    from ..geometry.geometry_3d import generate_impeller, generate_diffuser_3d
+    generators = {"impeller": generate_impeller, "diffuser": generate_diffuser_3d}
+    _check_stored_row(params)
+    for row in params.blade_rows:
+        try:
+            _check_stored_row(row.parameters)
+            generators[row.kind](row_parameters(params, row))
+        except ValueError as exc:
+            raise ValueError(f"{row.name}: {exc}") from exc
+    # The top-level editing snapshot is stored independently. Validate it in
+    # the active row's context as well; do not silently overwrite either copy.
+    active = next(row for row in params.blade_rows if row.identifier == params.active_blade_row)
+    generators[active.kind](params)
 
 
 def save_project(path: str | Path, params: BladeParameters) -> None:
@@ -246,7 +307,9 @@ def _decode_v03(data, row_snapshot=False):
         if params.blade_rows and "tip_clearance" not in data:
             active=next((r for r in params.blade_rows if r.identifier==params.active_blade_row),None)
             if active is not None:params.tip_clearance=deepcopy(active.parameters.tip_clearance)
-        _check(params, check_ownership=not row_snapshot)
+        # Row kind and shared walls are known only at the project root. Decode
+        # snapshots without running the unrelated legacy Impeller/2D engines.
+        if not row_snapshot:_check(params)
         return params
     except (TypeError, KeyError, AttributeError) as exc:
         raise ValueError(f"Malformed v0.3 project: {exc}") from exc

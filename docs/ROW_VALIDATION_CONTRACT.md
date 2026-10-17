@@ -1,5 +1,7 @@
 # 翼種別の入力検証（Stage 2B-1）
 
+本書はStage 2B-1時点の変更・検証記録。現在のLoad／Saveは、後続Stage 2B-2の[翼列プロジェクト保存検証](ROW_PROJECT_VALIDATION.md)へ更新した。以下の「Load／Saveの互換境界」「残るStage 2B-2」は当時の境界・計画として保持する。
+
 ## 変更ファイル
 
 - `blade_designer/models/validation.py`: 旧APIを保持し、翼種別の設定検証入口を追加。
