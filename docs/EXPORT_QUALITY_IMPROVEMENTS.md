@@ -64,6 +64,24 @@ Mechanical／TurboGrid CADは、STEP、Profile Points、snapshot、説明、検�
 
 最終全回帰は860一意件成功。通常261/263/298件、実CAD35件、追加のWindows障害3件を最終収集IDへ照合し、failure/error/skip/missing/unexpected/duplicateはすべて0。225入力のhash、原本と既定JSONの不変を確認した。実CAD群は714.61秒（20261017T125626Z-c64480eb）。集計はartifacts/quality-stage1b/final-test-coverage.json。試験失敗・環境エラーはなかった。ANSYS・native GUI操作は未検証。
 
+## Stage 1C: 出力入力条件の診断
+
+`File → Export → Export Readiness`から選択翼列の読取り専用診断を開く。子午面選択時は翼列の選択を促す。同じダイアログを再利用し、再診断ボタンで最新のsnapshotへ更新する。
+
+`fileio/export_readiness.py`はQt／OCPをimportせず、深いコピーを診断する。行名・種類・schema 0.4 snapshot hashを返し、Profile Points／Mechanical STEP／TurboGrid CADの3経路を分ける。対応翼種、Splitter、派生カット、数値断面、所属壁面、CAD出力設定、backend実行ファイルの存在、ディスク寸法／仮ディスク前面範囲、正のTip clearance制限を別理由として返す。Profile PointsはStage 1A/Bの非書込みprepareで単位・軸・輪郭・マーカー・桁数を実際に整形検査する。派生出力は未対応を明示して派生形状生成を実行しない。非対応機能の拒否を解除する変更ではない。
+
+入力段階の不可／入力条件OK／未実施を区別する。CAD backendは実行ファイルの存在確認までで、OCPのimportやkernel起動を証明しない。Boolean・指定Rのフィレット・全面3D干渉・STEP再読込み・対応形式への変換・ANSYS Import/Meshは実行せず、未実施と表示する。小さいRを入力しただけで対象モデルのフィレット成功とはしない。Blade Onlyはディスク結合や根元フィレットを含まない旨を示す。
+
+診断時にディスクの仮寸法を自動生成せず、設計・原本・出力・Undo履歴・カメラを変更しない。設計変更予約、再生成、プロジェクト設定、対象切替、CAD設定、出力設定で古い結果を失効させる。表示操作でも失効する場合があり、安全側に再診断を求める。未確定のテキストは既存Editorの確定操作を先に行う。
+
+この診断は設計性能や実3D干渉の合否判定ではない。Impellerの直接APIでtop-levelと選択row snapshotが不整合な場合は既存Exporter契約が適用される。GUIは選択rowの値を同期して渡す。legacy指標と実3Dの正本差はStage 2の対象として残す。
+
+### 検証
+
+GUI統合試験の作成途中では、引数なしMainWindow()が保存済みRCを初期選択するとの誤ったfixture前提で2回失敗した。既存の起動契約に従い、保存済みdefault_parametersを明示してRCを選ぶ試験へ修正し、関連19件が成功した（20261017T131946Z-c31d9bde、37.06秒）。製品の初期選択や数値参照を変更して通したものではない。
+
+新規12件は既定モデルのSplitterと所属エラーの同時提示、RC snapshot、Blade Only、backend不在、書式エラー、gap／trim、仮ディスク範囲、CAD無効、無効選択、書込み禁止、結果失効、メニュー経路、履歴・カメラ保持を対象とする。既存メニュー試験は新入口を加えた順序・単一dispatchを検証する。最終全回帰は872一意件成功。通常268件（20261017T132030Z-f328ab13、581.16秒）、262件（20261017T132030Z-27c47c4c、600.52秒）、307件（20261017T132030Z-15e35377、541.46秒）、実CAD35件（20261017T132030Z-42245e5d、805.63秒）を最終収集IDへ照合し、failure/error/skip/missing/unexpected/duplicateはすべて0。229入力のhash不変と原本／既定JSONのバイト一致を確認した。集計はartifacts/quality-stage1c/final-test-coverage.json。最終回帰の試験失敗はなし。画面のoffscreen描画では初回に環境のfont一覧が空で文字が欠落したため、検証プロセスに限りWindows既存Meiryoを明示ロードして可読なRC／Impeller画像を保存した。製品のフォント設定は変更していない。これはnative起動・DPI・操作確認の代わりではない。
+
 ## 次の作業
 
-Stage 1Cでは選択翼列の出力可否・制限・未実施検証を、設計値やファイルを変更せずに提示する。
+Stage 2は表示・旧指標・CSV・最適化の形状正本を区別し、互換経路を保持しながら揃える。根元フィレット、全面3D品質、ANSYS実機検証等は未完了。

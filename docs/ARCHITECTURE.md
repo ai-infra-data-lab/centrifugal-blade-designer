@@ -201,3 +201,7 @@ geometry/span_extension.extend_tip_to_shroudは実Tipと直前のSpanから円�
 ## ケース公開と復旧（Stage 1B）
 
 `fileio/case_publish.py`が同一親の作業ケース・保持バックアップ・復旧journal・OSロックを管理する。TurboGridは`prepare_turbogrid_export`で書込み前にbytesを確定する。CADはworker artifact全体のhashを検証し、STEP・profile・metadata・reportを同じ作業ケースで完成させる。旧case退避→新case設置の2回renameで公開し、中断時は次回出力で安全な復旧を試みる。I/O失敗は候補全体を中断し、失敗reportはjob側へ保存する。計算上のartifact別部分成功は維持する。バックアップを自動削除しない。単一原子操作・実停電耐久性・別artifactのsnapshot統一とは区別する。[検証と運用制約](EXPORT_QUALITY_IMPROVEMENTS.md)。
+
+## 出力入力条件の診断（Stage 1C）
+
+`fileio/export_readiness.py`は設計のcopyから経路別Checkとsnapshot hashを返す。Qt／OCP・書込み・CAD起動に依存しない。Profile Pointsは共通のpure prepareを利用し、CADは入力条件と未実施のkernel検証を区別する。`gui/export_readiness_widget.py`が読取り専用表示を担当し、MainWindowはメニュー入口と失効通知のみを追加する。新たな設計値・永続設定・Undoコマンドは追加しない。既存出力の対応制限は維持する。詳細は[検証記録](EXPORT_QUALITY_IMPROVEMENTS.md)。

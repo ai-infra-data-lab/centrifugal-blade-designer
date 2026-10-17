@@ -23,7 +23,7 @@ def test_standard_menu_order_and_no_toolbar(mode):
             'New','Open Project','Save Project','Export','Exit']
         exports=next(a.menu() for a in w.file_menu.actions() if a.text()=='Export')
         assert [a.text() for a in exports.actions()]==[
-            'Diffuser Segments CSV','Diffuser Contour CSV','TurboGrid Export']
+            'Diffuser Segments CSV','Diffuser Contour CSV','TurboGrid Export','Export Readiness']
         assert w.findChildren(QToolBar)==[]
         assert all(action in w.file_menu.actions() for action in w.project_actions.values())
         assert w.undo_action in w.edit_menu.actions() and w.redo_action in w.edit_menu.actions()
@@ -35,13 +35,13 @@ def test_standard_menu_order_and_no_toolbar(mode):
 
 def test_each_export_menu_dispatches_once(monkeypatch):
     calls=[]
-    for method in ('export_segments_dialog','export_contour_dialog','export_turbogrid_dialog'):
+    for method in ('export_segments_dialog','export_contour_dialog','export_turbogrid_dialog','show_export_readiness'):
         monkeypatch.setattr(MainWindow,method,lambda self,checked=False,method=method:calls.append(method))
     app=QApplication.instance() or QApplication([]);w=MainWindow()
     try:
         menu=next(a.menu() for a in w.file_menu.actions() if a.text()=='Export')
         for action in menu.actions():action.trigger()
-        assert calls==['export_segments_dialog','export_contour_dialog','export_turbogrid_dialog']
+        assert calls==['export_segments_dialog','export_contour_dialog','export_turbogrid_dialog','show_export_readiness']
     finally:dispose(w,app)
 
 

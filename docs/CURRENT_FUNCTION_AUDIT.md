@@ -105,3 +105,7 @@
 Windows native/F5で、3行切替・全タブ／別ウィンドウ・未確定入力・Undo/Redo・DPI・Camera保持・CAD実行中の編集／取消を確認する。
 ANSYSはリリースとライセンスを固定し、上記対応マトリクスごとにImport、単位、軸、翼枚数、LE/TE認識、Hub/Shroud接続、gap実Tip番号、周期境界、メッシュ生成と品質を記録する。
 Mechanicalはsolid数・結合・根元半径・実機ディスク寸法・周期拘束を確認する。これらの外部確認は今回PASSにしていない。
+
+## Stage 1Cの追記
+
+選択翼列の出力入力条件を`File → Export → Export Readiness`で診断する。根拠は`fileio/export_readiness.py`、`gui/export_readiness_widget.py`、`MainWindow.show_export_readiness`。新規`test_export_readiness.py`9件と`test_readiness_widget.py`3件、既存メニュー7件の関連試験が成功。3経路の未対応理由を別々に表示し、CAD生成やANSYS実行の成功にはしない。原本・既定・出力・設計値を変えない。全面3D干渉や対象形状の根元filletの成立は未検証／未解決のまま。最終回帰記録は[実装ログ](EXPORT_QUALITY_IMPROVEMENTS.md)を参照。

@@ -1,6 +1,8 @@
 # 既存機能一覧
 
 
+2026-10-17 品質改善Stage 1C: `File → Export → Export Readiness`へ選択翼列の読取り専用診断を追加。Profile Points／Mechanical STEP／TurboGrid CADを分け、入力段階の制限・所属・ディスク・backend実行ファイルの有無を表示。CAD kernel、指定Rのフィレット、全面3D干渉、ANSYS Import/Meshは未実施として区別する。設計・Undo・Camera・原本・出力を変更せず、編集後は古い診断を失効させる。新規12件、関連19件成功。最終全回帰872一意件成功（通常268/262/307件、実CAD35件）、failure/error/skip/実行漏れ/重複なし。固定229入力・原本／既定JSON不変。native操作・対象形状の根元fillet成立・ANSYS Import/Meshは未検証／未解決。[出力品質の記録](docs/EXPORT_QUALITY_IMPROVEMENTS.md)。
+
 2026-10-17 品質改善Stage 1B: TurboGrid／CADケースを別領域で完成・検証してからディレクトリを切替。既存ケースをバックアップへ保持し、中断復旧・OSロック・容量不足・hash不一致・metadata失敗を検査。2回のrename間は保存先名が一時不在となるため、単一の原子的切替や実停電耐久性は保証しない。全860一意件成功（実CAD35件を含む）、skipなし、従来16出力のraw bytes不変。出力用の専用フォルダを指定し、保持バックアップは内容確認後に整理する。[詳細・制約](docs/EXPORT_QUALITY_IMPROVEMENTS.md)。
 確認日: 2026-10-17。対象: Centrifugal Compressor Blade Designer v0.3と任意CAD機能v0.4。
 

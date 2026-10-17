@@ -11,6 +11,7 @@ from .tip_clearance_editor import TipClearanceEditor
 from .impeller_trim_editor import ImpellerTrimEditor
 from .cad_editor import CadEditor
 from .cad_export_worker import CadExportWorker
+from .export_readiness_widget import ExportReadinessWidget
 from ..models.parameters import BladeParameters, BladeRow, RotationDirection
 from ..models.blade_rows import initial_rows, row_snapshot, row_parameters,visible_edge_rows,reconcile_visible_row_edges
 from .design_navigator import DesignNavigator
@@ -276,7 +277,7 @@ class MainWindow(QMainWindow):
         self.projection.currentIndexChanged.connect(self._projection_changed)
         self.file_menu.addSeparator()
         export_menu = self.file_menu.addMenu("Export")
-        for label,callback in (("Diffuser Segments CSV",self.export_segments_dialog),("Diffuser Contour CSV",self.export_contour_dialog),("TurboGrid Export",self.export_turbogrid_dialog)):
+        for label,callback in (("Diffuser Segments CSV",self.export_segments_dialog),("Diffuser Contour CSV",self.export_contour_dialog),("TurboGrid Export",self.export_turbogrid_dialog),("Export Readiness",self.show_export_readiness)):
             export_menu.addAction(label).triggered.connect(callback)
         self.file_menu.addSeparator()
         self.file_menu.addAction("Exit").triggered.connect(self.close)
@@ -366,6 +367,7 @@ class MainWindow(QMainWindow):
         self.tabs.setCurrentWidget(editor);editor.groups.setCurrentIndex(1)
 
     def _refresh_model_view(self, *args):
+        self._invalidate_export_readiness()
         view = (self.meridional_editor.context if self._editing_meridional
                 else self.annulus_plot if self.annulus_2d.isChecked() else self.blade_plot)
         self.central_views.setCurrentWidget(view)
@@ -427,6 +429,17 @@ class MainWindow(QMainWindow):
         dialog.show()
         dialog.raise_()
         return dialog
+
+    def _invalidate_export_readiness(self):
+        if hasattr(self, "export_readiness_widget"):
+            self.export_readiness_widget.invalidate()
+
+    def show_export_readiness(self):
+        if not hasattr(self, "export_readiness_widget"):
+            self.export_readiness_widget = ExportReadinessWidget(
+                lambda: None if self._editing_meridional else self.get_parameters())
+        self.export_readiness_widget.refresh()
+        return self._show_tool_dialog("Export Readiness", self.export_readiness_widget)
 
     def show_output_settings(self):
         return self._show_tool_dialog("Output Settings", self.output_page)
@@ -504,6 +517,7 @@ class MainWindow(QMainWindow):
         return params
 
     def set_parameters(self, params: BladeParameters) -> None:
+        self._invalidate_export_readiness()
         params=self._with_shared_impeller_edges(params)
         previous=self._restoring;self._restoring=True
         try:self._set_parameters(params)
@@ -847,6 +861,7 @@ class MainWindow(QMainWindow):
         self._refresh_section()
 
     def _output_changed(self):
+        self._invalidate_export_readiness()
         p=self.panel.get_parameters()
         self.output_editor.apply_to(p)
         flow=self.meridional_editor.get_stations()
@@ -863,6 +878,7 @@ class MainWindow(QMainWindow):
         self.output_editor.set_parameters(p)
 
     def _schedule_update(self) -> None:
+        self._invalidate_export_readiness()
         self._bind_history_inputs()
         self.passage_widget.set_source()
         self.statusBar().showMessage("Updating…")
@@ -987,6 +1003,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Impeller: {len(impeller.sections)} sections  |  Diffuser {'WARNING' if messages else 'Ready'}  |  Throat = {throat_text}  |  PS: {geometry.resolved_mapping.value}")
 
     def update_geometry(self) -> None:
+        self._invalidate_export_readiness()
         self.timer.stop()
         try:
             params = self.get_parameters()
@@ -1205,6 +1222,7 @@ class MainWindow(QMainWindow):
 
 
     def _cad_settings_changed(self,*args):
+        self._invalidate_export_readiness()
         if self._restoring or not hasattr(self,"timer"):return
         self._bind_history_inputs();self.commit_edit();self._sync_cad_preview()
 
