@@ -94,8 +94,35 @@ def prepare_job(project,action="generate",job_directory=None):
 
 def publish_job(job,target,project):
     """Keep partial successes distinct and protect existing valid files on failure."""
-    from ..fileio.mechanical_step_export import publish_verified_artifact
-    from ..fileio.turbogrid_export import export_turbogrid
+    from ..fileio.case_publish import staged_case
+    from .errors import CadExportError
+    job=Path(job)
+    request=json.loads((job/"request.json").read_text(encoding="utf-8"))
+    report=json.loads((job/"result.json").read_text(encoding="utf-8"))
+    expected=hashlib.sha256(json_text({"schema_version":"0.4",**asdict(project)}).encode("utf-8")).hexdigest()
+    if expected!=request["parameter_snapshot_hash"] or report.get("parameter_snapshot_hash",expected)!=expected:
+        raise ValueError("CAD snapshot hash mismatch; no files published.")
+    try:
+        with staged_case(target) as stage:
+            report=_publish_job_into_case(job,stage,project)
+        return report
+    except (OSError,ValueError,CadExportError) as exc:
+        report=json.loads((job/"result.json").read_text(encoding="utf-8"))
+        report["overall"]="FAIL"
+        report["error"]={"stage":"CASE PUBLICATION","type":type(exc).__name__,"message":str(exc)}
+        for artifact in report.get("artifacts",{}).values():
+            if artifact.get("status") in ("PASS","CONVERSION_REQUIRED"):
+                artifact.update(worker_status=artifact["status"],status="FAIL",publication="NOT_PUBLISHED",error=str(exc))
+        try:(job/"publication_failure.json").write_text(json_text(report),encoding="utf-8")
+        except OSError:report.setdefault("warnings",[]).append("Could not write the publication failure report in the CAD job.")
+        return report
+
+
+def _publish_job_into_case(job,target,project):
+    """Build all artifacts and sidecars inside an isolated case directory."""
+    from ..fileio.mechanical_step_export import _write_verified_artifact
+    from ..fileio.turbogrid_export import prepare_turbogrid_export
+    from ..fileio.case_publish import _write_case_files
     from ..fileio.turbogrid_cad_export import TURBOGRID_CAD_INSTRUCTIONS,blade_blend_instructions
     from ..fileio.cad_validation_report import write_report
     job=Path(job);target=Path(target)
@@ -107,12 +134,16 @@ def publish_job(job,target,project):
     if action in ("turbogrid","both") and settings["turbogrid_enabled"]:requested.extend(("turbogrid_profile_points","turbogrid_cad"))
     for name,artifact in report.get("artifacts",{}).items():
         if artifact.get("status") in ("PASS","CONVERSION_REQUIRED"):
-            try:publish_verified_artifact(job,target,artifact)
-            except Exception as exc:artifact.update(status="FAIL",error=str(exc));report["overall"]="FAIL"
+            try:_write_verified_artifact(job,target,artifact)
+            except Exception as exc:raise OSError("CAD artifact publication failed: "+str(exc)) from exc
     if "turbogrid_profile_points" in requested:
         try:
-            files=export_turbogrid(target/"turbogrid"/"profile_points",project)
+            names,contents=prepare_turbogrid_export(project)
+            directory=target/"turbogrid"/"profile_points"
+            _write_case_files(directory,contents)
+            files=[directory/name for name in names]
             report.setdefault("artifacts",{})["turbogrid_profile_points"]={"status":"PASS","files":[str(p.relative_to(target)) for p in files],"root_fillet_included":False}
+        except OSError:raise
         except Exception as exc:report.setdefault("artifacts",{})["turbogrid_profile_points"]={"status":"FAIL","error":str(exc)}
     for name in requested:report.setdefault("artifacts",{}).setdefault(name,{"status":"FAIL","error":report.get("error",{}).get("message","Artifact was not generated.")})
     if any(report["artifacts"][name]["status"]=="FAIL" for name in requested):report["overall"]="FAIL"

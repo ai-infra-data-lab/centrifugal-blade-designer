@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+
+2026-10-17 品質改善Stage 1B: TurboGrid／CADケースを別領域で完成・検証してからディレクトリを切替。既存ケースをバックアップへ保持し、中断復旧・OSロック・容量不足・hash不一致・metadata失敗を検査。2回のrename間は保存先名が一時不在となるため、単一の原子的切替や実停電耐久性は保証しない。全860一意件成功（実CAD35件を含む）、skipなし、従来16出力のraw bytes不変。出力用の専用フォルダを指定し、保持バックアップは内容確認後に整理する。[詳細・制約](docs/EXPORT_QUALITY_IMPROVEMENTS.md)。
 確認日: 2026-10-17。対象: Centrifugal Compressor Blade Designer v0.3と任意CAD機能v0.4。
 
 2026-10-17 品質改善Stage 1A: 通常Impellerも含め、TurboGrid Profile Pointsの丸め後の閉鎖・連続点重複・LE/TEマーカー・Span間点数を出力前に検査するよう修正。無効なら既存出力を変更せず、新規出力先も作成しない。点削除・桁数自動変更・形状変更は行わない。新規64件を含む全回帰832一意件成功（通常259/247/291件、実CAD35件）、実行漏れ・失敗・error・skipなし。歴史的ASCIIハッシュと原本JSONは保持。ANSYS Import/Mesh・native操作は未検証。[出力品質の記録](docs/EXPORT_QUALITY_IMPROVEMENTS.md)を参照。

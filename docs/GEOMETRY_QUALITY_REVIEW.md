@@ -143,6 +143,8 @@ Hub/Tipは`geometry/blade_edge.py::blade_wall_parameters`の共通参照LE/TE節
 
 ### E02 — 複数ファイル公開はケース全体のトランザクションではない [P1・A/B]
 
+**対応済み（Stage 1B）**: 別領域で一式を完成させ、保持バックアップと復旧journalを伴う2回のディレクトリrenameへ変更。最終860一意件成功、Windowsロック／強制終了／容量不足／CAD公開失敗を確認。単一原子的操作・実停電耐久性は保証しない。[詳細](EXPORT_QUALITY_IMPROVEMENTS.md)。以下は修正前の監査記録。
+
 - **対象**: `fileio/turbogrid_export.py::export_turbogrid`、`fileio/mechanical_step_export.py::publish_verified_artifact`、`cad/client.py::publish_job`。
 - **再現**: 専用sentinel4ファイルへexportし、2回目のos.replaceにOSErrorを注入。例外後`hub.curve`のみ新しく他3ファイルは旧値。実ユーザー出力には注入しない。
 - **範囲**: 無効形状時は事前検証、CADはhash検証済みbytesだけ公開、JSON単体はtemporary→replaceで保護される。対して複数ファイルreplaceの途中I/O失敗・停電に対する一括整合性はない。CAD公開にも逐次replaceがあり同種の制限（CAD側故障注入は今回未実施）。

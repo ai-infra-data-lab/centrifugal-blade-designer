@@ -6,7 +6,6 @@ LE/TE end keywords are from the 2.1 initialization example, not guessed.
 from pathlib import Path
 from dataclasses import replace
 import os
-import tempfile
 import numpy as np
 from .csv_export import format_number
 from ..geometry.meridional_segments import sample_meridional
@@ -65,7 +64,8 @@ def _validate_profile_coordinates(coordinates):
     return len(rounded)
 
 
-def export_turbogrid(case_directory,params):
+def prepare_turbogrid_export(params):
+    """Return validated filenames/bytes without creating or updating any files."""
     from ..models.blade_rows import validate_rows, row_parameters
     validate_rows(params)
     project=params
@@ -135,15 +135,13 @@ def export_turbogrid(case_directory,params):
             f"! Physical Tip: Profile Number {len(geometry.sections)-1} (1-based, Tip_clearance).\n"
             "! Set Shroud Tip / Tip Option = Profile Number in TurboGrid to restore the physical gap.\n"
             "! The final Shroud_extension profile is for spanwise surface continuation only.\n")
-    # All geometry and formatting validated before creating any output.
-    target=Path(case_directory);target.mkdir(parents=True,exist_ok=True)
-    staged=[]
-    try:
-        for name,content in contents.items():
-            with tempfile.NamedTemporaryFile('w',encoding='ascii',dir=target,delete=False) as stream:
-                stream.write(content);staged.append((Path(stream.name),target/name))
-        for source,destination in staged:os.replace(source,destination)
-    finally:
-        for source,destination in staged:
-            if source.exists():source.unlink()
+    # Preserve the platform text-file newlines used by the original writer.
+    return filenames,{name:content.replace('\n',os.linesep).encode('ascii') for name,content in contents.items()}
+
+
+def export_turbogrid(case_directory,params):
+    from .case_publish import publish_case_files
+    filenames,contents=prepare_turbogrid_export(params)
+    publish_case_files(case_directory,contents)
+    target=Path(case_directory)
     return [target/name for name in filenames]

@@ -197,3 +197,7 @@ CombinedProfileEditorは主翼ProfileDistributionEditorを拡張し、既存ス�
 ## クリアランス付きTurboGrid Profile Points（2026-10-17）
 
 geometry/span_extension.extend_tip_to_shroudは実Tipと直前のSpanから円筒座標を線形延長し、解析Shroudとの交点から新しい断面だけを返します。実設計のgenerate_impeller・Mapper・CAD・表示の経路には組み込みません。fileio/turbogrid_exportが出力専用geometryへ断面を追加し、実Tip・延長断面の順で保存します。ゼロ隙間は従来経路です。GUIはprofileラベルから1始まりの実Tip番号を案内します。Profile Numberの指定はTurboGridで行い、未確認の初期化キーワードは追加しません。詳細・制約は[TURBOGRID_CLEARANCE.md](TURBOGRID_CLEARANCE.md)。
+
+## ケース公開と復旧（Stage 1B）
+
+`fileio/case_publish.py`が同一親の作業ケース・保持バックアップ・復旧journal・OSロックを管理する。TurboGridは`prepare_turbogrid_export`で書込み前にbytesを確定する。CADはworker artifact全体のhashを検証し、STEP・profile・metadata・reportを同じ作業ケースで完成させる。旧case退避→新case設置の2回renameで公開し、中断時は次回出力で安全な復旧を試みる。I/O失敗は候補全体を中断し、失敗reportはjob側へ保存する。計算上のartifact別部分成功は維持する。バックアップを自動削除しない。単一原子操作・実停電耐久性・別artifactのsnapshot統一とは区別する。[検証と運用制約](EXPORT_QUALITY_IMPROVEMENTS.md)。

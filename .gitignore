@@ -38,4 +38,9 @@ dist/
 **/turbogrid/cad/cad_import_instructions.md
 **/turbogrid/blade_blend_settings.md
 **/turbogrid/profile_points/
+# Recoverable export publication work areas and retained backups
+.*.publish-*.stage/
+.*.publish-*.backup/
+.*.publish.lock
+.*.publish.json
 !tests/fixtures/**
