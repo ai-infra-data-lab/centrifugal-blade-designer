@@ -1,5 +1,11 @@
 # Centrifugal Compressor Blade Designer v0.3
 
+アプリ名・バージョン・角度定義は`About → About Blade Designer`で確認できます。画面内の大きなヘッダーを除き、編集に使える領域を広げました。詳細は[Aboutメニュー](docs/ABOUT.md)。
+
+Impellerの`LE / TE → 派生設計 / Shroud・外径カット`で、元の基準Gross面積に対する一定削減率と、指定外径[mm]／元外径からの切削率[%]を設定できます。角度・厚さ・子午面の元データを保持し、元の翼面から主翼とSplitterを切り出します。翼Tipとケーシングを変更し、既存の絶対クリアランスを維持します。中央の形状と流路解析は派生形状、編集グラフは元設計です。派生形状のTurboGrid／CAD出力は未対応で、書き込み前に拒否します。操作・定義・制限は[派生カット](docs/IMPELLER_TRIM_SPEC.md)を参照してください。
+
+専用スプリッターの角度・厚さは、表示中のLE〜TEの点だけで主翼と同じPCHIP補間を行います。2点なら直線です。既存の専用分布・コピー直後にも適用するため、以前の形状から変わる場合があります。主翼連動モードは従来どおりです。詳細は[専用分布の補間](docs/SPLITTER_INTERPOLATION.md)。
+
 保存先: [アプリ専用のGitHubリポジトリ](https://github.com/ai-infra-data-lab/centrifugal-blade-designer)。最新の静翼TurboGrid出力対応は全回帰490件成功。v0.3.0タグの記録は318件成功で、タグは維持します。実ディスプレイの変更後操作とTurboGrid実機Importは未確認です。
 
 2026-10-11のローカル整理では、角度・厚さEditorの不要な一時グラフ、重複する表示更新、未使用importを削除しました。操作・数値計算・既定値・保存形式は維持します。検証記録は[FEATURES.md](FEATURES.md)を参照。GitHubのv0.3.0タグは変更していません。
@@ -30,6 +36,22 @@ Hub/ShroudのLine・Circular Arc子午面、Hub/Tip・中間Spanの翼断面、C
 
 正本仕様: [V03_FLOW_PATH_SPEC.md](V03_FLOW_PATH_SPEC.md)、追加要件: [V03_ADDITIONAL_SPEC.md](V03_ADDITIONAL_SPEC.md)。
 
+子午面の区間一覧で円弧（Arc）の行を選ぶと、一覧の下に中心・始点・終点のR/Z座標[mm]を表示します。Hub／Shroudの切替、編集、Undo／Redoに追従する読み取り専用の表示です。直線は始点・終点のみ表示します。[座標表示の詳細](docs/MERIDIONAL_COORDINATES.md)。
+
+角度・厚さは`Blade Angle`／`Thickness`で主翼とスプリッターを同じグラフに表示します。下の`主翼 / Main`・`スプリッター / Splitter`で編集対象を選びます。Splitterタブは開始位置・コピー等の設定用です。タブや解析グラフを開いた際は線全体が見える範囲に合わせ、編集中のズームは維持します。[共有グラフと全体表示](docs/SHARED_GRAPHS.md)。
+
+## CAD / Fillet（v0.4）
+
+オープンインペラは`LE / TE → オープンインペラ / Tip Clearance`でLE・TEの隙間[mm]を指定します。Shroudを固定ケーシングとし、Hub側法線方向へ翼Tipを移し、間はケーシング沿いの距離で線形補間します。入力はEnter／フォーカス移動で確定。子午面と3DにTipとケーシングを分けて表示し、翼列別保存・Undoに対応します。TurboGrid Profile Pointsは実Tip断面に加え、ShroudまでSpan方向に延長した断面を同じprofileファイルへ出力します。読込み後はShroud TipのProfile Numberに出力後表示の実Tip番号を指定してください。TurboGrid CAD・Splitter付きの出力は未対応です。操作と検証は[クリアランス付きTurboGrid](docs/TURBOGRID_CLEARANCE.md)、CADの成立範囲・面積の扱いは[翼端クリアランス](docs/TIP_CLEARANCE.md)を参照してください。
+
+Impellerの`CAD / Fillet`タブで、master座標から実BREPの翼・Hub・根元フィレットを生成し、Mechanical用STEPとTurboGrid用流路CADを検証付きで出力できます。`根元フィレットR`へ正の半径を入力し、Enter/フォーカス移動で確定して再生成します。初期値は8 mmです。Shroud無効、mm、Z軸は維持します。
+
+`仮ディスクを作成・表示`で仮寸法のディスク単体を表示できます。既定モデルでは内径20 mm、外径約251.86 mm、裏面Z=75 mmです。画面・JSON・レポートへPROVISIONALと記録します。手動の入力済み寸法は保持します。ディスク単体には根元フィレットは含まれず、現在の既定翼と結合したR8は根元位相の制約で未成立です。[仮ディスク追加報告](docs/PROVISIONAL_DISK_REPORT.md)を参照してください。
+
+CADは別環境`.venv-cad`のOpen CASCADEで処理します。TurboGrid CADはSTEP中間形式で、対応形式への変換は`CONVERSION_REQUIRED`、ANSYS Import/Meshは`NOT_TESTED`です。既存のProfile Pointsにフィレットは含みません。
+
+環境構築、裏面入力、各Scope、MechanicalのWorkbench Import/Mesh手順、TurboGridのProfile Points/CADの2経路は[CAD操作手順](docs/CAD_EXPORT.md)を参照してください。[実装・検証報告](docs/CAD_IMPLEMENTATION_REPORT.md)に確認範囲と制約を記載しています。
+
 ## 起動・検証
 
 インペラの「LE / TE」タブにある「TE Rake target / β保持」を有効にすると、TE Rake目標角を入力できます。無効（既定値）は従来の形状、有効で0°はTE Rakeを0°へ合わせる指定です。各翼列で独立して保存し、Undo/Redoに対応します。入力はEnter/フォーカス移動で確定します。
@@ -44,7 +66,7 @@ TE Rakeの実測角とHub/TipのLE θを表示します。Rake有効時の「Hub
 
 Hub/Tip開始位置は各主翼の物理的な子午面距離でLE=0%、TE=100%とした値です。50%なら後半を使用し、中間Spanの開始割合はHub/Tip間で線形補間します。「主翼間の位置」は回転方向へ1ピッチの割合で、50%は中間です。「厚さ倍率」は元の主翼分布へ掛けます。初期の連動状態ではβと厚さの分布を主翼上の元の位置から切り出し、短い翼の0〜100%へ元分布全体を引き伸ばしません。端部タイプは主翼を継承し、新しいLEを再生成します。TEは主翼の位置・外径Cutoff・TE Rakeに追従します。
 
-中央2D・3DとFull Annulusではスプリッターを緑色で表示します。右側に実際のHub/Tip LEのR/Zと枚数を表示します。翼列ごとに独立保存し、Undo/Redo・New・JSON往復に対応します。数値入力はEnter/フォーカス移動で確定します。初期状態は主翼連動です。「主翼からコピーして角度・厚さを独立編集」を選ぶと、その時点の主翼分布を形状を変えずにコピーし、専用のBlade Angle / Thicknessグラフ・表で調整できます。専用分布も横軸は元の主翼LE=0、TE=1で、開始位置以降を使用します。厚さグラフは倍率適用前の値です。独立編集後は主翼β・厚さの変更に追従しません。「現在の主翼から再コピー」で初期化でき、連動へ戻す操作もUndo可能です。主翼の中間Spanを後から追加した場合は、保存済み専用Span間で分布を補間します。独立モードでも端部・TE位置・Rakeは主翼に追従します。複数種類のスプリッターと翼間の3D干渉評価は今回含みません。
+中央2D・3DとFull Annulusではスプリッターを緑色で表示します。右側に実際のHub/Tip LEのR/Zと枚数を表示します。翼列ごとに独立保存し、Undo/Redo・New・JSON往復に対応します。数値入力はEnter/フォーカス移動で確定します。初期状態は主翼連動です。「主翼からコピーして角度・厚さを独立編集」を選ぶと、その時点の主翼制御点をコピーし、共通のBlade Angle / Thicknessグラフ・表で調整できます。専用分布も横軸は元の主翼LE=0、TE=1で、各SpanのスプリッターLE〜TEだけを表・ドラッグ点で編集します。可視点だけのPCHIP補間をコピー直後にも適用するため、連動時と形状が変わる場合があります。上流点は保存データとして保持しますが、専用区間の点間の傾きには使いません。[編集範囲の詳細](docs/SPLITTER_EDIT_RANGE.md)と[補間の詳細](docs/SPLITTER_INTERPOLATION.md)。厚さグラフは倍率適用前の値です。独立編集後は主翼β・厚さの変更に追従しません。「現在の主翼から再コピー」で初期化でき、連動へ戻す操作もUndo可能です。主翼の中間Spanを後から追加した場合は、保存済み専用Span間で分布を補間します。独立モードでも端部・TE位置・Rakeは主翼に追従します。複数種類のスプリッターと翼間の3D干渉評価は今回含みません。
 
 **スプリッター付きインペラのTurboGrid出力は現在未対応です。** 主翼だけを誤って出力しないよう、書込み前に明示的なエラーにして既存ケースを保護します。スプリッター無効時の既存Impeller出力と静翼出力は維持します。スプリッター形状の保存には対応版のProject JSONを使用してください。
 
@@ -195,6 +217,8 @@ LE/TEの厚さ0による鋭い端部は使用できます。
 Throat最小位置がLE上にあっても拒否・警告理由にしません。既存の連続Throat計算を保持しています。
 
 ## Flow PathとGross Flow Area
+
+選択翼列の翼厚差引き面積とスロートは、`View → Passage Area / Throat → Calculate`で確認します。Impellerでは主翼間の参考値、主翼→スプリッター、スプリッター→次の主翼を分け、断面面積とSpan別の最小幅、Hub–Tip積分による近似スロート面積を表示します。形状編集後は再計算してください。曲線壁の幅は3D直線距離の下限推定で、厳密な壁面拘束付きスロートではありません。[定義と制限・操作手順](docs/PASSAGE_ANALYSIS.md)を参照してください。従来の`View → Flow Area`の総面積表示は維持します。
 
 INLET < IMP_LE < IMP_TE < DIF_LE < DIF_TE < OUTLETを保存します。
 領域はInlet / Impeller / Vaneless Diffuser・Gap / Vaned Diffuser / Outletです。

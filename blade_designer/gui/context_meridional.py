@@ -23,6 +23,9 @@ class ContextMeridional(QWidget):
         self.plot.setAspectLocked(True);self.plot.addLegend()
         self.curves=[self.plot.plot(pen=pg.mkPen(c,width=2),name=n)
                      for c,n in (("#56d9e0","Hub"),("#eead72","Shroud"))]
+        self.tip_profiles={}
+        self.trim_profiles={}
+        self._tip_visible=False
         self.boundaries=[self.plot.plot(pen=pg.mkPen("#909cac",style=__import__("PySide6.QtCore",fromlist=["Qt"]).Qt.PenStyle.DashLine))
                          for _ in StationType]
         self.region_labels=[]
@@ -43,6 +46,7 @@ class ContextMeridional(QWidget):
 
     def update_geometry(self,geometry,parameters=None,mean_points=4001):
         for item,wall in zip(self.curves,(geometry.hub,geometry.shroud)):item.setData(wall.z,wall.r)
+        self.update_tip_profiles([('Impeller',geometry)] if getattr(geometry,'tip',None) is not None else [])
         if parameters is None:return
         from ..geometry.meridional_segments import sample_meridional
         values=validate_component_stations(parameters)
@@ -100,6 +104,37 @@ class ContextMeridional(QWidget):
 
     def show_crossflow(self,station):
         self.cursor.setData([station.hub_z,station.shroud_z],[station.hub_r,station.shroud_r])
+
+    def update_tip_profiles(self,entries):
+        trimmed={name:geometry for name,geometry in entries if geometry.trim_report is not None}
+        for name,line in list(self.trim_profiles.items()):
+            if name not in trimmed:
+                self.plot.plotItem.legend.removeItem(line);self.plot.removeItem(line);del self.trim_profiles[name]
+        for name,geometry in trimmed.items():
+            if name not in self.trim_profiles:
+                self.trim_profiles[name]=self.plot.plot(pen=pg.mkPen('#f4ba70',width=2),name=f'{name} Trim casing')
+            self.trim_profiles[name].setData(geometry.shroud.z,geometry.shroud.r)
+        enabled=bool(entries)
+        if enabled!=self._tip_visible:
+            label=self.plot.plotItem.legend.getLabel(self.curves[1])
+            if label is not None:label.setText('Casing / Shroud' if enabled else 'Shroud')
+            self._tip_visible=enabled
+        names={name for name,_ in entries}
+        for name,items in list(self.tip_profiles.items()):
+            if name not in names:
+                for item in items:
+                    self.plot.plotItem.legend.removeItem(item)
+                    self.plot.removeItem(item)
+                del self.tip_profiles[name]
+        for name,geometry in entries:
+            if name not in self.tip_profiles:
+                line=self.plot.plot(pen=pg.mkPen('#8deb87',width=2),name=f'{name} Tip (trim)' if geometry.trim_report else f'{name} Tip (clearance)')
+                markers=self.plot.plot(pen=None,symbol='o',symbolBrush='#8deb87',symbolSize=7)
+                self.tip_profiles[name]=(line,markers)
+            profile=geometry.sections[-1].camber
+            line,markers=self.tip_profiles[name]
+            line.setData(profile.z,profile.r)
+            markers.setData(profile.z[[0,-1]],profile.r[[0,-1]])
 
     def _clicked(self,event):
         if self.station_points is None or not self.plot.sceneBoundingRect().contains(event.scenePos()):return

@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
     QDoubleSpinBox, QPushButton, QLabel, QAbstractItemView)
 from ..models.parameters import DistributionPoint
 from ..models.validation import validate_control_points, ValidationLevel
+from .plot_fitting import install_plot_fit
 
 
 class CompactDoubleSpinBox(QDoubleSpinBox):
@@ -23,13 +24,13 @@ class DraggablePoints(pg.GraphItem):
         self.scatter.sigClicked.connect(self._clicked)
 
     def _clicked(self, scatter: object, points: list, event: object) -> None:
-        if points:
+        if len(points):
             self.editor.table.selectRow(int(points[0].data()))
 
     def set_points(self, points: list[DistributionPoint]) -> None:
         data = np.arange(len(points))
         self.setData(pos=np.array([[p.m_blade_norm,p.value] for p in points]).reshape(-1,2), data=data,
-                     size=getattr(self,"point_size",12), symbol="o",
+                     size=getattr(self,"point_size",12), symbol=getattr(self,'symbol','o'),
                      symbolPen=pg.mkPen(getattr(self,"color","#56d9e0"),width=2),
                      symbolBrush=getattr(self,"brush","#56d9e0"), pxMode=True)
 
@@ -53,7 +54,7 @@ class DraggablePoints(pg.GraphItem):
             return
         if event.isStart():
             points = self.scatter.pointsAt(event.buttonDownPos())
-            if not points:
+            if len(points) == 0:
                 event.ignore()
                 return
             self.editor.dragStarted.emit()
@@ -83,6 +84,7 @@ class ControlPointEditor(QWidget):
         self._points: list[DistributionPoint] = []
         layout = QVBoxLayout(self)
         self.plot = shared_plot if shared_plot is not None else pg.PlotWidget(background="#101c2b")
+        install_plot_fit(self.plot)
         if shared_plot is None:
             self.plot.setMinimumHeight(180)
             self.plot.setLabel("bottom", "Normalized Meridional")

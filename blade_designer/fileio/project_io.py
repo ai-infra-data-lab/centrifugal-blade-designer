@@ -17,6 +17,11 @@ from ..models.validation import validate_parameters, ValidationLevel
 
 
 def _check(params: BladeParameters, check_ownership=True) -> None:
+    from ..models.cad import validate_cad_parameters
+    validate_cad_parameters(params.cad_export)
+    if params.cad_export.disk.backside is not None:
+        from ..geometry.meridional_segments import generate_meridional
+        generate_meridional(params.cad_export.disk.backside)
     from ..models.blade_rows import validate_rows, row_parameters
     validate_rows(params)
     if check_ownership and params.blade_rows is None and any(segment.blade_row is not None for curve in (params.hub,params.shroud) for segment in curve.segments):
@@ -45,10 +50,19 @@ def _check(params: BladeParameters, check_ownership=True) -> None:
 def save_project(path: str | Path, params: BladeParameters) -> None:
     _check(params)
     payload = asdict(params)
+    from ..models.cad import CadExportParameters
+    default_cad=asdict(CadExportParameters())
     def omit_unassigned(value):
         if isinstance(value, dict):
+            if value.get("cad_export") == default_cad:value.pop("cad_export")
+            if value.get("provisional") is False:value.pop("provisional")
+            if value.get("front_end_m_mm",False) is None:value.pop("front_end_m_mm")
             if value.get("splitter", False) is None:
                 value.pop("splitter")
+            if value.get("tip_clearance", False) is None:
+                value.pop("tip_clearance")
+            if value.get("impeller_trim", False) is None:
+                value.pop("impeller_trim")
             if value.get("impeller_te_rake_deg", False) is None:
                 value.pop("impeller_te_rake_deg")
             if value.get("blade_row", False) is None:
@@ -60,7 +74,10 @@ def save_project(path: str | Path, params: BladeParameters) -> None:
     if params.blade_rows is None:
         payload.pop("blade_rows")
         payload.pop("active_blade_row")
-    text = json.dumps({"schema_version": "0.3", **payload}, ensure_ascii=False,
+    def has_cad(value):
+        if isinstance(value,dict):return "cad_export" in value or "tip_clearance" in value or "impeller_trim" in value or any(has_cad(v) for v in value.values())
+        return isinstance(value,list) and any(has_cad(v) for v in value)
+    text = json.dumps({"schema_version": "0.4" if has_cad(payload) else "0.3", **payload}, ensure_ascii=False,
                       indent=2, allow_nan=False, default=lambda value: value.value if isinstance(value, Enum) else value)
     path = Path(path)
     temporary = None
@@ -107,7 +124,7 @@ def load_project(path: str | Path) -> BladeParameters:
     version = data.get("schema_version")
     if version == "0.1":data=migrate_v01_to_v02(data);version="0.2"
     if version == "0.2":data=migrate_v02_to_v03(data);version="0.3"
-    if version != "0.3":raise ValueError(f"Unsupported schema_version: {version!r}")
+    if version not in ("0.3","0.4"):raise ValueError(f"Unsupported schema_version: {version!r}")
     return _decode_v03(migrate_v03_blade_edges(migrate_v03_flow_path(data)))
 
 
@@ -122,7 +139,23 @@ def _decode_v03(data, row_snapshot=False):
             export=_group(data, "export", ExportParameters),
             surface_mapping=SurfaceMapping(data["surface_mapping"]),
             rotation_direction=RotationDirection(data.get("rotation_direction","ccw")))
+        if "cad_export" in data:
+            from ..models.cad import CadExportParameters,FilletParameters,DiskGeometryParameters,FilletMode,MechanicalExportScope
+            values=data["cad_export"]
+            if not isinstance(values,dict) or set(values)-{f.name for f in fields(CadExportParameters)}:raise ValueError("Invalid CAD settings fields.")
+            values=dict(values)
+            fillet=dict(values.pop("fillet",{}));fillet["mode"]=FilletMode(fillet.get("mode","true_cad"))
+            disk=dict(values.pop("disk",{}))
+            if disk.get("backside") is not None:disk["backside"]=_curve(disk["backside"])
+            values["mechanical_scope"]=MechanicalExportScope(values.get("mechanical_scope","blade_hub"))
+            params.cad_export=CadExportParameters(**values,fillet=FilletParameters(**fillet),disk=DiskGeometryParameters(**disk))
         params.impeller_te_rake_deg=data.get("impeller_te_rake_deg")
+        if data.get('impeller_trim') is not None:
+            from ..models.parameters import ImpellerTrimParameters
+            params.impeller_trim=_group(data,'impeller_trim',ImpellerTrimParameters)
+        if data.get("tip_clearance") is not None:
+            from ..models.parameters import TipClearanceParameters
+            params.tip_clearance=_group(data,"tip_clearance",TipClearanceParameters)
         if data.get("splitter") is not None:
             values=data["splitter"]
             required={"hub_start_fraction","tip_start_fraction","pitch_fraction","thickness_scale"}
@@ -205,6 +238,9 @@ def _decode_v03(data, row_snapshot=False):
                     raise ValueError("Nested blade row lists are forbidden.")
                 params.blade_rows.append(BladeRow(row["identifier"], row["name"], row["kind"], _decode_v03(values, row_snapshot=True)))
         params.active_blade_row = data.get("active_blade_row")
+        if params.blade_rows and "tip_clearance" not in data:
+            active=next((r for r in params.blade_rows if r.identifier==params.active_blade_row),None)
+            if active is not None:params.tip_clearance=deepcopy(active.parameters.tip_clearance)
         _check(params, check_ownership=not row_snapshot)
         return params
     except (TypeError, KeyError, AttributeError) as exc:

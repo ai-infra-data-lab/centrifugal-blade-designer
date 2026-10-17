@@ -4,6 +4,7 @@ Sources: Ansys 2026 R1 User Guide 2.1, 10.3.6 and official stator.zip.
 LE/TE end keywords are from the 2.1 initialization example, not guessed.
 """
 from pathlib import Path
+from dataclasses import replace
 import os
 import tempfile
 import numpy as np
@@ -54,9 +55,21 @@ def export_turbogrid(case_directory,params):
          if params.blade_rows is not None else None)
     stator=row is not None and row.kind == "diffuser"
     if stator:params=row_parameters(project,row)
+    elif row is not None:
+        from ..geometry.tip_clearance import has_tip_clearance
+        if has_tip_clearance(row.parameters) and params.tip_clearance!=row.parameters.tip_clearance:
+            raise ValueError('Active Impeller Tip clearance disagrees with its row snapshot. Reselect the row before export.')
+    if not stator:
+        from ..fileio.trim_export_guard import guard_trim_export
+        guard_trim_export(params)
+        if row is not None:guard_trim_export(row.parameters)
     if not stator and params.splitter is not None:
         raise ValueError("Splitter TurboGrid export is not supported yet. No output was written.")
     geometry=generate_diffuser_3d(params) if stator else generate_impeller(params)
+    clearance=not stator and geometry.tip is not None
+    if clearance:
+        from ..geometry.span_extension import extend_tip_to_shroud
+        geometry=replace(geometry,sections=[*geometry.sections,extend_tip_to_shroud(geometry)])
     edges=params.diffuser_edges if stator else params.impeller_edges
     settings=params.turbogrid;digits=params.export.significant_digits
     filenames=[settings.hub_curve_filename,settings.shroud_curve_filename,settings.profile_curve_filename,"BladeGen.inf"]
@@ -70,19 +83,21 @@ def export_turbogrid(case_directory,params):
         contents[name]=_coordinates(_external_xyz(xyz,settings),digits)
     profiles=[]
     profile_counts=[]
-    for section in geometry.sections:
+    for index,section in enumerate(geometry.sections):
         label="Hub" if section.span==0 else "Tip" if section.span==1 else f"Span_{section.span:.15g}"
+        if clearance and index==len(geometry.sections)-2:label="Tip_clearance"
+        if clearance and index==len(geometry.sections)-1:label="Shroud_extension"
         xyz,markers=closed_profile(section)
         coordinates=_coordinates(_external_xyz(xyz,settings),digits,markers)
-        if stator:
+        if stator or clearance:
             # Reject collapsed output after rounding, before touching the case.
             rounded=np.array([[float(v) for v in line.split()[:3]] for line in coordinates.splitlines()])
             if len(rounded)<4 or np.any(np.linalg.norm(np.diff(rounded,axis=0),axis=1)==0) or len(markers)!=2:
-                raise ValueError("Static blade profile collapses at the selected output precision.")
+                raise ValueError(("Static blade" if stator else "Blade")+" profile collapses at the selected output precision.")
             profile_counts.append(len(rounded))
         profiles.append(f"# {label}\n"+coordinates)
-    if stator and len(set(profile_counts))!=1:
-        raise ValueError("Static Hub and Tip profiles must have matching contour point counts.")
+    if (stator or clearance) and len(set(profile_counts))!=1:
+        raise ValueError(("Static Hub and Tip" if stator else "Hub, Tip and Shroud")+" profiles must have matching contour point counts.")
     contents[filenames[2]]="".join(profiles)
     def end_type(choice,side):
         if choice not in ('auto','EllipseEnd','CutOffEnd','SquareEnd'):
@@ -102,6 +117,11 @@ def export_turbogrid(case_directory,params):
         f"Number of Blades Per Set: 1\nGeometry Units: {settings.geometry_unit}\n"
         +edge_lines+f"Hub Data File: {filenames[0]}\n"
         f"Shroud Data File: {filenames[1]}\nProfile Data File: {filenames[2]}\n")
+    if clearance:
+        contents["BladeGen.inf"]+=(
+            f"! Physical Tip: Profile Number {len(geometry.sections)-1} (1-based, Tip_clearance).\n"
+            "! Set Shroud Tip / Tip Option = Profile Number in TurboGrid to restore the physical gap.\n"
+            "! The final Shroud_extension profile is for spanwise surface continuation only.\n")
     # All geometry and formatting validated before creating any output.
     target=Path(case_directory);target.mkdir(parents=True,exist_ok=True)
     staged=[]

@@ -21,6 +21,22 @@ def is_finite_number(value: object) -> bool:
     return isinstance(value, Real) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def validate_impeller_trim(settings):
+    from .parameters import ImpellerTrimParameters
+    if settings is None:return
+    if not isinstance(settings,ImpellerTrimParameters):raise ValueError('Invalid impeller trim settings.')
+    values=[settings.shroud_area_cut_percent,settings.diameter_mm,settings.diameter_cut_percent]
+    if any(not is_finite_number(x) for x in values):
+        raise ValueError('Impeller trim values must be finite numbers.')
+    if not 0<=settings.shroud_area_cut_percent<100 or not 0<=settings.diameter_cut_percent<100:
+        raise ValueError('Impeller trim cut percentages must be in [0, 100).')
+    if settings.diameter_mode not in ('off','diameter','percent') or settings.diameter_mm<0:
+        raise ValueError('Invalid impeller trim diameter mode/value.')
+    if settings.diameter_mode=='diameter' and settings.diameter_mm<=0:
+        raise ValueError('Impeller trim diameter must be positive.')
+
+
+
 def validate_control_points(points: list[DistributionPoint], kind: str) -> list[ValidationIssue]:
     issues = []
     def error(message: str) -> None:
@@ -86,6 +102,15 @@ def validate_parameters(params: BladeParameters) -> list[ValidationIssue]:
     rake=params.impeller_te_rake_deg
     if rake is not None and (not is_finite_number(rake) or not -90<rake<90):
         error("impeller_te_rake_deg", "TE Rake must be finite and strictly between -90 and 90 degrees.")
+    try:validate_impeller_trim(params.impeller_trim)
+    except ValueError as exc:error('impeller_trim',str(exc))
+    from .parameters import TipClearanceParameters
+    clearance=params.tip_clearance
+    if clearance is not None:
+        if not isinstance(clearance,TipClearanceParameters):
+            error("tip_clearance", "Invalid Tip clearance parameters.")
+        elif any(not is_finite_number(v) or v<0 for v in (clearance.le_mm,clearance.te_mm)):
+            error("tip_clearance", "Tip clearance LE/TE must be finite and >= 0 mm.")
     from .parameters import SplitterParameters
     splitter=params.splitter
     if splitter is not None:

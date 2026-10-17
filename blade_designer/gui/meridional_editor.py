@@ -1,7 +1,7 @@
 from copy import deepcopy
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal,Qt
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QComboBox,QFormLayout,
     QTableWidget,QPushButton,QLabel,QTableWidgetItem,QAbstractItemView)
 from .control_point_editor import CompactDoubleSpinBox
@@ -9,7 +9,7 @@ from .context_meridional import ContextMeridional
 from ..models.flow_path import FlowPathParameters
 from ..geometry.flow_path import validate_component_stations
 from ..models.meridional import (MeridionalCurveParameters,default_shroud,
-    LineSegmentParameters,ArcSegmentParameters)
+    LineSegmentParameters,ArcSegmentParameters,ArcSegmentGeometry)
 from ..geometry.meridional_segments import generate_meridional,validate_flow_path,convert_segment_type
 from ..geometry.blade_edge import rescale_extended_wall_edges,adapt_wall_edge_coordinates
 
@@ -26,6 +26,8 @@ class MeridionalEditor(QWidget):
         self.mean_points=4001
         self.flow_path=FlowPathParameters()
         self._loading=False
+        self._segment_geometries=None
+        self._segment_geometry_source=None
         self.curves=[MeridionalCurveParameters(),default_shroud()]
         self.blade_rows = []
         self.additional_edges = lambda: []
@@ -45,10 +47,25 @@ class MeridionalEditor(QWidget):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setMinimumHeight(170);layout.addWidget(self.table)
+        self.table.currentCellChanged.connect(lambda *_:self._update_segment_coordinates())
         row=QHBoxLayout();layout.addLayout(row)
         for label,callback in (("Add Line",lambda:self.add_segment(False)),("Add Arc",lambda:self.add_segment(True)),
                 ("Delete",self.delete_segment),("Move Up",lambda:self.move_segment(-1)),("Move Down",lambda:self.move_segment(1))):
             button=QPushButton(label);button.clicked.connect(callback);row.addWidget(button)
+        self.coordinate_title=QLabel('区間の行を選択すると座標を表示 / Select a segment row')
+        self.coordinate_title.setWordWrap(True);layout.addWidget(self.coordinate_title)
+        self.coordinate_table=QTableWidget(3,3)
+        self.coordinate_table.setHorizontalHeaderLabels(['点 / Point','R [mm]','Z [mm]'])
+        self.coordinate_table.verticalHeader().hide()
+        self.coordinate_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.coordinate_table.setMinimumHeight(110);self.coordinate_table.setMaximumHeight(132)
+        self.coordinate_table.horizontalHeader().setStretchLastSection(True)
+        for row,label in enumerate(('始点 / Start','中心 / Center','終点 / End')):
+            for col,text in enumerate((label,'—','—')):
+                item=QTableWidgetItem(text)
+                item.setFlags(Qt.ItemFlag.ItemIsEnabled|Qt.ItemFlag.ItemIsSelectable)
+                self.coordinate_table.setItem(row,col,item)
+        self.coordinate_table.resizeColumnsToContents();layout.addWidget(self.coordinate_table)
         # Retain the legacy station API/data for project and Flow Area compatibility.
         # The station editor is no longer part of the visible GUI.
         self.station_table=QTableWidget(6,2,self)
@@ -158,6 +175,28 @@ class MeridionalEditor(QWidget):
             owner.currentIndexChanged.connect(lambda index,i=row,box=owner:self._ownership_changed(i,box.currentData()))
             self.table.setCellWidget(row,5,owner)
         self.table.resizeColumnsToContents();self._loading=False
+        self._update_segment_coordinates()
+
+    def _update_segment_coordinates(self):
+        if self._loading:return
+        index=self.selector.currentIndex();row=self.table.currentRow()
+        valid=(self._segment_geometries is not None and self.curves==self._segment_geometry_source
+               and 0<=row<len(self._segment_geometries[index].segments))
+        self.coordinate_title.setText('区間の行を選択すると座標を表示 / Select a segment row')
+        points=(None,None,None)
+        if valid:
+            segment=self._segment_geometries[index].segments[row]
+            arc=isinstance(segment,ArcSegmentGeometry)
+            self.coordinate_title.setText(f'{self.selector.currentText()} • {row+1}: {"Arc" if arc else "Line"} — 座標 [mm]（読み取り専用）')
+            points=(segment.start,segment.center if arc else None,segment.end)
+        for i,point in enumerate(points):
+            for j,axis in enumerate(('r','z'),1):
+                item=self.coordinate_table.item(i,j)
+                value=None if point is None else float(getattr(point,axis))
+                item.setText('—' if value is None else f'{value:.12g}')
+                item.setToolTip(('直線には円弧中心がありません / No center for a line' if valid and i==1 else '')
+                                if value is None else f'{axis.upper()} = {value:.17g} mm')
+        self.coordinate_table.resizeColumnsToContents()
 
     def _start_changed(self,key,value):
         if self._loading:return
@@ -240,8 +279,10 @@ class MeridionalEditor(QWidget):
             self._populate();self.table.selectRow(other);self._changed();self.editFinished.emit()
 
     def update_preview(self):
+        self._segment_geometries=None;self._segment_geometry_source=None
         try:
             geometry=[generate_meridional(p) for p in self.curves];validate_flow_path(*geometry)
+            self._segment_geometries=geometry;self._segment_geometry_source=deepcopy(self.curves)
             self.blade_edges.set_walls(*geometry)
             self._show_ownership(geometry)
             from types import SimpleNamespace
@@ -255,6 +296,7 @@ class MeridionalEditor(QWidget):
                 joins.setData(points[:,0],points[:,1])
             self.message.setText("G1 continuous • angle measured from +Z toward +R")
         except (ValueError,ArithmeticError) as exc:self.message.setText(f"ERROR: {exc} — showing last valid curves")
+        self._update_segment_coordinates()
         self.plot.disableAutoRange()
 
     def fit_view(self): self.plot.autoRange();self.plot.disableAutoRange()

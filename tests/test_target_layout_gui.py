@@ -77,7 +77,7 @@ def test_selection_does_not_grow_window_and_central_view_matches_target(window):
         assert w.size() == size
         w.select_blade_row(kind)
         QTest.qWait(20)
-        assert visible_tabs(w) == ["Blade Angle", "Thickness", "LE / TE"] + (["Splitter"] if w._editing_target==0 else []) + ["Full Annulus"]
+        assert visible_tabs(w) == ["Blade Angle", "Thickness", "LE / TE"] + (["Splitter","CAD / Fillet"] if w._editing_target==0 else []) + ["Full Annulus"]
         assert w.central_views.currentWidget() is w.blade_plot
         assert w.size() == size
     after = w.get_parameters()
@@ -111,7 +111,7 @@ def test_annulus_in_center_and_view_menu_preserves_settings(window):
     w.tabs.setCurrentIndex(index)
     w.annulus_2d.setChecked(True)
     assert w.central_views.currentWidget() is w.annulus_plot
-    assert [action.text() for action in w.menuBar().actions()]==["File","Edit","View","Tools"]
+    assert [action.text() for action in w.menuBar().actions()]==["File","Edit","View","Tools","About"]
     view_actions = {action.text(): action for action in w.view_menu.actions()}
     view_actions["Output Settings"].trigger()
     dialog = w._tool_dialogs["Output Settings"]
@@ -121,4 +121,4 @@ def test_annulus_in_center_and_view_menu_preserves_settings(window):
     assert w.get_parameters().geometry.vane_count == 13
     w.undo()
     assert w.get_parameters().geometry.vane_count == 20
-    assert visible_tabs(w) == ["Blade Angle", "Thickness", "LE / TE"] + (["Splitter"] if w._editing_target==0 else []) + ["Full Annulus"]
+    assert visible_tabs(w) == ["Blade Angle", "Thickness", "LE / TE"] + (["Splitter","CAD / Fillet"] if w._editing_target==0 else []) + ["Full Annulus"]

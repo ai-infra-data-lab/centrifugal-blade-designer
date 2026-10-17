@@ -1,8 +1,8 @@
 """Software-rendered revolved walls and blade wireframe, without VTK/OpenGL."""
 import numpy as np
-from PySide6.QtCore import Qt,QPointF
+from PySide6.QtCore import Qt,QPointF,QTimer
 from PySide6.QtGui import QPainter,QPen,QColor,QPolygonF
-from PySide6.QtWidgets import QWidget,QCheckBox,QHBoxLayout,QVBoxLayout,QToolButton
+from PySide6.QtWidgets import QWidget,QCheckBox,QHBoxLayout,QVBoxLayout,QToolButton,QToolTip
 from ..geometry.wireframe import build_spanwise_wireframe
 from ..geometry.annulus import rotate_xy
 from ..geometry.revolved_surface import revolve_wall
@@ -23,6 +23,8 @@ class Preview3D(QWidget):
         for key,label in (("profiles","Profiles"),("spanwise","Spanwise"),("hub","Hub"),("shroud","Shroud")):
             box=QCheckBox(label);box.setChecked(True);box.setStyleSheet("color: #d1dae7;")
             box.toggled.connect(self.update);row.addWidget(box);self.visibility_controls[key]=box
+        box=QCheckBox('Tip');box.setToolTip('翼端の回転包絡面 / Tip envelope');box.setChecked(True);box.setStyleSheet('color: #8deb87;')
+        box.toggled.connect(self.update);row.addWidget(box);self.visibility_controls['tip_wall']=box;box.hide()
         row.addStretch()
         views=QHBoxLayout();layout.addLayout(views);layout.addStretch()
         self.view_buttons={}
@@ -37,6 +39,10 @@ class Preview3D(QWidget):
             views.addWidget(button);self.view_buttons[name]=button
         views.addStretch()
         self.setToolTip("左ドラッグ: 自由回転 / 右ドラッグ: 平行移動 / ホイール: 拡大・縮小")
+        self._show_fit=QTimer(self);self._show_fit.setSingleShot(True);self._show_fit.timeout.connect(self.fit_view)
+
+    def showEvent(self,event):
+        super().showEvent(event);self._show_fit.start(0)
 
     def _view_basis(self):
         """Screen basis with a free rotation, retaining the legacy angle API."""
@@ -84,6 +90,7 @@ class Preview3D(QWidget):
         chunks={name:[getattr(geometry,name)] for name in ("hub","shroud")} if wall_chunks is None else wall_chunks
         lines.update(self._wall_lines(chunks))
         self.surfaces=self._wall_surfaces(geometry,chunks)
+        self._tip_surfaces([geometry])
         self._line_blade_counts={}
         self.base_lines=lines;self.spanwise_lines=spanwise;self._rebuild_lines()
 
@@ -125,9 +132,12 @@ class Preview3D(QWidget):
                        else f"{name} [{identifier}] {key}")
                 lines[label]=value;counts[label]=count
             spanwise.extend(row_spanwise)
-        chunks={name:[getattr(walls,name)] for name in ("hub","shroud")}
+        reference=walls.source_geometry or walls
+        chunks={name:[getattr(reference,name)] for name in ("hub","shroud")}
+        chunks['shroud'].extend(g.shroud for _,_,g,_ in rows if g.trim_report is not None and hasattr(g.shroud,'source_m'))
         lines.update(self._wall_lines(chunks));counts.update(Hub=1,Shroud=1)
         self.surfaces=self._wall_surfaces(walls,chunks)
+        self._tip_surfaces([geometry for _,_,geometry,_ in rows])
         self.base_lines=lines;self.spanwise_lines=spanwise;self._line_blade_counts=counts
         self.model_label=f"3D • All blade rows ({len(rows)})"
         self._rebuild_lines()
@@ -140,6 +150,14 @@ class Preview3D(QWidget):
             result[name.title()]=(np.concatenate(points) if points else np.empty((0,3)),color)
         return result
 
+    def _tip_surfaces(self,geometries):
+        from types import SimpleNamespace
+        profiles=[g.sections[-1].camber for g in geometries if g.tip is not None]
+        box=self.visibility_controls['tip_wall'];box.setVisible(bool(profiles))
+        self.visibility_controls['shroud'].setText('Casing' if profiles else 'Shroud')
+        if profiles:
+            self.surfaces['tip_wall']=(np.concatenate([revolve_wall(SimpleNamespace(z=p.z,r=p.r)) for p in profiles]),'#8deb87')
+
     @staticmethod
     def _wall_surfaces(geometry,chunks=None):
         chunks={name:[getattr(geometry,name)] for name in ("hub","shroud")} if chunks is None else chunks
@@ -150,6 +168,22 @@ class Preview3D(QWidget):
     def visible_surfaces(self):
         for category,data in self.surfaces.items():
             if self.visibility_controls[category].isChecked():yield data
+        if getattr(self,"_cad_visible",False):
+            groups=self._cad_data["triangles"]
+            full=self.cad_controls["full"].isChecked()
+            if full and self._cad_data.get("triangles_full"):groups=self._cad_data["triangles_full"]
+            elif not full and self._cad_data["scope"]!="periodic_sector" and self._cad_data.get("triangles_single"):groups=self._cad_data["triangles_single"]
+            repeat=full and not self._cad_data.get("triangles_full") and self._cad_data["scope"] in ("blade_only","blade_hub")
+            for name,triangles in groups.items():
+                kind="root" if "FILLET" in name else "blade" if name.startswith("BLADE_") else "disk"
+                if not self.cad_controls[kind].isChecked() or not triangles:continue
+                xyz=np.asarray(triangles,dtype=float)[:,[0,1,2,2],:]
+                color={"root":"#e8bd42","blade":"#75c6fa","disk":"#a8abb2"}[kind]
+                if repeat and kind!="disk":
+                    for i in range(self._cad_data["blade_count"]):
+                        points=xyz.copy();points[:,:,0],points[:,:,1]=rotate_xy(xyz[:,:,0],xyz[:,:,1],2*np.pi*i/self._cad_data["blade_count"])
+                        yield points,color
+                else:yield xyz,color
 
     def set_full_annulus(self, enabled, blade_count):
         if not isinstance(blade_count, int) or isinstance(blade_count, bool) or blade_count < 1:
@@ -180,12 +214,46 @@ class Preview3D(QWidget):
             if name in ("Hub","Shroud"):continue  # walls are surfaces, not polylines
             category="hub" if name=="Hub" else "shroud" if name=="Shroud" else "spanwise" if name.startswith("Spanwise ") else "profiles"
             if self.visibility_controls[category].isChecked():yield data
+        if getattr(self,"_cad_visible",False) and self.cad_controls["edges"].isChecked():
+            for row in self._cad_data.get("edges",[]):yield np.asarray(row),"#edf0f4"
 
+
+    def set_cad_mesh(self,data):
+        self._cad_data=data;self._cad_snapshot_hash=data["snapshot_hash"];self._cad_visible=True
+        if not hasattr(self,"cad_controls"):
+            self._cad_source_visibility={key:self.visibility_controls[key].isChecked() for key in ("profiles","spanwise")}
+            self._cad_overlay_visibility={key:(value if data['scope']=='disk_only' else False) for key,value in self._cad_source_visibility.items()}
+            row=QHBoxLayout();self.layout().insertLayout(1,row);self._plot_top+=28;self.cad_controls={}
+            for key,label,checked in (("blade","CAD Blade",True),("disk","Hub Disk",True),("root","Root Fillet",True),("full","CAD Full",False),("edges","Surface Edges",False)):
+                box=QCheckBox(label);box.setChecked(checked);box.toggled.connect(self.update);row.addWidget(box);self.cad_controls[key]=box
+            row.addStretch()
+            if data['scope']!='disk_only':
+                self.visibility_controls["profiles"].setChecked(False);self.visibility_controls["spanwise"].setChecked(False)
+        roles=data["triangles"]
+        has_blade=any(name.startswith('BLADE_') and rows for name,rows in roles.items())
+        has_root=any("FILLET" in name and rows for name,rows in roles.items())
+        has_disk=any(not name.startswith("BLADE_") and "FILLET" not in name and rows for name,rows in roles.items())
+        self.cad_controls["root"].setEnabled(has_root);self.cad_controls["root"].setText("Root Fillet" if has_root else "No Root Fillet")
+        self.cad_controls['blade'].setEnabled(has_blade);self.cad_controls['blade'].setText('CAD Blade' if has_blade else 'No CAD Blade')
+        self.cad_controls["disk"].setEnabled(has_disk);self.cad_controls["disk"].setText("Hub Disk" if has_disk else "No Hub Disk")
+        self.cad_controls["full"].setChecked(data["scope"]=="full_impeller")
+        self.update()
+
+    def sync_cad_snapshot(self,digest,enabled=True):
+        visible=enabled and digest==self._cad_snapshot_hash
+        if visible!=self._cad_visible:
+            if not visible:
+                self._cad_overlay_visibility={key:self.visibility_controls[key].isChecked() for key in self._cad_source_visibility}
+            values=self._cad_overlay_visibility if visible else self._cad_source_visibility
+            for key,value in values.items():self.visibility_controls[key].setChecked(value)
+        self._cad_visible=visible
+        self.update()
 
     def fit_view(self):
         if not self.lines:return
         xyz=np.concatenate([points for points,color in self.lines.values()]
-                           +[faces.reshape(-1,3) for faces,color in self.surfaces.values()])
+                           +[faces.reshape(-1,3) for faces,color in self.surfaces.values()]
+                           +([faces.reshape(-1,3) for faces,color in self.visible_surfaces()] if getattr(self,"_cad_visible",False) else []))
         self.camera_position["center"]=(xyz.min(axis=0)+xyz.max(axis=0))/2
         right,up,_=self._view_basis()
         relative=xyz-self.camera_position["center"]
@@ -236,6 +304,17 @@ class Preview3D(QWidget):
         painter.setBrush(Qt.BrushStyle.NoBrush)
 
     def mousePressEvent(self,event):
+        if getattr(self,"_cad_visible",False) and self.cad_controls["root"].isChecked():
+            right,up,_=self._view_basis();camera=self.camera_position;factor=min(self.width(),self.height())/(2*camera["scale"])
+            for faces,color in self.visible_surfaces():
+                if color!="#e8bd42":continue
+                for triangle in faces:
+                    relative=np.asarray(triangle)-camera["center"]
+                    x=(relative@right+camera["pan"][0])*factor+self.width()/2
+                    y=-(relative@up+camera["pan"][1])*factor+(self.height()+self._plot_top)/2
+                    polygon=QPolygonF([QPointF(float(a),float(b)) for a,b in zip(x,y)])
+                    if polygon.containsPoint(event.position(),Qt.FillRule.OddEvenFill):
+                        QToolTip.showText(event.globalPosition().toPoint(),f"True CAD Hub Fillet R = {self._cad_data['fillet_radius_mm']:g} mm",self);break
         self._last=(event.position() if self._plot_top<=event.position().y()<self.height()-25 else None)
         event.accept()
 

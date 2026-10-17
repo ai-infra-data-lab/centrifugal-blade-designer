@@ -14,6 +14,11 @@ def test_camera_and_section_gui():
  w.preview_3d.camera_position['pan']=np.array([3.,4.])
  before=deepcopy(w.preview_3d.camera_position)
  preview_dialog=w.show_analysis_view("3D Preview");app.processEvents()
+ # Opening the view now fits the model, while retaining its orientation.
+ for key in ('azimuth','elevation','rotation'):
+  np.testing.assert_allclose(w.preview_3d.camera_position[key],before[key])
+ assert w.preview_3d.camera_position['scale']!=before['scale']
+ before=deepcopy(w.preview_3d.camera_position)
  hub=w.impeller_geometry.sections[0].camber.xyz.copy()
  w.section_selector.combo.setCurrentIndex(1)
  w.angle_editor.table.cellWidget(1,1).setValue(30)
@@ -24,7 +29,8 @@ def test_camera_and_section_gui():
  w.meridional_editor.station_table.cellWidget(1,1).setValue(.18)
  w.update_geometry()
  preview_dialog.show();app.processEvents()
- for key,value in before.items():np.testing.assert_allclose(w.preview_3d.camera_position[key],value)
+ for key in ('azimuth','elevation','rotation'):
+  np.testing.assert_allclose(w.preview_3d.camera_position[key],before[key])
  assert w.get_parameters().sections[1].blade_angle.points[1].value==30
  w.copy_section(True)
  assert w.get_parameters().sections[1].blade_angle==w.get_parameters().sections[0].blade_angle

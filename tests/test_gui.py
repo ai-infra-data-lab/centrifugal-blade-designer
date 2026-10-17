@@ -33,7 +33,7 @@ def window(app):
 
 def test_default_tabs_and_updates(window):
     assert window.geometry is not None
-    assert [window.tabs.tabText(i) for i in range(window.tabs.count()) if window.tabs.isTabVisible(i)] == ["Blade Angle","Thickness","LE / TE","Splitter","Full Annulus"]
+    assert [window.tabs.tabText(i) for i in range(window.tabs.count()) if window.tabs.isTabVisible(i)] == ["Blade Angle","Thickness","LE / TE","Splitter","CAD / Fillet","Full Annulus"]
     assert not window.context_tabs.isVisible()
     assert window.central_views.currentWidget() is window.blade_plot
     assert window.blade_plot.getViewBox().state["aspectLocked"] == 1

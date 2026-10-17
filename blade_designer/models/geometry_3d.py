@@ -11,6 +11,7 @@ class Curve3D:
     z: FloatArray
     m_blade_norm: FloatArray | None = None
     meridional_distance: FloatArray | None = None
+    source_span: FloatArray | None = None
 
     @property
     def m_norm(self):return self.m_blade_norm
@@ -44,8 +45,22 @@ class SectionGeometry3D:
 
 
 @dataclass
+class TipMeridionalGeometry:
+    """Derived sampled Tip; casing_m retains the unmodified casing reference."""
+    casing_m: FloatArray
+    z: FloatArray
+    r: FloatArray
+    clearance_mm: FloatArray
+    le_casing_m: float
+    te_casing_m: float
+
+
+@dataclass
 class ImpellerGeometry:
     hub: MeridionalGeometry
     shroud: MeridionalGeometry
     sections: list[SectionGeometry3D]
     splitter_sections: list[SectionGeometry3D] | None = None
+    tip: TipMeridionalGeometry | None = None
+    source_geometry: "ImpellerGeometry | None" = None
+    trim_report: dict | None = None

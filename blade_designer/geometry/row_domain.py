@@ -17,6 +17,8 @@ def preview_wall_chunks(params,geometry,identifier):
         if not assigned:
             result[name]=[wall];continue
         boundaries=np.r_[0.,np.cumsum([s.length for s in wall.segments])]
+        if hasattr(wall,'source_m'):
+            boundaries=np.interp(wall.source_boundaries,wall.source_m,wall.m)
         indices=[i for i,s in enumerate(curve.segments) if s.blade_row==identifier]
         runs=[]
         for i in indices:

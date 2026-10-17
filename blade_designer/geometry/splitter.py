@@ -5,9 +5,24 @@ from .distributions import interpolate_beta_m_deg
 from .thickness import generate_thickness
 from ..models.parameters import BladeSection,BladeAngleParameters,ThicknessParameters,DistributionPoint
 from .blade_section import generate_section
-from .blade_edge import blade_wall_parameters,edge_endpoints
-from .span import interpolate_span_position
+from .blade_edge import edge_endpoints
 from ..models.parameters import EdgeType
+from .tip_clearance import row_wall_parameters,blade_span_wall
+
+
+def splitter_edit_points(points,start):
+    """Visible LE-to-TE controls on the unchanged main-blade 0..1 axis.
+
+    The interpolated LE is a display boundary until explicitly edited. Keep the
+    original controls separately to preserve PCHIP slopes when copying/loading.
+    """
+    if not np.isfinite(start) or not 0<=start<1:
+        raise ValueError('Splitter editing start must be in [0, 1).')
+    active=deepcopy([p for p in points if p.m_norm>=start])
+    if not active or active[0].m_norm!=start:
+        value=float(interpolate_beta_m_deg(np.array([start]),points)[0])
+        active.insert(0,DistributionPoint(start,value))
+    return active
 
 
 def generate_splitter(params,main):
@@ -15,20 +30,36 @@ def generate_splitter(params,main):
     flow=np.linspace(0,1,params.resolution.wall_points)
     if not edges.legacy_uniform_sampling:
         flow=np.unique(np.r_[flow,edges.reference_le_fraction,edges.reference_te_fraction])
-    hub_parameter,tip_parameter=blade_wall_parameters(edges,flow)
+    hub_parameter,tip_parameter=row_wall_parameters(edges,flow,main)
     cutoff_radius=float(edge_endpoints(edges.trailing_edge,main.hub,main.shroud)[0,1])
     offset=params.rotation_direction.sign*2*np.pi/params.geometry.vane_count*settings.pitch_fraction
     result=[]
     for profile,section in zip(params.sections,main.sections):
         start=(1-profile.span)*settings.hub_start_fraction+profile.span*settings.tip_start_fraction
-        wall=interpolate_span_position(main.hub,main.shroud,profile.span,hub_parameter,tip_parameter)
+        wall=blade_span_wall(main,profile.span,hub_parameter,tip_parameter)
         design=independent_profile(settings.sections,profile) if settings.sections is not None else profile
+        if settings.sections is not None:design=splitter_active_profile(design,start)
         splitter=generate_section(design,wall,edges.reference_le_fraction,edges.reference_te_fraction,
             0.,params.output_points,params.surface_mapping,params.resolution,flow,params.rotation_direction.sign,
             cutoff_radius=cutoff_radius if profile.edge_parameters.te_type==EdgeType.CUTOFF else None,
             start_fraction=start,thickness_scale=settings.thickness_scale,
-            theta_te_rad=section.camber.theta_rad[-1]+offset)
+            theta_te_rad=section.camber.theta_rad[-1]+offset,
+            distributions_from_le=settings.sections is not None)
         result.append(splitter)
+    return result
+
+
+def splitter_active_profile(profile,start):
+    """PCHIP on exactly the visible LE-to-TE controls, using the main kernel.
+
+    Stored points retain the legacy main-blade 0..1 coordinates. An absent LE
+    is seeded from the stored curve; upstream points never set local slopes.
+    """
+    result=deepcopy(profile)
+    for name in ('blade_angle','thickness'):
+        points=splitter_edit_points(getattr(profile,name).points,start)
+        for point in points:point.m_blade_norm=(point.m_blade_norm-start)/(1-start)
+        getattr(result,name).points=points
     return result
 
 

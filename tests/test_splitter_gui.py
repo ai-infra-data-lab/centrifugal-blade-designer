@@ -76,17 +76,18 @@ def test_independent_copy_angle_thickness_edit_undo_and_save(window,tmp_path):
     w=window;e=w.splitter_editor;e.setChecked(True);w.update_geometry()
     main=w.impeller_geometry.sections[0].ps.xyz.copy();linked=w.impeller_geometry.splitter_sections[0].ps.xyz.copy()
     e.independent.setChecked(True);w.update_geometry()
-    np.testing.assert_array_equal(w.impeller_geometry.splitter_sections[0].ps.xyz,linked)
+    copied=w.impeller_geometry.splitter_sections[0].ps.xyz.copy()
+    assert w.get_parameters().splitter.sections==w.get_parameters().sections
     e.angle_editor.series[0].move_point(1,1,12);w.update_geometry()
-    assert w.get_parameters().splitter.sections[0].blade_angle.points[1].value==12
+    assert w.get_parameters().splitter.sections[0].blade_angle.points[-1].value==12
     assert not np.allclose(w.impeller_geometry.splitter_sections[0].ps.xyz,linked)
     np.testing.assert_array_equal(w.impeller_geometry.sections[0].ps.xyz,main)
     e.thickness_editor.series[1].move_point(1,.35,2.5);w.update_geometry()
-    assert w.get_parameters().splitter.sections[-1].thickness.points[1].value==2.5
+    assert w.get_parameters().splitter.sections[-1].thickness.points[-1].value==2.5
     path=tmp_path/'independent.json';w.save_to_path(path);before=deepcopy(w.get_parameters())
     w.new_project();w.load_from_path(path);assert w.get_parameters()==before
     e=w.splitter_editor;e.copy_button.click();w.update_geometry()
-    np.testing.assert_array_equal(w.impeller_geometry.splitter_sections[0].ps.xyz,linked)
+    np.testing.assert_array_equal(w.impeller_geometry.splitter_sections[0].ps.xyz,copied)
     w.undo();assert w.get_parameters()==before
     e.independent.setChecked(False);w.update_geometry()
     assert w.get_parameters().splitter.sections is None
@@ -100,7 +101,7 @@ def test_independent_mode_undo_and_keyboard(window):
     box.setFocus();box.lineEdit().selectAll();QTest.keyClicks(box.lineEdit(),'18')
     assert w.get_parameters()==before
     QTest.keyClick(box,Qt.Key.Key_Return);w.update_geometry()
-    assert w.get_parameters().splitter.sections[0].blade_angle.points[1].value==18
+    assert w.get_parameters().splitter.sections[0].blade_angle.points[-1].value==18
     assert w.undo_stack.count()==count+1
     QTest.keyClick(box,Qt.Key.Key_Z,Qt.KeyboardModifier.ControlModifier)
     assert w.get_parameters()==before

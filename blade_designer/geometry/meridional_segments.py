@@ -36,6 +36,8 @@ def sample_meridional(geometry, distance):
     distance = np.asarray(distance,dtype=np.float64)
     if np.any(~np.isfinite(distance)) or np.any(distance < -1e-9) or np.any(distance > geometry.length+1e-9):
         raise ValueError("Profile exceeds the meridional flow path; extend upstream/downstream segments.")
+    if hasattr(geometry,'source_m'):
+        return np.stack((np.interp(distance,geometry.m,geometry.z),np.interp(distance,geometry.m,geometry.r)),axis=-1)
     boundaries = np.r_[0,np.cumsum([s.length for s in geometry.segments])]
     index = np.clip(np.searchsorted(boundaries,distance,side="right")-1,0,len(geometry.segments)-1)
     result = np.empty(distance.shape+(2,))

@@ -4,6 +4,7 @@ from enum import Enum
 from copy import deepcopy
 from .blade_edge import BladeEdgePosition,BladeRowEdgeParameters,default_diffuser_edges
 from .resolution import GeometryResolutionParameters
+from .cad import CadExportParameters
 from .flow_path import FlowPathParameters, StationType
 from .meridional import MeridionalCurveParameters, default_shroud
 
@@ -122,6 +123,21 @@ class SplitterParameters:
 
 
 @dataclass
+class TipClearanceParameters:
+    le_mm: float = 0.0
+    te_mm: float = 0.0
+
+
+@dataclass
+class ImpellerTrimParameters:
+    """Derivative settings; source walls and blade distributions remain intact."""
+    shroud_area_cut_percent: float = 0.0
+    diameter_mode: str = "off"
+    diameter_mm: float = 0.0
+    diameter_cut_percent: float = 0.0
+
+
+@dataclass
 class BladeParameters:
     geometry: GeometryParameters = field(default_factory=GeometryParameters)
     blade_angle: BladeAngleParameters = field(default_factory=BladeAngleParameters)
@@ -148,6 +164,9 @@ class BladeParameters:
     active_blade_row: str | None = None
     impeller_te_rake_deg: float | None = None
     splitter: SplitterParameters | None = None
+    tip_clearance: TipClearanceParameters | None = None
+    impeller_trim: ImpellerTrimParameters | None = None
+    cad_export: CadExportParameters = field(default_factory=CadExportParameters)
 
     def __post_init__(self):
         if self.flow_path is None:

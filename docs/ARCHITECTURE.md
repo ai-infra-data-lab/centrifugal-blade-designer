@@ -8,6 +8,7 @@
 | main.py | argparseでdesign/optimizationとProjectを選び、QApplication・MainWindowを起動 |
 | blade_designer/models/ | dataclass/Enum、入力・結果・Validation。数値配列はNumPy |
 | blade_designer/geometry/ | PCHIP分布、子午面Line/Arc、G1接続、2D/3D断面、面積・曲率・スロート・全周投影。NumPy/SciPyとmodels |
+| blade_designer/cad/ | 任意のCAD層。clientは数値snapshot、worker内だけでOCPを読み込みBREP/Fillet/STEP再読込を実行 |
 | blade_designer/fileio/ | JSON保存・旧schema移行、CSV、TurboGrid固有形式。models/geometryに依存 |
 | blade_designer/gui/ | PySide6 Widgets、PyQtGraph 2D、QPainterの3D wireframe、Undo。上記層を呼ぶ |
 | blade_designer/optimization/ | パラメータ写像・制約・候補判定。models/geometryに依存。探索ソルバーを実行しない |
@@ -16,6 +17,36 @@
 | docs/ / .vscode/ | 開発手順・調査結果・IDE設定 |
 
 流れ: main → gui → models / geometry / fileio / optimization。
+
+## インペラ派生カット（2026-10-17）
+
+models/parameters.pyの任意`impeller_trim`は翼列snapshotに保持し、未指定の既定値・JSONには追加しません。数値・モードはmodels/validation.pyで検証します。geometry/impeller_trim.pyは元のImpeller生成・TE Rake・Splitter処理の後に、固定した元平均線の断面面積から派生ケーシングを求め、元の離散翼面を円筒座標でSpan補間して切り出します。外径は元のPS/SS・camberを円筒で切断し、平らなTEを接続します。Qt・ファイル形式へ依存しません。
+
+ImpellerGeometry.source_geometryは元設計の結果、trim_reportは径・元基準面積比です。派生Curve3D.source_spanとm_blade_normは元座標との対応を保持します。DerivedWallは元壁面上の距離・区間境界との対応を持ち、既存の解析Line/Arcは置換しません。sample_meridional・wall_tangent・crossflow_intersectionsは派生ポリライン用の分岐を持ち、元の解析的経路を維持します。描画用の所属区間は元距離から派生距離へ写像します。
+
+GUIは中央2D/3D・Flow Area・Passageへ同じ派生結果を渡し、角度・厚さグラフとLE/TEハンドルは元の設計結果を編集します。子午面には派生Tip・ケーシングを重ねます。無効入力では従来の最終有効表示を明示し、Passageの計算元を解除します。fileio/trim_export_guard.pyで派生TurboGrid/CADを出力先作成前に拒否します。詳細は[IMPELLER_TRIM_SPEC.md](IMPELLER_TRIM_SPEC.md)。
+
+## 子午面区間の座標表示（2026-10-17）
+
+MeridionalEditorは既存update_previewで生成した有効な壁面結果と曲線定義のコピーを保持し、選択行に対応する解析的なstart／center／endをR/Z [mm]で表示します。選択変更だけで再計算信号を送らず、更新前後の曲線定義が異なる場合や無効壁面では表示を消去します。派生座標を設計値・JSONへ追加しません。詳細は[MERIDIONAL_COORDINATES.md](MERIDIONAL_COORDINATES.md)。
+
+## 流路面積・スロート（2026-10-16）
+
+geometry/passage.pyは選択翼列と同一のImpellerGeometry master断面から、子午面直交開口の周方向幅をSpan積分し、隣接主翼とSplitter両側の輪郭間最小幅を測定します。円筒／円錐は展開ポリライン、曲線壁はXYZ弦の下限推定、スロート面積は各Spanの最小幅の近似積分です。結果型はmodels/passage.pyで、既存の幾何生成・歴史的数値参照を変更しません。
+
+gui/passage_widget.pyはView → Passage Area / Throatで明示計算し、ThreadPoolExecutorへ開始時のdeepcopyを渡します。Qt更新はGUI側のQTimerで行い、編集・選択・入力不正で世代を更新し、旧世代の結果を破棄します。MainWindowは選択対象の実3D（静翼はgenerate_diffuser_3d）を接続し、子午面選択時は解析を無効化します。JSON項目やCSV／TurboGrid／CAD出力を追加・変更しません。詳細は[流路解析](PASSAGE_ANALYSIS.md)を参照してください。
+
+## CAD層（2026-10-16）
+
+geometry/provisional_disk.pyはユーザー指定の仮ディスクを数値層で作成します。実際のHub側根元R/Zを既存の解析的壁面投影へ渡し、構造CAD専用の前面範囲と裏面を決めます。DiskGeometryParameters.provisional/front_end_m_mmへ仮状態・範囲を保存し、非仮の旧JSONでは追加キーを省略します。clientはmechanical_hub_segmentsを従来の所属壁面と分離して渡し、workerは仮寸法をレポートへ記録します。TurboGridの所属検証は維持します。disk actionは単体の閉solid・STEP再読込を検証し、Preview3Dは元の翼ワイヤーフレームを保持してNo CAD Blade/No Root Filletを表示します。Blade Blend手順の半径もsnapshotの値から生成します。
+
+既存geometry層はCAD/Qt/ファイル形式に依存しません。models/cad.pyの設定は純粋なdataclassです。CADを使用しない既定値はJSONから省略しschema 0.3を維持し、設定変更時に0.4へ保存します。旧JSONには未設定ディスク・R8を補い、ユーザー原本を変更しません。
+
+cad/client.pyは選択Impellerの深いコピーから既存generate_impellerを呼び、master座標・対応パラメータ・所属壁面の厳密Line/Arc・snapshot/hashを保存します。出力点数はCAD入力へ影響しません。通常のGUIプロセスにはOCPをimportせず、gui/cad_export_worker.pyが別Python環境でcad/worker.pyを起動します。B-spline曲面、閉shell/solid、明示裏面の回転Hub、Boolean、意味と履歴によるRoot Edge、真の指定半径フィレット、干渉、STEP round tripを処理します。
+
+fileio/mechanical_step_export.pyは検証済みstaged bytesとSHA256だけを受け、同一ディレクトリの一時ファイルから置換します。失敗レポートは別名で保存します。TurboGrid CADは機械用ディスクと別の流体領域を生成し、STEP中間形式・変換必要・ANSYS未検証を区別します。既存turbogrid_exportは変更せず、Profile Pointsは未フィレットです。スプリッター付きProfile Pointsの既存拒否も維持します。
+
+Preview3DへはBREPのtessellationと実edge座標のみを渡します。カメラは保持し、現在の全Project snapshot hashと一致する場合だけCADを表示します。途中編集が非同期ジョブへ混入しません。CAD設定は既存Undo/Redoと翼列別保存へ接続します。CAD専用の設定・GUI・実カーネルテストはtests/cad/とtest_cad_gui.pyです。詳細は[CAD操作手順](CAD_EXPORT.md)を参照してください。
 
 ## インペラTE RakeのParameter Mapper（2026-10-15）
 
@@ -96,6 +127,10 @@ MeridionalEditorのType列はLine/ArcのQComboBoxです。geometry/meridional_se
 LineSegmentParameters / ArcSegmentParametersに任意のblade_row IDを保持します。Hub/Shroudはプロジェクト共有で、区間定義と所属を一緒に移動・削除します。MeridionalEditorは所属列と色・名前のオーバーレイを提供します。保存時は翼列IDとの整合性を検証し、未割り当ての旧JSONには新キーを出しません。翼列削除時は共有壁面と残るsnapshotの所属を解除します。
 Qt・ファイル形式に依存しないgeometry/row_domain.pyが解析的な区間長から物理距離の連続範囲を返します。TurboGridの壁面サンプリングだけへ適用し、元の翼形状計算・プロファイル座標は変更しません。両壁面の連続性、LE/TEと輪郭の包含をファイル書込み前に検証します。全区間未割り当てなら旧来の全壁面出力です。Diffuser CSVは元々壁面を含まないため、所属では輪郭を切り詰めません。
 
+## 翼Tipとケーシングの分離（2026-10-16）
+
+`BladeParameters.tip_clearance`は任意の翼列別設定、`ImpellerGeometry.tip`は派生したサンプルTipです。既存`geometry.shroud`は常に解析的な固定ケーシングを保持します。Qt／I/O非依存の`geometry/tip_clearance.py`でケーシング法線・物理弧長補間・Cutoff交点を求め、主翼とSplitterのSpan壁面生成へ共通適用します。ゼロ／Noneは従来関数へ分岐します。派生TipをLine／Arcと偽って保存しません。任意設定のJSONは0.4、Noneキーは省略。GUIは同じ実断面を描画し、正の隙間のTurboGridはProfile PointsとCAD双方で書込み前に拒否します。流路解析は総面積のケーシングと実翼Tipを分けます。詳細は[TIP_CLEARANCE.md](TIP_CLEARANCE.md)。
+
 ## 依存環境
 
 Windows 11 build 26300、Python 3.12.14の既存.venvを確認。
@@ -133,6 +168,22 @@ BladeParameters.splitterは任意のSplitterParameters（Hub/Tip開始割合、�
 
 generate_impellerは主翼とTE Rakeの生成を完了した後、geometry/splitter.pyへ渡します。主翼配列は変更せず、ImpellerGeometry.splitter_sectionsに別の断面リストを保持します。生成はQt/ファイル形式に依存しません。各Spanで主翼の実効m_LE/m_TE（Cutoff後）を使い、m_start=m_LE+f(s)*(m_TE-m_LE)、f(s)=(1-s)*fHub+s*fTipとします。generate_sectionの任意引数で開始位置・厚さ倍率・TE周方向目標を指定し、β・厚さの評価座標はf+(1-f)*m_splitterです。各断面のTE θを主翼TE θ + rotation_sign*2π/N*pitch_fractionへ配置し、主翼TE Rakeを継承します。新しいLE端部を生成し、既存の断面検証と一定外径Cutoffを再利用します。
 
-GUIはImpeller専用のSplitterタブ内にSplitterEditorを配置します。未編集値の精度、入力確定、Undo、独立翼列snapshot、New/JSON読込へ接続します。2D・Full Annulus・中央/別3D・子午面選択時の全翼列3Dは同じsplitter_sectionsを描画し、各翼列の主翼数Nで複製します。初期はsections=Noneで主翼連動、独立チェック時に主翼の各Spanの制御点を深いコピーで取得します。専用β・厚さの座標軸も元の主翼の0〜1とし、開始位置で切り出すことでコピー時の形状を完全維持します。専用ProfileDistributionEditorは初回使用時に生成し、追加・削除・ドラッグ・表入力・Undoへ接続します。厚さの曲線は倍率適用前です。主翼に新しいSpanが増えた場合、splitter.independent_profileで保存済み専用Spanの間を補間します。専用分布と主翼分布は保存/復元後も別オブジェクトです。複数種類・3D翼間干渉は追加していません。
+GUIはImpeller専用のSplitterタブ内にSplitterEditorを配置します。未編集値の精度、入力確定、Undo、独立翼列snapshot、New/JSON読込へ接続します。2D・Full Annulus・中央/別3D・子午面選択時の全翼列3Dは同じsplitter_sectionsを描画し、各翼列の主翼数Nで複製します。初期はsections=Noneで主翼連動、独立チェック時に主翼の各Spanの制御点を深いコピーで取得します。専用β・厚さの座標軸も元の主翼の0〜1ですが、可視LE〜TEの点だけでPCHIP補間するため、コピー時に形状が変わる場合があります。専用ProfileDistributionEditorは初回使用時に生成し、共通グラフの追加・削除・ドラッグ・表入力・Undoへ接続します。厚さの曲線は倍率適用前です。主翼に新しいSpanが増えた場合、splitter.independent_profileで保存済み専用Spanの間を補間します。専用分布と主翼分布は保存/復元後も別オブジェクトです。複数種類・3D翼間干渉は追加していません。
 
 TurboGridの複数翼セットに対応する出力形式はこの実装の範囲外です。export_turbogridはスプリッター付きImpellerをファイル作成前に拒否し、主翼だけの不完全な出力を防ぎます。静翼と無効時の既存出力は変更しません。tests/test_splitter.pyは解析β巻き角・分布切出し・主翼不変・Rake/Cutoff/CW/CCW・JSON精度・出力保護を、tests/test_splitter_gui.pyは編集確定・Undo・独立翼列・同一表示座標・全周枚数・保存読込を検証します。
+
+
+## スプリッターのLE–TE編集範囲（2026-10-17）
+
+SplitterControlPointEditorは元の0–1制御点を保持し、geometry/splitter.splitter_edit_pointsで得たLE境界と下流点だけを表示します。未編集の境界は保存データへ混入させず、可視点の編集・追加・削除時にLEも実制御点として固定します。専用分布はsplitter_active_profileで可視区間を計算用0〜1へ対応付け、generate_sectionのdistributions_from_le指定で同じPCHIPを使います。物理的なstart_fractionは保持します。通常の主翼・静翼・連動スプリッターは既定経路のままです。JSONには従来の主翼座標を保存します。詳細は[SPLITTER_EDIT_RANGE.md](SPLITTER_EDIT_RANGE.md)と[SPLITTER_INTERPOLATION.md](SPLITTER_INTERPOLATION.md)。
+
+AboutメニューはMainWindowの画面内ヘッダー情報をQMessageBoxへ移したもので、設計モデルやUndo履歴には接続しません。
+
+
+## 共有分布グラフと表示範囲（2026-10-17）
+
+CombinedProfileEditorは主翼ProfileDistributionEditorを拡張し、既存スプリッターの実ControlPointEditor／曲線／操作点／表を同じグラフへ移します。状態や計算用制御点を複製せず、接続元のSplitterEditorの保存・Undo経路を維持します。グラフ再構築時は自分の凡例項目だけを除去し、相手の項目は保ちます。連動時は実生成分布を読み取り専用で描きます。plot_fittingはグラフ所有の単発タイマーでShow後にFitし、編集時には自動追従しません。詳細は[SHARED_GRAPHS.md](SHARED_GRAPHS.md)。
+
+## クリアランス付きTurboGrid Profile Points（2026-10-17）
+
+geometry/span_extension.extend_tip_to_shroudは実Tipと直前のSpanから円筒座標を線形延長し、解析Shroudとの交点から新しい断面だけを返します。実設計のgenerate_impeller・Mapper・CAD・表示の経路には組み込みません。fileio/turbogrid_exportが出力専用geometryへ断面を追加し、実Tip・延長断面の順で保存します。ゼロ隙間は従来経路です。GUIはprofileラベルから1始まりの実Tip番号を案内します。Profile Numberの指定はTurboGridで行い、未確認の初期化キーワードは追加しません。詳細・制約は[TURBOGRID_CLEARANCE.md](TURBOGRID_CLEARANCE.md)。

@@ -4,11 +4,13 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QCheckBox
 from ..models.geometry import BladeGeometry
 from ..geometry.annulus import rotate_xy, project_annulus
 from ..geometry.resample import closed_contour
+from .plot_fitting import install_plot_fit
 
 COLORS = {"LE":"#e5c76b", "PS":"#56d9e0", "TE":"#eead72", "SS":"#f6948c"}
 
 
 def configure_plot(plot: pg.PlotWidget, xlabel: str, ylabel: str) -> None:
+    install_plot_fit(plot)
     plot.setLabel("bottom",xlabel)
     plot.setLabel("left",ylabel)
     plot.getAxis("bottom").setHeight(48)
@@ -145,3 +147,5 @@ class CurvaturePlotWidget(QWidget):
             curve.setData(c.m_norm,values,connect="finite")
             curve.setVisible(check.isChecked())
         self.plot.disableAutoRange()
+        if self.sender() in (self.ps_check,self.ss_check,self.absolute_check,self.radius_check):
+            install_plot_fit(self.plot).request()

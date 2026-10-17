@@ -22,3 +22,20 @@ dist/
 /blade.json
 /blade.csv
 /blade_v03.json
+/.venv-cad/
+
+# Optional CAD runtime and user-generated CAD exports
+*.step
+*.stp
+*.brep
+*.x_t
+*.x_b
+**/validation/cad_validation*.json
+**/validation/cad_validation*.txt
+**/validation/*_surface_roles.json
+**/parameters/geometry_snapshot*.json
+**/mechanical/import_instructions.md
+**/turbogrid/cad/cad_import_instructions.md
+**/turbogrid/blade_blend_settings.md
+**/turbogrid/profile_points/
+!tests/fixtures/**

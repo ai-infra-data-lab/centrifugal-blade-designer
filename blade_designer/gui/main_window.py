@@ -7,6 +7,10 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QApplication, QAbstractSpinBox, QLineEdit, QRadioButton, QCheckBox, QSplitter, QSizePolicy, QComboBox, QLabel, QTabWidget, QScrollArea, QFileDialog, QMessageBox, QPlainTextEdit, QStackedWidget, QDialog, QGroupBox, QFormLayout)
 from .control_point_editor import CompactDoubleSpinBox
 from .splitter_editor import SplitterEditor
+from .tip_clearance_editor import TipClearanceEditor
+from .impeller_trim_editor import ImpellerTrimEditor
+from .cad_editor import CadEditor
+from .cad_export_worker import CadExportWorker
 from ..models.parameters import BladeParameters, BladeRow, RotationDirection
 from ..models.blade_rows import initial_rows, row_snapshot, row_parameters,visible_edge_rows,reconcile_visible_row_edges
 from .design_navigator import DesignNavigator
@@ -25,9 +29,11 @@ from ..geometry.row_domain import preview_wall_chunks
 from .flow_area_widget import FlowAreaWidget
 from .context_meridional import ContextMeridional
 from .output_editor import ImpellerOutputEditor
-from .profile_distribution_editor import ProfileDistributionEditor
+from .combined_profile_editor import CombinedProfileEditor
+from .plot_fitting import fit_visible_plots
 from .plot_widgets import BladePlotWidget, FullAnnulusPlotWidget, CurvaturePlotWidget
 from .metrics_widget import MetricsWidget
+from .passage_widget import PassageWidget
 from .optimization_widget import OptimizationWidget
 
 
@@ -52,6 +58,8 @@ class MainWindow(QMainWindow):
         self._central_preview_errors = []
         self._displaying_geometry = False
         self.project_path: Path | None = None
+        self._cad_worker=None
+        self._cad_closing=False
         self._sections = deepcopy(BladeParameters().sections)
         self._section_index = 0
         self._editing_target = 0
@@ -64,13 +72,6 @@ class MainWindow(QMainWindow):
         self._tool_dialogs = {}
         root = QWidget()
         outer = QVBoxLayout(root)
-        title = QLabel("Centrifugal Compressor Blade Designer" + (" • Optimization Mode" if mode=="optimization" else ""))
-        title.setStyleSheet("font-size: 22px; font-weight: 600; padding: 6px;")
-        title.setWordWrap(True)
-        outer.addWidget(title)
-        subtitle = QLabel("Impeller / Vaned Diffuser v0.3  •  βm = 0°: meridional direction  •  Normalized Meridional")
-        subtitle.setWordWrap(True)
-        outer.addWidget(subtitle)
         content = QHBoxLayout()
         outer.addLayout(content, 1)
         self.navigator = DesignNavigator()
@@ -81,10 +82,16 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.blade_plot = BladePlotWidget()
         self.annulus_plot = FullAnnulusPlotWidget()
-        self.angle_editor = ProfileDistributionEditor("blade_angle")
-        self.thickness_editor = ProfileDistributionEditor("thickness")
+        self.angle_editor = CombinedProfileEditor("blade_angle")
+        self.thickness_editor = CombinedProfileEditor("thickness")
         self.curvature_plot = CurvaturePlotWidget()
         self.metrics_widget = MetricsWidget()
+        self.passage_widget = PassageWidget()
+        self.cad_editor=CadEditor()
+        self.cad_editor.parametersChanged.connect(self._cad_settings_changed)
+        self.cad_editor.actionRequested.connect(self.start_cad_job)
+        self.cad_editor.cancelRequested.connect(lambda:self._cad_worker.cancel() if self._cad_worker is not None else None)
+        self.cad_editor.provisionalDiskRequested.connect(lambda:self._create_provisional_disk(preview=True))
         self.optimization_widget = OptimizationWidget() if mode == "optimization" else None
         self.meridional_editor = MeridionalEditor()
         self.preview_3d = Preview3D()
@@ -106,7 +113,17 @@ class MainWindow(QMainWindow):
         self.te_rake_status=QLabel();self.te_rake_status.setWordWrap(True);rake_form.addRow(self.te_rake_status)
         self.rake_group.toggled.connect(self._rake_changed);self.te_rake.valueChanged.connect(self._rake_changed)
         edge_layout.addWidget(self.rake_group)
+        self.tip_clearance_editor=TipClearanceEditor()
+        self.tip_clearance_editor.parametersChanged.connect(self._tip_clearance_changed)
+        edge_layout.addWidget(self.tip_clearance_editor)
+        self.trim_editor=ImpellerTrimEditor()
+        self.trim_editor.parametersChanged.connect(self._tip_clearance_changed)
+        edge_layout.addWidget(self.trim_editor)
         self.splitter_editor=SplitterEditor()
+        self.splitter_editor.set_shared_editing()
+        self.splitter_editor.distributionRequested.connect(self._show_splitter_distribution)
+        for distribution in (self.angle_editor,self.thickness_editor):
+            distribution.editSplitterRequested.connect(lambda:self.splitter_editor.independent.setChecked(True))
         self.splitter_editor.parametersChanged.connect(self._splitter_changed)
         self.splitter_editor.copyRequested.connect(self._copy_splitter_profiles)
         self.splitter_editor.dragStarted.connect(self._begin_drag)
@@ -127,9 +144,9 @@ class MainWindow(QMainWindow):
         annulus_layout.addWidget(self.annulus_2d);annulus_layout.addWidget(self.annulus_3d);annulus_layout.addStretch()
         for label,widget in (("Blade Angle",self.angle_editor),("Thickness",self.thickness_editor),
                 ("LE / TE",edge_page),("Meridional",self.meridional_editor),("Output",output_page),
-                ("Splitter",self.splitter_editor),("Full Annulus",annulus_page),
+                ("Splitter",self.splitter_editor),("CAD / Fillet",self.cad_editor),("Full Annulus",annulus_page),
                 ("Diffuser Curvature",self.curvature_plot)):
-            if widget in (edge_page,output_page,self.panel,self.meridional_editor,self.optimization_widget,self.splitter_editor):
+            if widget in (edge_page,output_page,self.panel,self.meridional_editor,self.optimization_widget,self.splitter_editor,self.cad_editor):
                 scroll = QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(widget)
                 self.tabs.addTab(scroll,label)
             else:self.tabs.addTab(widget,label)
@@ -190,6 +207,7 @@ class MainWindow(QMainWindow):
         self.flow_area_widget = FlowAreaWidget()
         for label,widget in (("Meridional",self.context_meridional),
                              ("Flow Area",self.flow_area_widget),
+                             ("Passage Area / Throat",self.passage_widget),
                              ("Metrics",self.metrics_widget),("3D Preview",self.preview_3d)):
             self.context_tabs.addTab(widget,label)
         self.flow_area_widget.stationChosen.connect(self.context_meridional.show_crossflow)
@@ -203,6 +221,8 @@ class MainWindow(QMainWindow):
         self.edit_menu=self.menuBar().addMenu("Edit")
         self.view_menu=self.menuBar().addMenu("View")
         self.tools_menu=self.menuBar().addMenu("Tools")
+        self.about_menu=self.menuBar().addMenu("About")
+        self.about_menu.addAction("About Blade Designer").triggered.connect(self.show_about)
         self.project_actions={}
         for label,shortcut,callback in (("New","Ctrl+N",self.new_project),
                 ("Open Project","Ctrl+O",self.open_project_dialog),
@@ -222,7 +242,7 @@ class MainWindow(QMainWindow):
         fit_action=self.view_menu.addAction("Fit View");fit_action.triggered.connect(self.fit_view)
         self.view_menu.addSeparator()
         self.view_menu.addAction("Output Settings").triggered.connect(self.show_output_settings)
-        for label in ("Flow Area", "Metrics", "3D Preview", "Diffuser Curvature"):
+        for label in ("Flow Area", "Passage Area / Throat", "Metrics", "3D Preview", "Diffuser Curvature"):
             self.view_menu.addAction(label).triggered.connect(lambda checked=False, name=label: self.show_analysis_view(name))
         # Retain the existing rotation controls as hidden state adapters.
         rotation_widget=QWidget(root);rotation_layout=QHBoxLayout(rotation_widget)
@@ -322,7 +342,7 @@ class MainWindow(QMainWindow):
 
     def _configure_editor_tabs(self):
         allowed = {"Meridional"} if self._editing_meridional else {"Blade Angle", "Thickness", "LE / TE", "Full Annulus"}
-        if not self._editing_meridional and self._editing_target==0:allowed.add("Splitter")
+        if not self._editing_meridional and self._editing_target==0:allowed.update(("Splitter","CAD / Fillet"))
         if self.mode == "optimization" and not self._editing_meridional:
             allowed.add("Optimization")
         self.tabs.blockSignals(True)
@@ -339,6 +359,11 @@ class MainWindow(QMainWindow):
 
     def _editor_tab_changed(self, index):
         self._refresh_model_view()
+        fit_visible_plots(self.tabs.currentWidget())
+
+    def _show_splitter_distribution(self,kind):
+        editor=self.angle_editor if kind=='blade_angle' else self.thickness_editor
+        self.tabs.setCurrentWidget(editor);editor.groups.setCurrentIndex(1)
 
     def _refresh_model_view(self, *args):
         view = (self.meridional_editor.context if self._editing_meridional
@@ -348,6 +373,11 @@ class MainWindow(QMainWindow):
         self.model_preview_3d.set_full_annulus(self.annulus_3d.isChecked(), count)
         if self._update_central_preview() and self._central_preview_errors:
             self.messages.appendPlainText("\n".join(self._central_preview_errors))
+        self._sync_cad_preview()
+        key=(self._editing_meridional,self._active_row,self._editing_target,self._section_index,self.projection.currentText(),self.annulus_2d.isChecked())
+        if key!=getattr(self,'_presented_plot_key',None):
+            fit_visible_plots(self.central_views.currentWidget());fit_visible_plots(self.tabs.currentWidget())
+            self._presented_plot_key=key
 
     def _update_central_preview(self):
         if self.geometry is None or self.impeller_geometry is None:return False
@@ -367,6 +397,8 @@ class MainWindow(QMainWindow):
                 except (ValueError,ArithmeticError) as exc:
                     errors.append(f"ERROR — 3D {row.name}: {exc} (row omitted)")
             self.model_preview_3d.update_rows(entries,self.impeller_geometry)
+            for context in (self.context_meridional,self.meridional_editor.context):
+                context.update_tip_profiles([(f'{name} [{identifier}]',g) for identifier,name,g,_ in entries if g.tip is not None or g.trim_report is not None])
         elif self._selected_3d_geometry is not None:
             g=self._selected_3d_geometry
             chunks=preview_wall_chunks(params,g,params.active_blade_row)
@@ -401,6 +433,7 @@ class MainWindow(QMainWindow):
 
     def show_analysis_view(self, name):
         widget = {"Flow Area": self.flow_area_widget, "Metrics": self.metrics_widget,
+                  "Passage Area / Throat": self.passage_widget,
                   "3D Preview": self.preview_3d, "Diffuser Curvature": self.curvature_plot}[name]
         return self._show_tool_dialog(name, widget)
 
@@ -435,6 +468,9 @@ class MainWindow(QMainWindow):
     def get_parameters(self) -> BladeParameters:
         p = self.panel.get_parameters()
         p.splitter=self.splitter_editor.get_parameters()
+        p.tip_clearance=self.tip_clearance_editor.get_parameters()
+        p.impeller_trim=self.trim_editor.get_parameters()
+        p.cad_export=self.cad_editor.get_parameters()
         p.rotation_direction=RotationDirection.CCW if self.rotation_ccw.isChecked() else RotationDirection.CW
         if not self.rake_group.isChecked():p.impeller_te_rake_deg=None
         elif p.impeller_te_rake_deg is None or self.te_rake.value()!=self._rake_display_value:
@@ -475,6 +511,9 @@ class MainWindow(QMainWindow):
         self._bind_history_inputs()
 
     def _set_parameters(self, params):
+        self.tip_clearance_editor.set_parameters(params.tip_clearance)
+        self.trim_editor.set_parameters(params.impeller_trim)
+        self.cad_editor.set_parameters(params.cad_export)
         self.splitter_editor.set_parameters(params.splitter)
         self.rake_group.blockSignals(True);self.te_rake.blockSignals(True)
         self.rake_group.setChecked(params.impeller_te_rake_deg is not None)
@@ -544,6 +583,8 @@ class MainWindow(QMainWindow):
         self.edge_scope_label.setText("Impeller LE/TE Shape • Shared Across All Sections" if self._editing_target==0 else "Diffuser LE/TE Shape")
         self.splitter_editor.setVisible(self._editing_target==0)
         self.rake_group.setVisible(self._editing_target==0)
+        self.tip_clearance_editor.setVisible(self._editing_target==0)
+        self.trim_editor.setVisible(self._editing_target==0)
         self._update_rake_scope()
         self.output_editor.setVisible(self._editing_target==0)
         self.section_selector.setVisible(self._editing_target==0)
@@ -613,6 +654,7 @@ class MainWindow(QMainWindow):
     def _select_meridional(self):
         self.commit_edit()
         self._editing_meridional = True
+        self.passage_widget.set_source()
         self._configure_editor_tabs()
         self.editor_target_label.setText("Editing: Meridional • shared Hub / Shroud")
         self._refresh_model_view()
@@ -657,6 +699,8 @@ class MainWindow(QMainWindow):
         self._editing_meridional = False
         if self._blade_rows is not None and self._active_row == identifier:
             self._load_active_profile()
+            if self.passage_widget.source is None:
+                self.update_geometry()
             self.tabs.setCurrentWidget(self.angle_editor)
             self._refresh_model_view()
             self._refresh_navigator(select_row=True)
@@ -820,6 +864,7 @@ class MainWindow(QMainWindow):
 
     def _schedule_update(self) -> None:
         self._bind_history_inputs()
+        self.passage_widget.set_source()
         self.statusBar().showMessage("Updating…")
         if self._dragging:
             if not self.timer.isActive():self.timer.start(50)
@@ -830,8 +875,13 @@ class MainWindow(QMainWindow):
         self.splitter_editor.set_profiles(self._sections)
         self._bind_history_inputs();self._splitter_changed()
 
+    def _tip_clearance_changed(self,*args):
+        if self._restoring or not hasattr(self,'timer'):return
+        self._schedule_update();self.commit_edit()
+
     def _splitter_changed(self):
         if self._restoring or not hasattr(self,"timer"):return
+        self._bind_history_inputs()
         self._schedule_update();self.commit_edit()
 
     def _rake_changed(self,*args):
@@ -854,6 +904,8 @@ class MainWindow(QMainWindow):
         self.flow_area_result=area
         self.flow_area_widget.update_result(area,params.flow_path)
         self.impeller_geometry = impeller
+        source_impeller=impeller.source_geometry or impeller
+        self.trim_editor.show_geometry(impeller)
         self.splitter_editor.show_geometry(impeller,params.geometry.vane_count)
         if self._editing_target==0 and params.impeller_te_rake_deg is not None:
             from ..geometry.impeller_parameter_mapper import measure_te_rake
@@ -868,8 +920,8 @@ class MainWindow(QMainWindow):
             self.diffuser_geometry = diffuser
             self.preview_3d.update_diffuser(diffuser)
         for context in (self.context_meridional, self.meridional_editor.context):
-            context.update_geometry(impeller,params.flow_path,params.resolution.mean_points)
-            context.update_blade_edges(impeller,params)
+            context.update_geometry(source_impeller,params.flow_path,params.resolution.mean_points)
+            context.update_blade_edges(source_impeller,params)
         selected = impeller.sections[self._section_index]
         section_name = "Hub" if selected.span==0 else "Tip" if selected.span==1 else f"Span {selected.span:.6g}"
         plane=self.projection.currentText()
@@ -877,6 +929,13 @@ class MainWindow(QMainWindow):
         if self._blade_rows is not None:
             row = next(row for row in self._blade_rows if row.identifier == self._active_row)
             row_name = row.name
+        if not self._editing_meridional:
+            entries=[(row_name,impeller)] if self._editing_target==0 and (impeller.tip is not None or impeller.trim_report is not None) else []
+            for context in (self.context_meridional,self.meridional_editor.context):context.update_tip_profiles(entries)
+        self.passage_widget.set_source(
+            self._selected_3d_geometry if not self._editing_meridional else None,
+            params.geometry.vane_count, params.rotation_direction.sign, row_name,
+            params.resolution.area_points, params.resolution.mean_points)
         self.blade_plot.setTitle(f"{row_name} • {section_name} • {plane} projection" if self._editing_target==0 else f"{row_name} • XY")
         axes=plane.lower() if self._editing_target==0 else "xy"
         self.blade_plot.setLabel("bottom",axes[0].upper()+" [mm]")
@@ -898,12 +957,16 @@ class MainWindow(QMainWindow):
             self.annulus_plot.update_impeller_annulus(selected,params.geometry.vane_count,plane)
         else:self.annulus_plot.update_annulus(geometry,params.geometry.vane_count)
         if self._editing_target==0:
-            for profile in impeller.sections:
+            for profile in source_impeller.sections:
                 self.angle_editor.update_profile_distribution(profile.span,profile.camber.m_blade_norm,profile.beta_m_deg)
                 self.thickness_editor.update_profile_distribution(profile.span,profile.camber.m_blade_norm,profile.thickness)
         else:
             self.angle_editor.update_distribution(geometry.camber.m_norm,np.rad2deg(geometry.camber.beta_m_rad))
             self.thickness_editor.update_distribution(geometry.camber.m_norm,geometry.thickness)
+        sections=source_impeller.splitter_sections if self._editing_target==0 else None
+        independent=sections is not None and params.splitter.sections is not None
+        for host,peer in ((self.angle_editor,self.splitter_editor.angle_editor),(self.thickness_editor,self.splitter_editor.thickness_editor)):
+            host.set_splitter(sections,params.splitter,peer if independent else None)
         self.curvature_plot.update_geometry(geometry)
         self.metrics_widget.update_geometry(geometry,params.geometry.vane_count)
         self.geometry = geometry
@@ -912,6 +975,8 @@ class MainWindow(QMainWindow):
         finally:self._displaying_geometry=False
         messages = [f"{i.level.value.upper()} — {i.field}: {i.message}" for i in geometry.warnings]
         messages.extend(self._central_preview_errors)
+        if impeller.trim_report:
+            messages.append('TRIM — 中央表示・Flow Area・Passageは派生形状。角度・厚さとLE/TE編集は元設計です。Flow Areaは変更後平均線の断面であり、指定カット率の元基準断面とは異なります。TurboGrid/CAD出力は未対応。')
         if diffuser_error:
             messages.append(f"ERROR — Diffuser 3D: {diffuser_error}\n3D preview shows the last valid geometry; 2D remains updated.")
         if area.errors:messages.append(f"FLOW AREA — {len(area.errors)} unavailable cross-sections: {area.errors[0]}")
@@ -927,6 +992,8 @@ class MainWindow(QMainWindow):
             geometry = self.designer.generate_diffuser(params)
             self._display_geometry(geometry,params)
         except (ValueError, ArithmeticError) as exc:
+            self.passage_widget.set_source()
+            if self.trim_editor.isChecked():self.trim_editor.status.setText(f'計算不可: {exc}')
             text = f"ERROR — {exc}\nShowing last valid geometry."
             self.messages.setPlainText(text)
             self.statusBar().showMessage("ERROR — correct input values; showing last valid geometry.")
@@ -952,6 +1019,7 @@ class MainWindow(QMainWindow):
         self.fit_view()
 
     def save_to_path(self, path: str | Path) -> None:
+        if not self.cad_editor.apply_pending_disk():raise ValueError(self.cad_editor.status.text())
         self.commit_edit()
         params = self.get_parameters()
         self.designer.generate_3d(params)
@@ -1029,6 +1097,14 @@ class MainWindow(QMainWindow):
         except (ValueError,ArithmeticError) as exc:
             self.optimization_widget.report.setPlainText(f"Cannot apply candidate: {exc}")
 
+    def show_about(self):
+        mode="Optimization" if self.mode=="optimization" else "Design"
+        QMessageBox.about(self,"About Blade Designer",
+            "Centrifugal Compressor Blade Designer\n"
+            "Impeller / Vaned Diffuser v0.3\n\n"
+            "βm = 0°: meridional direction\nNormalized Meridional\n"
+            f"Mode: {mode}")
+
     def export_turbogrid_dialog(self):
         if self._editing_meridional:
             QMessageBox.warning(self, "TurboGrid Export", "Select a blade row for TurboGrid export.")
@@ -1038,13 +1114,17 @@ class MainWindow(QMainWindow):
         if directory:
             try:
                 files = export_turbogrid(directory,self.get_parameters())
-                self.statusBar().showMessage(f"TurboGrid: {len(files)} files exported to {directory}")
+                message=f"TurboGrid: {len(files)} files exported to {directory}"
+                labels=[line for line in files[2].read_text(encoding='ascii').splitlines() if line.startswith('#')]
+                if '# Tip_clearance' in labels:
+                    message+=f"; Shroud Tip: Profile Number {labels.index('# Tip_clearance')+1} (Tip_clearance)"
+                self.statusBar().showMessage(message)
             except (OSError,ValueError,ArithmeticError) as exc:
                 QMessageBox.warning(self,"TurboGrid Export",str(exc))
 
     def _bind_history_inputs(self):
         if not hasattr(self,"output_editor"):return
-        for root in (self.panel,self.angle_editor,self.thickness_editor,self.meridional_editor,self.output_editor,self.rake_group,self.splitter_editor,*self.panel.groups.values(),self.panel.export_settings):
+        for root in (self.panel,self.angle_editor,self.thickness_editor,self.meridional_editor,self.output_editor,self.rake_group,self.splitter_editor,self.tip_clearance_editor,self.trim_editor,self.cad_editor,*self.panel.groups.values(),self.panel.export_settings):
             for box in root.findChildren(QAbstractSpinBox):
                 if root is self.splitter_editor:box.setKeyboardTracking(False)
                 if not getattr(box,"_history_bound",False):
@@ -1121,3 +1201,81 @@ class MainWindow(QMainWindow):
                 else:self.undo()
                 return True
         return super().eventFilter(watched,event)
+
+
+    def _cad_settings_changed(self,*args):
+        if self._restoring or not hasattr(self,"timer"):return
+        self._bind_history_inputs();self.commit_edit();self._sync_cad_preview()
+
+    def _sync_cad_preview(self):
+        import hashlib
+        from dataclasses import asdict
+        from ..cad.client import json_text
+        previews=(self.preview_3d,self.model_preview_3d)
+        if not any(getattr(p,"_cad_snapshot_hash",None) for p in previews):return
+        snapshot={"schema_version":"0.4",**asdict(self.get_parameters())}
+        digest=hashlib.sha256(json_text(snapshot).encode("utf-8")).hexdigest()
+        for preview in previews:preview.sync_cad_snapshot(digest,self._editing_target==0 and not self._editing_meridional)
+
+    def start_cad_job(self,action,target=None):
+        from ..cad.client import prepare_job
+        if self._cad_worker is not None:return
+        if self._editing_meridional or self._editing_target!=0:
+            self.cad_editor.status.setText("Select an Impeller blade row for CAD.");return
+        if not self.cad_editor.apply_pending_disk():return
+        disk=self.cad_editor.get_parameters().disk
+        if disk.backside is None and disk.bore_radius_mm is None and (self.cad_editor.scope.currentData()!="blade_only" or action=="disk"):
+            if not self._create_provisional_disk():return
+        self.commit_edit();snapshot=deepcopy(self.get_parameters())
+        if action in ("mechanical","turbogrid","both") and target is None:
+            target=QFileDialog.getExistingDirectory(self,"CAD Export Case Directory")
+            if not target:return
+        try:job=prepare_job(snapshot,action)
+        except (ValueError,ArithmeticError,OSError) as exc:
+            self.cad_editor.status.setText("CAD input error: "+str(exc));return
+        worker=CadExportWorker(job,self);self._cad_worker=worker;self.cad_editor.set_busy(True)
+        worker.progress.connect(lambda stage:self.cad_editor.status.setText("CAD snapshot processing: "+stage))
+        worker.completed.connect(lambda report:self._cad_finished(job,snapshot,target,report))
+        self.cad_editor.status.setText("CAD snapshot started. Parameter edits will not alter this job.")
+        worker.start()
+
+    def _create_provisional_disk(self,preview=False):
+        from ..geometry.provisional_disk import make_provisional_disk
+        if self._editing_meridional or self._editing_target!=0:return False
+        if not self.cad_editor.apply_pending_disk():return False
+        settings=self.cad_editor.get_parameters()
+        if not settings.disk.provisional and (settings.disk.backside is not None or settings.disk.bore_radius_mm is not None):
+            self.cad_editor.status.setText("入力済みのディスク寸法を保持しました。仮寸法で上書きしません。")
+            return False
+        try:settings.disk=make_provisional_disk(self.get_parameters())
+        except (ValueError,ArithmeticError) as exc:
+            self.cad_editor.status.setText("仮ディスク作成エラー: "+str(exc));return False
+        self.cad_editor.set_parameters(settings);self._cad_settings_changed()
+        self.cad_editor.status.setText("仮寸法を設定しました。根元Rを入力し、Generate CADで形状を生成してください。")
+        if preview:self.start_cad_job("disk")
+        return True
+
+    def _cad_finished(self,job,snapshot,target,report):
+        import json
+        from ..cad.client import publish_job
+        if self._cad_closing:return
+        if target:
+            try:report=publish_job(job,Path(target),snapshot)
+            except (ValueError,OSError) as exc:report={"overall":"FAIL","error":{"message":str(exc)}}
+        self.cad_editor.set_busy(False)
+        error=report.get("error",{}).get("message","")
+        self.cad_editor.status.setText(f"CAD {report['overall']}: {error}\nReport: {job/'result.json'}")
+        self.messages.appendPlainText("CAD "+report['overall']+": "+error)
+        preview=job/"preview.json"
+        if preview.is_file() and (report["overall"]!="FAIL" or report.get("artifacts",{}).get("mechanical",{}).get("status")=="PASS"):
+            data=json.loads(preview.read_text(encoding="utf-8"))
+            for view in (self.preview_3d,self.model_preview_3d):view.set_cad_mesh(data)
+            self._sync_cad_preview()
+        worker=self._cad_worker;self._cad_worker=None
+        if worker is not None:worker.deleteLater()
+
+    def closeEvent(self,event):
+        self._cad_closing=True
+        if self._cad_worker is not None:
+            self._cad_worker.cancel();self._cad_worker.process.waitForFinished(3000)
+        super().closeEvent(event)

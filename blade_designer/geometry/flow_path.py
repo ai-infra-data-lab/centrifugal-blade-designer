@@ -39,6 +39,10 @@ def blade_row_coordinate(m,parameters,total_length,row="impeller"):
 
 def wall_tangent(wall,flow_parameter):
     distances=np.asarray(flow_parameter)*wall.length
+    if hasattr(wall,'source_m'):
+        indices=np.clip(np.searchsorted(wall.m,distances,side='right')-1,0,len(wall.m)-2)
+        delta=np.column_stack((np.diff(wall.z),np.diff(wall.r)))
+        return (delta/np.linalg.norm(delta,axis=1)[:,None])[indices]
     boundaries=np.r_[0,np.cumsum([s.length for s in wall.segments])]
     indices=np.minimum(np.searchsorted(boundaries,distances,side="right")-1,len(wall.segments)-1)
     result=np.empty(distances.shape+(2,))
@@ -54,6 +58,10 @@ def mean_meridional_line(hub,shroud,points=4001):
     # Common physical arc-fraction parameter, with both walls' joins included.
     joins=np.concatenate([np.cumsum([s.length for s in w.segments])/w.length for w in (hub,shroud)])
     flow_parameter=np.unique(np.r_[np.linspace(0,1,points),joins,0,1])
+    if hasattr(hub,'source_m') or hasattr(shroud,'source_m'):
+        # Sampled-wall joins can differ from the regular grid by roundoff only.
+        flow_parameter=flow_parameter[np.r_[True,np.diff(flow_parameter)>1e-12]]
+        flow_parameter[-1]=1.
     h=sample_meridional(hub,flow_parameter*hub.length)
     s=sample_meridional(shroud,flow_parameter*shroud.length)
     mean=(h+s)/2

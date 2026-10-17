@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, Q
 from ..models.geometry import BladeGeometry
 from ..geometry.pitch import linear_pitch
 from .plot_widgets import configure_plot
+from .plot_fitting import install_plot_fit
 
 
 class MetricsWidget(QWidget):
@@ -62,3 +63,4 @@ class MetricsWidget(QWidget):
         self.plot.setLabel("left","Pitch [mm]" if self.choice.currentIndex() == 0 else "Local Solidity")
         self.curve.setData(b.camber.m_norm,values)
         self.plot.disableAutoRange()
+        if self.sender() is self.choice:install_plot_fit(self.plot).request()

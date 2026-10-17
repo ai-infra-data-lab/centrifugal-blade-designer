@@ -13,6 +13,15 @@ from .flow_path import sample_mean_line,region_at,validate_component_stations
 def crossflow_intersections(wall,mean,tangent):
     """Intersect an infinite normal line with exact finite Line/Arc primitives."""
     normal=np.array([-tangent[1],tangent[0]])
+    if hasattr(wall,'source_m'):
+        points=np.column_stack((wall.z,wall.r));a=points[:-1];delta=np.diff(points,axis=0)
+        denom=delta@tangent
+        f=np.divide((mean-a)@tangent,denom,out=np.full(len(a),-1.),where=np.abs(denom)>1e-12)
+        hits=a[(f>=-1e-9)&(f<=1+1e-9)]+delta[(f>=-1e-9)&(f<=1+1e-9)]*f[(f>=-1e-9)&(f<=1+1e-9),None]
+        result=[]
+        for hit in hits:
+            if not any(np.linalg.norm(hit-p)<1e-7 for p in result):result.append(hit)
+        return result
     hits=[]
     for segment in wall.segments:
         if isinstance(segment,ArcSegmentGeometry):

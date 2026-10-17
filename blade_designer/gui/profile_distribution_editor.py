@@ -3,6 +3,7 @@ from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea
 import pyqtgraph as pg
 from .control_point_editor import ControlPointEditor
+from .plot_fitting import install_plot_fit
 
 
 class ProfileDistributionEditor(QWidget):
@@ -11,13 +12,15 @@ class ProfileDistributionEditor(QWidget):
     dragFinished = Signal()
     editFinished = Signal()
 
-    def __init__(self, kind):
+    def __init__(self, kind, *, control_editor_class=ControlPointEditor):
         super().__init__()
         self.kind = kind
+        self.control_editor_class=control_editor_class
         self.series = {}
         self.active_span = 0.0
         self.layout_main = QVBoxLayout(self)
         self.plot = pg.PlotWidget(background="#101c2b")
+        install_plot_fit(self.plot)
         self.plot.setMinimumHeight(180)
         self.plot.setLabel("bottom", "Normalized Meridional")
         self.plot.setLabel("left", "Blade Angle βm [deg]" if kind == "blade_angle" else "Thickness [mm]")
@@ -38,12 +41,13 @@ class ProfileDistributionEditor(QWidget):
         self.set_profiles([(0.0, "Hub", [])])
 
     def set_profiles(self, profiles, active_span=0.0):
+        self._profile_labels={span:name for span,name,_ in profiles}
         keys = [span for span, _, _ in profiles]
         if list(self.series) != keys:
             for editor in self.series.values():
+                self.legend.removeItem(editor.curve)
                 self.plot.removeItem(editor.curve)
                 self.plot.removeItem(editor.handles)
-            self.legend.clear()
             old = self.scroll.takeWidget()
             if old is not None:
                 old.deleteLater()
@@ -52,7 +56,7 @@ class ProfileDistributionEditor(QWidget):
             self.series = {}
             colors = ["#56d9e0", "#c7a6ff", "#7fd28b", "#f192bc"]
             for index, (span, name, _) in enumerate(profiles):
-                editor = ControlPointEditor(self.kind, shared_plot=self.plot)
+                editor = self.control_editor_class(self.kind, shared_plot=self.plot)
                 color = "#ffad55" if span == 1.0 else colors[index % len(colors)]
                 editor.curve.setPen(pg.mkPen(color, width=3 if span == 1 else 2,
                     style=Qt.PenStyle.DashLine if span == 1 else Qt.PenStyle.SolidLine))
@@ -60,7 +64,7 @@ class ProfileDistributionEditor(QWidget):
                 editor.handles.point_size = 24 if span == 1 else 12
                 editor.handles.brush = None if span == 1 else color
                 editor.handles.setZValue(10 if span == 0 else 5)
-                self.legend.addItem(editor.curve, name)
+                self.legend.addItem(editor.curve, getattr(self,'_legend_prefix','')+name)
                 label = QLabel(name)
                 label.setStyleSheet(f"color: {color}; font-weight: bold; background: #101c2b; padding: 4px;")
                 editor.layout().insertWidget(0, label)
@@ -78,6 +82,7 @@ class ProfileDistributionEditor(QWidget):
             self.series[span].set_points(points)
         self.hint.setText("Hub: cyan center • Tip: orange outer ring. Drag either point or edit either table."
                           if len(profiles) > 1 else "Diffuser: drag a point or edit the table.")
+        if hasattr(self,'_shared_host'):self._shared_host.refresh_controls()
 
     def update_profile_distribution(self, span, positions, values):
         self.series[span].update_distribution(positions, values)

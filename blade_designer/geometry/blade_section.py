@@ -35,10 +35,11 @@ def resample_curve(curve,n_points):
     arrays=[np.interp(target,arc[keep],v[keep]) for v in (curve.r,curve.theta_rad,curve.z)]
     m_blade_norm=None if curve.m_blade_norm is None else np.interp(target,arc[keep],curve.m_blade_norm[keep])
     meridional_distance=None if curve.meridional_distance is None else np.interp(target,arc[keep],curve.meridional_distance[keep])
-    return Curve3D(*arrays,m_blade_norm,meridional_distance)
+    source_span=None if curve.source_span is None else np.interp(target,arc[keep],curve.source_span[keep])
+    return Curve3D(*arrays,m_blade_norm,meridional_distance,source_span)
 
 
-def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts,mapping,resolution=None,flow_coordinates=None,rotation_sign=1,*,cutoff_radius=None,start_fraction=0.,thickness_scale=1.,theta_te_rad=None):
+def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts,mapping,resolution=None,flow_coordinates=None,rotation_sign=1,*,cutoff_radius=None,start_fraction=0.,thickness_scale=1.,theta_te_rad=None,distributions_from_le=False):
     resolution=GeometryResolutionParameters() if resolution is None else resolution
     validate_section(section)
     wall_m,_=calculate_meridional(wall_zr[:,1],wall_zr[:,0])
@@ -53,7 +54,9 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
         raise ValueError(f"Span {section.span}: physical m_TE must exceed m_LE.")
     le_m=le_m+start_fraction*(te_m-le_m)
     m_blade_norm=np.linspace(0,1,resolution.profile_points);m=le_m+(te_m-le_m)*m_blade_norm
-    source_norm=start_fraction+(1-start_fraction)*m_blade_norm
+    # Independent short blades may define distributions only on their own
+    # LE-to-TE interval, while their placement stays on the main-blade axis.
+    source_norm=m_blade_norm if distributions_from_le else start_fraction+(1-start_fraction)*m_blade_norm
     def wall_at(distance):
         distance=np.asarray(distance)
         if np.any(distance<-1e-9) or np.any(distance>wall_m[-1]+1e-9):

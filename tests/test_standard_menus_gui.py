@@ -18,7 +18,7 @@ def dispose(w,app):
 def test_standard_menu_order_and_no_toolbar(mode):
     app=QApplication.instance() or QApplication([]);w=MainWindow(mode=mode)
     try:
-        assert [a.text() for a in w.menuBar().actions()]==['File','Edit','View','Tools']
+        assert [a.text() for a in w.menuBar().actions()]==['File','Edit','View','Tools','About']
         assert [a.text() for a in w.file_menu.actions() if not a.isSeparator()]==[
             'New','Open Project','Save Project','Export','Exit']
         exports=next(a.menu() for a in w.file_menu.actions() if a.text()=='Export')

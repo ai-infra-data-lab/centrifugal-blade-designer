@@ -78,11 +78,18 @@ def test_disabled_json_unchanged_stator_unaffected_and_export_is_protected(tmp_p
     assert all(f.read_bytes()==data for f,data in before.items()) and not (tmp_path/'new').exists()
 
 
-def test_independent_distributions_copy_exactly_then_change_without_affecting_main(tmp_path):
+def test_independent_distributions_copy_controls_then_use_visible_domain_without_affecting_main(tmp_path):
     p=radial_parameters();p.impeller_te_rake_deg=20;p.splitter=SplitterParameters()
     linked=generate_impeller(p);p.splitter.sections=deepcopy(p.sections)
     copied=generate_impeller(p)
-    for a,b in zip(linked.splitter_sections,copied.splitter_sections):np.testing.assert_array_equal(a.ps.xyz,b.ps.xyz)
+    assert p.splitter.sections==p.sections
+    for main,old,profile,split in zip(copied.sections,linked.sections,p.sections,copied.splitter_sections):
+        np.testing.assert_array_equal(main.ps.xyz,old.ps.xyz)
+        start=.5
+        le=float(generate_thickness(np.array([start]),profile.thickness)[0])
+        # The copied peak is upstream of LE: two visible controls interpolate
+        # linearly, even though the original complete profile was curved.
+        np.testing.assert_allclose(split.thickness,np.linspace(le,profile.thickness.points[-1].value,len(split.thickness)),atol=1e-12)
     for profile in p.splitter.sections:
         for point in profile.blade_angle.points:point.value=10+10*profile.span
         for point in profile.thickness.points:point.value=.8
