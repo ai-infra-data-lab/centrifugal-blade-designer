@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+曲面の局所品質診断: tensor splineの解析微分からJacobianの大きさ・向き付き法線を評価する読取り専用APIを追加。退化標本の法線は未定義とし、同一対応点の距離/法線角と比較可能点数を返す。既存生成・GUI・CAD・出力・保存値は維持し、全面保証や干渉PASSには使わない。新規29件を含む全1,161一意件成功（通常1,121・実CAD40、failure/error/skip/漏れ/重複なし）。既存1,132 IDと固定258入力不変。[契約・実既定の標本比較](docs/SURFACE_DIFFERENTIAL_DIAGNOSTICS.md)。
+
 CAD参照の採用格子対応: `View → CAD Surface Reference`に実CADのrole別格子を使うモードを追加。同一snapshot・成功した翼面/単一閉鎖BREP・Main/Splitter別の完全な格子記録を照合し、LE/PS/TE/SSごとに再構成する。不足・失敗・異なる設計では参照を隠し、固定格子へ自動退避しない。従来の固定モード・生成・保存・出力条件は維持。新規31件を含む全1,132一意件成功（通常1,092・実CAD40、failure/error/skip/漏れ/重複なし）。既存1,101 ID・固定256入力不変。[操作・検証](docs/CAD_ADOPTED_SURFACES.md)。
 
 品質改善Stage 3A-2cの参照表示部分完了: `View → CAD Surface Reference`を追加。CADと共通の端部接線・tensor splineによるImpeller主翼/Splitterの翼面を、固定格子33〜513・Full Annulusで読取り専用表示する。通常3D・設計値・保存形式を維持し、設計変更時は参照結果を失効する。新規22件を含む全1,101一意件成功（通常1,062・実CAD39、failure/error/skip/漏れ/重複なし）。既存1,079 ID・固定253入力不変、変更前と40曲面の接線・係数・評価点が一致。実CADの自動採用密度・cap/fillet/STEP・全面品質は別契約。静翼/RC・派生カットは拒否する。[操作・検証](docs/CAD_SURFACE_REFERENCE.md)。

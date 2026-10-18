@@ -229,3 +229,7 @@ geometry/span_extension.extend_tip_to_shroudは実Tipと直前のSpanから円�
 `models/geometry_source.py`は結果のrow context・engine・variant・snapshot IDを表す非永続型。`fileio/geometry_source.py`がCADと同じcanonical snapshot hashを付ける。`geometry/section_measurements.py`は実camber／master曲線からXYZ指標を計算し、`gui/row_metrics_widget.py`が読取り専用で表示する。中央2D／3DとPassageには同じ生成結果を渡す。新しい`fileio/row_xyz_csv.py`は現在入力を再生成したmaster点をmm/Z座標でatomicな単一ファイル出力にする。旧writer／旧数値生成器は変更しない。
 
 MainWindowはlegacy計算失敗時にlegacy表・曲線・current sourceを解除し、有効な選択3Dの表示を継続する。静翼の参考Impellerが失敗しても共有壁面には選択静翼を使える。`MainWindow.geometry`の最後のlegacyオブジェクトは互換APIとして残るが、currentには使わない。Stage 2B-1で3D生成の入力検証、2B-2でrow一覧ありのLoad／Save検証を分離した。両翼種のLE/TE端点の有限性・0〜1範囲は共通の入力整合性として維持する。定義・精度・GUI・CSV・検証の詳細は[形状正本の契約](GEOMETRY_SOURCE_CONTRACT.md)、[保存検証](ROW_PROJECT_VALIDATION.md)。
+
+## 解析微分による局所診断
+
+`geometry/surface_diagnostics.py`は`SplineSurface`の解析微分から位置/接線/Jacobian/法線を評価する。Qt/OCP/ファイルへ依存せず、生成・表示・出力への適用は行わない。退化閾値をcallerが明示し、未定義法線と有効比較点数を区別する。向きはパラメータ依存で、CAD外向きや全面妥当性は示さない。[契約](SURFACE_DIFFERENTIAL_DIAGNOSTICS.md)。

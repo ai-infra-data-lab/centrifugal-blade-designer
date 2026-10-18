@@ -85,3 +85,7 @@ queryのNaN・範囲外・空配列は拒否し、自動clamp／外挿はしな�
 ## 変更ファイル
 
 `geometry/surface_evaluation.py`、`geometry/impeller_trim.py`、`cad/occt_backend.py`、`tests/test_surface_evaluation.py`、`tests/cad/test_surface_evaluator.py`と関連資料。GUI・設計パラメータ・保存形式・既定JSON・数値fixtureは変更しない。
+
+## 局所微分診断の追加
+
+`surface_diagnostics.py`が解析接線・Jacobianの大きさ・法線の標本評価を提供する。同一対応標本での法線差を測れるが、全面の法線反転/交差や外向きの検証は未完了。生成・係数・CAD公差は維持。[契約と解析解](SURFACE_DIFFERENTIAL_DIAGNOSTICS.md)。

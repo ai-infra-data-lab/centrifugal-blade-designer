@@ -187,3 +187,7 @@ Hub/Tipは`geometry/blade_edge.py::blade_wall_parameters`の共通参照LE/TE節
 
 現既定R8の失敗は実OCCTで再現した一方、ANSYSのImport/Meshは実行していない。公開CADの適合性、回転体強度・振動・疲労、実流量・圧力比・効率、製造公差は未検証。
 既存自動試験の成功をこれらのPASSに置き換えない。監査で挙げた方式変更は計画であり、今回実装していない。
+
+## G05の局所微分評価の進展
+
+解析Jacobian/法線の標本診断を追加。既定の同一role/同一座標を513格子と比較すると、Mainの距離は33→65で減るが最大法線角は2.94466→3.33429度に増える。位置偏差だけでは法線誤差を保証しない。標本間の退化・自己交差・物理対応・cap/fillet/STEP全域は未解決。生成式や公差は変更しない。[測定条件](SURFACE_DIFFERENTIAL_DIAGNOSTICS.md)。

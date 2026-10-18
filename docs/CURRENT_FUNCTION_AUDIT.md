@@ -125,3 +125,7 @@ Mechanicalはsolid数・結合・根元半径・実機ディスク寸法・周�
 ## Stage 2Aの追記（G01は部分対応）
 
 新経路の実断面指標とXYZ CSVは中央表示のmeridional_3d masterを使い、row ID／snapshot／geometry種別を付ける。旧Metrics／Curvature／XY CSV／最適化はlegacyとして明示する。根拠: `geometry/section_measurements.py`、`models/geometry_source.py`、`fileio/geometry_source.py`、`fileio/row_xyz_csv.py`、`gui/row_metrics_widget.py`とMainWindowの接続。新規34ケースは`test_section_measurements.py`、`test_row_xyz_csv.py`、`test_row_measurements_gui.py`。その後のStage 2Bで3D生成時とrow一覧ありのLoad／Save検証を分離したが、両翼種LE/TE端点の入力整合性は維持する。最適化の実3D制約化等は未完了。精度と検証結果は[GEOMETRY_SOURCE_CONTRACT.md](GEOMETRY_SOURCE_CONTRACT.md)、[生成時検証](ROW_VALIDATION_CONTRACT.md)、[保存検証](ROW_PROJECT_VALIDATION.md)。
+
+## 追加: 曲面の局所微分診断
+
+解析微分によるJacobian/法線と同一対応標本の比較APIは実装済み。新規解析29件と既定ImpellerのMain/Splitter標本比較を確認。GUI統合・全面品質ゲート・干渉検査・STEP後の面偏差は未対応で、native/ANSYSは未検証。[根拠・制限](SURFACE_DIFFERENTIAL_DIAGNOSTICS.md)。
