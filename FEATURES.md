@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+開発用Ruff: 独立venvへ固定導入し、未定義名等の限定ルールを読取り検査。既存指摘0件、正常/未定義/構文エラーの終了コードを実確認。VS Codeへ短時間試験とRuffタスクを追加。アプリ用venv・計算・全体整形は変更しない。[手順](docs/DEVELOPMENT_TOOLS.md)。
+
 開発検査の短時間対象/要約: 既存pytestランナーへ`--suite quick/full`と`--brief`を追加。完全ログ/JUnit・終了コード・失敗/collection error/skipの区別を保持し、短時間検査は全回帰の代用にしない。形状・GUI・保存値は変更しない。[開発補助](docs/DEVELOPMENT_TOOLS.md)。
 
 曲面の局所品質診断: tensor splineの解析微分からJacobianの大きさ・向き付き法線を評価する読取り専用APIを追加。退化標本の法線は未定義とし、同一対応点の距離/法線角と比較可能点数を返す。既存生成・GUI・CAD・出力・保存値は維持し、全面保証や干渉PASSには使わない。新規29件を含む全1,161一意件成功（通常1,121・実CAD40、failure/error/skip/漏れ/重複なし）。既存1,132 IDと固定258入力不変。[契約・実既定の標本比較](docs/SURFACE_DIFFERENTIAL_DIAGNOSTICS.md)。

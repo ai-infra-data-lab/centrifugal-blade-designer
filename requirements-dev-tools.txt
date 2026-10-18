@@ -1,0 +1,4 @@
+# Independent development environment; do not install into the app/CAD venv.
+ruff==0.17.1
+# Used by the bundled skill-creator validator, not by the application.
+PyYAML==6.0.3

@@ -51,6 +51,42 @@
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "Blade Designer: Quick Tests",
+      "type": "process",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "args": [
+        "tools/run_tests.py",
+        "--suite",
+        "quick",
+        "--brief"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Blade Designer: Ruff Check",
+      "type": "process",
+      "command": "${workspaceFolder}/artifacts/devtools/venv/Scripts/python.exe",
+      "args": [
+        "-m",
+        "ruff",
+        "check",
+        "--config",
+        "ruff.toml",
+        "--no-cache",
+        "blade_designer",
+        "tests",
+        "tools",
+        "main.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
     }
   ]
 }

@@ -28,3 +28,17 @@ quickはcamber・分布・子午面Line/Arc・曲面評価/微分の6ファイ�
 
 Hypothesis/uvは今回の4段階へ自動追加しない。後続の数値境界試験/別環境再現として個別に検証する。
 `--brief`の実subprocess検証12件成功（通常出力互換、失敗、collection error、skip、warnings、収集のみ、0件、対象誤指定）。短時間63件成功・全件収集成功も確認した。アプリの幾何/GUI/保存コードは変更していない。
+
+## 2. Ruff（独立した開発用環境）
+
+```powershell
+.\.venv\Scripts\python.exe -m venv artifacts/devtools/venv
+.\artifacts\devtools\venv\Scripts\python.exe -m pip install -r requirements-dev-tools.txt
+.\artifacts\devtools\venv\Scripts\python.exe -m ruff check --config ruff.toml --no-cache blade_designer tests tools main.py
+```
+
+既にある開発用venvの再作成は不要。アプリ用/CAD用venvへ上書きしない。Ruff 0.17.1、Skill検証用PyYAML 6.0.3を固定した。ruff.tomlはPython 3.11互換構文、F821/F822/F823（未定義/不正export/束縛前参照）だけを選択し、fix/unsafe-fixesを無効にする。キャッシュ/venv/artifacts/buildを除外する。全体整形や未使用importの自動削除は今回行わない。
+
+既存app/tests/tools/mainの初回指摘は0件。正常入力exit 0、未定義名F821と構文エラーexit 1の実プローブを確認した。構文と限定ルールの成功は型/幾何/工学的な正しさを保証しない。結果はartifacts/devtools/ruff-baseline.json、ruff-probes.json。VS CodeへQuick TestsとRuff Checkのタスクを追加し、既存の実行/回帰/依存確認タスクは維持した。CLIからの実行は検証済み、VS Codeのタスク選択操作は未確認。
+
+Ruff設定の根拠: https://docs.astral.sh/ruff/configuration/

@@ -1,0 +1,9 @@
+target-version = "py311"
+fix = false
+unsafe-fixes = false
+force-exclude = true
+extend-exclude = [".venv*", "venv", "artifacts", "build", "dist"]
+
+[lint]
+# Start with undefined/exported/unbound names. Other existing style is retained.
+select = ["F821", "F822", "F823"]
