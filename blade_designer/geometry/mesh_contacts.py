@@ -3,13 +3,14 @@
 SAT includes coplanar axes. Nonzero tolerance is a projection-space allowance,
 not a Euclidean clearance measurement. Float rounding is not certified.
 Default self checks omit faces sharing 1 or 2 vertex IDs. Optional shared-edge
-classification distinguishes expected edge joins and overlap candidates.
+and vertex classification distinguish expected joins and overlap candidates.
 No surface-to-mesh error bound, containment or continuous-surface guarantee.
 """
 from dataclasses import dataclass
 from numbers import Real
 import numpy as np
 from .mesh_adjacency import _edge_relation, _nonmanifold_edges
+from .mesh_vertex_adjacency import _vertex_relation, _vertex_links
 
 
 def _nonnegative(value, name):
@@ -107,7 +108,8 @@ def _sat_contact(a, b, tolerance):
 
 def mesh_contacts(vertices, faces, second_vertices=None, second_faces=None, *,
                   tolerance_mm, area_epsilon_mm2, max_work=500000,
-                  max_contacts=100, max_triangles=20000, check_shared_edges=False):
+                  max_contacts=100, max_triangles=20000, check_shared_edges=False,
+                  check_shared_vertices=False):
     """Read-only BVH/SAT report; omitted second mesh means nonlocal self check.
 
     Degenerate triangles are listed and not tested. Work/contact limits return
@@ -116,7 +118,8 @@ def mesh_contacts(vertices, faces, second_vertices=None, second_faces=None, *,
     depth or distinction between touching and crossing. Closed-solid nesting
     without surface contact is outside this test.
     check_shared_edges opts into local edge-neighbor classification and >2-face
-    edge incidence diagnostics. Vertex-only neighbors remain excluded.
+    edge incidence diagnostics. check_shared_vertices additionally checks vertex-only
+    neighbors and links, and requires check_shared_edges=True. Both default off.
     """
     _nonnegative(tolerance_mm,'tolerance_mm')
     _nonnegative(area_epsilon_mm2,'area_epsilon_mm2')
@@ -125,6 +128,8 @@ def mesh_contacts(vertices, faces, second_vertices=None, second_faces=None, *,
     self_check=second_vertices is None and second_faces is None
     if type(check_shared_edges) is not bool or (check_shared_edges and not self_check):
         raise ValueError('check_shared_edges must be bool and only enabled for a self check.')
+    if type(check_shared_vertices) is not bool or (check_shared_vertices and (not self_check or not check_shared_edges)):
+        raise ValueError('check_shared_vertices must be bool and requires a shared-edge self check.')
     if (second_vertices is None)!=(second_faces is None):
         raise ValueError('Both second mesh vertices and faces must be supplied.')
     va,fa=_mesh(vertices,faces,max_triangles)
@@ -136,6 +141,11 @@ def mesh_contacts(vertices, faces, second_vertices=None, second_faces=None, *,
                'unresolved_count':0,'unresolved_examples':[],
                'vertex_neighbor_pairs_excluded':0,'nonmanifold_edge_count':None,
                'nonmanifold_edge_examples':[],'vertex_links_checked':False}
+    vertex_adjacency={'enabled':check_shared_vertices,'checked_vertex_pairs':0,'expected_vertex_pairs':0,
+                      'overlap_candidates':0,'unresolved_count':0,'unresolved_examples':[],
+                      'links_checked':check_shared_vertices,'nonmanifold_vertex_count':None,
+                      'nonmanifold_vertex_examples':[]}
+    adjacency['vertex_links_checked']=check_shared_vertices
     try:
         with np.errstate(over='raise',invalid='raise',divide='raise'):
             triangles=[va[fa],vb[fb]]
@@ -148,16 +158,33 @@ def mesh_contacts(vertices, faces, second_vertices=None, second_faces=None, *,
                 count,examples=_nonmanifold_edges(fa,valid[0],max_contacts)
                 adjacency['nonmanifold_edge_count']=count
                 adjacency['nonmanifold_edge_examples']=examples
+            if check_shared_vertices:
+                count,examples=_vertex_links(fa,valid[0],max_contacts)
+                vertex_adjacency['nonmanifold_vertex_count']=count
+                vertex_adjacency['nonmanifold_vertex_examples']=examples
             if all(len(v) for v in valid):
                 first=_tree(lows[0],highs[0],valid[0])
                 second=first if self_check else _tree(lows[1],highs[1],valid[1])
                 for i,j in _pairs(first,second,self_check,tolerance_mm,max_work,stats):
                     shared=len(set(fa[i]) & set(fa[j])) if self_check else 0
-                    if shared==1 or (shared==2 and not check_shared_edges):
+                    if (shared==1 and not check_shared_vertices) or (shared==2 and not check_shared_edges):
                         excluded+=1
                         if shared==1:adjacency['vertex_neighbor_pairs_excluded']+=1
                         continue
-                    if shared==2:
+                    if shared==1:
+                        vertex_adjacency['checked_vertex_pairs']+=1
+                        relation=_vertex_relation(va,fa[i],fa[j],tolerance_mm)
+                        if relation=='EXPECTED_VERTEX':
+                            vertex_adjacency['expected_vertex_pairs']+=1
+                            continue
+                        if relation=='UNRESOLVED':
+                            vertex_adjacency['unresolved_count']+=1
+                            if len(vertex_adjacency['unresolved_examples'])<max_contacts:
+                                vertex_adjacency['unresolved_examples'].append([i,j])
+                            continue
+                        contact=True;kind='shared_vertex_overlap_candidate'
+                        vertex_adjacency['overlap_candidates']+=1
+                    elif shared==2:
                         adjacency['checked_shared_edge_pairs']+=1
                         relation=_edge_relation(va,fa[i],fa[j],tolerance_mm)
                         if relation=='EXPECTED_EDGE':
@@ -184,9 +211,12 @@ def mesh_contacts(vertices, faces, second_vertices=None, second_faces=None, *,
     except FloatingPointError as exc:
         raise ValueError('Non-finite arithmetic in mesh contact screening.') from exc
     adjacency['unresolved_examples_truncated']=adjacency['unresolved_count']>len(adjacency['unresolved_examples'])
+    vertex_adjacency['unresolved_examples_truncated']=vertex_adjacency['unresolved_count']>len(vertex_adjacency['unresolved_examples'])
     complete=(stats['stop_reason'] is None and not any(len(v) for v in degenerate)
-              and not adjacency['unresolved_count'] and not adjacency['nonmanifold_edge_count'])
+              and not adjacency['unresolved_count'] and not adjacency['nonmanifold_edge_count']
+              and not vertex_adjacency['unresolved_count'] and not vertex_adjacency['nonmanifold_vertex_count'])
     return {'contact_pairs':contacts,'contact_kinds':kinds,'contact_count':len(contacts),'adjacency':adjacency,
+            'vertex_adjacency':vertex_adjacency,
             'status':'CONTACT_CANDIDATES_FOUND' if contacts else 'NO_CONTACT_OBSERVED' if complete else 'INCOMPLETE',
             'scan_complete':bool(complete),'self_check':self_check,
             'first_triangles':len(fa),'second_triangles':len(fb),

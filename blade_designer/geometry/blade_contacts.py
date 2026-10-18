@@ -27,20 +27,23 @@ def _meshes(grids, max_triangles):
 def screen_blade_grids(main, blade_count, *, splitter=None, tolerance_mm,
                        area_epsilon_mm2, max_work_per_pair=500000,
                        max_contacts_per_pair=100, max_triangles_per_patch=20000,
-                       check_shared_edges=False):
+                       check_shared_edges=False, check_shared_vertices=False):
     """Screen explicit triangle approximations; NO_CONTACT_OBSERVED is not PASS.
 
     Tests self faces within each role, main-main and splitter-splitter at +1
     pitch, and main-splitter at offsets 0/-1/+1 (deduplicated modulo count).
-    Within-role shared-vertex neighbors, cross-role self contacts, other pitch
+    By default shared-vertex neighbors are omitted. Cross-role self contacts, other pitch
     offsets, solid containment, caps/walls/fillets remain explicitly untested.
     One splitter per main pitch is assumed; its phase is already in its grid.
     Per-pair resource/degeneracy failures propagate to aggregate completeness.
     check_shared_edges optionally adds edge-neighbor and >2-face incidence
-    diagnostics to each role's self check, with vertex-only neighbors untested.
+    diagnostics to each role's self check. check_shared_vertices additionally checks
+    vertex-only neighbors and links and requires check_shared_edges=True.
     """
     _positive_int(blade_count,'blade_count')
     if type(check_shared_edges) is not bool:raise ValueError('check_shared_edges must be bool.')
+    if type(check_shared_vertices) is not bool or (check_shared_vertices and not check_shared_edges):
+        raise ValueError('check_shared_vertices must be bool and requires check_shared_edges.')
     _nonnegative(tolerance_mm,'tolerance_mm');_nonnegative(area_epsilon_mm2,'area_epsilon_mm2')
     for value,name in ((max_work_per_pair,'max_work_per_pair'),(max_contacts_per_pair,'max_contacts_per_pair'),
                        (max_triangles_per_patch,'max_triangles_per_patch')):_positive_int(value,name)
@@ -59,7 +62,8 @@ def screen_blade_grids(main, blade_count, *, splitter=None, tolerance_mm,
         report=mesh_contacts(va,fa,**kwargs,tolerance_mm=tolerance_mm,area_epsilon_mm2=area_epsilon_mm2,
                              max_work=max_work_per_pair,max_contacts=max_contacts_per_pair,
                              max_triangles=max_triangles_per_patch,
-                             check_shared_edges=check_shared_edges and group_b is None)
+                             check_shared_edges=check_shared_edges and group_b is None,
+                             check_shared_vertices=check_shared_vertices and group_b is None)
         checks.append({'first_group':group_a,'first_role':role_a,'second_group':group_b,
                        'second_role':role_b,'pitch_offset':offset,'report':report})
 
@@ -82,10 +86,10 @@ def screen_blade_grids(main, blade_count, *, splitter=None, tolerance_mm,
             'incomplete_checks':sum(not c['report']['scan_complete'] for c in checks),
             'blade_count':blade_count,'splitter_pitch_offsets':offsets,
             'source_model':'caller_supplied_XYZ_grids','axis':'Z','units':'mm',
-            'check_shared_edges':check_shared_edges,
+            'check_shared_edges':check_shared_edges,'check_shared_vertices':check_shared_vertices,
             'grid_shapes':{name:{role:list(np.asarray(grids[role]).shape) for role in ROLES}
                            for name,grids in sources.items()},
-            'unchecked':[('vertex-only neighbors and vertex links within a role' if check_shared_edges
+            'unchecked':[('mesh winding and outward orientation' if check_shared_vertices else 'vertex-only neighbors and vertex links within a role' if check_shared_edges
                           else 'shared-vertex local neighbors within a role'),'cross-role self contacts',
                          'non-neighbor periodic offsets','solid containment',
                          'Hub/Tip caps, walls, disk and fillets','continuous surface between sample points'],

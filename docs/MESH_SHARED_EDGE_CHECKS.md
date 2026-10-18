@@ -93,3 +93,7 @@ report = screen_blade_grids(main_grids, blade_count,
 ## 未完了の範囲
 
 1頂点だけで接する面・vertex link、異なるrole間の正常継ぎ目/異常交差、遠い周期コピー、完全包含、曲面–triangle誤差/適応細分、cap/fillet/STEPと実solidの照合。GUI/出力ゲートは未接続。native GUI/高DPI、ANSYS Import/Meshは未検証。Stage 3B全体や既定根元fillet成立を完了とはしない。
+
+## 後続のvertex診断
+
+Stage 3B-2bで、追加flagによる1頂点共有faceとvertex linkの診断を実装した。上記Stage 3B-2aの記録は当時のedge-only検証範囲を示す。既定False・edge-onlyの既存結果は維持し、vertex検査には両flagの明示を要する。[契約・検証](MESH_VERTEX_CHECKS.md)。

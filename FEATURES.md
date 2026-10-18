@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+共有vertexの局所診断（Stage 3B-2b）: 明示モード`check_shared_edges=True, check_shared_vertices=True`で1頂点だけの接続と重なり候補を区別し、vertex linkの分断・分岐・重複や未判定を不完全として記録。既定/edge-onlyの既存値、形状/GUI/保存/出力は維持。新規31件を含む関連117件成功。全1,381一意件成功（通常1,338・実CAD43、失敗/error/skip/漏れ/重複なし、既存1,350 ID・固定290入力不変）。[契約・全回帰](docs/MESH_VERTEX_CHECKS.md)。
+
 共有edgeの局所診断（Stage 3B-2a）: 明示モード`check_shared_edges=True`で正常なedge接続と同じ側へ折り返す重なり候補を区別し、短edge/高さは未判定、3面以上のedgeは不完全として記録。既定Falseの検査範囲・既存結果フィールド、形状/GUI/保存/出力は維持。新規32件を含む関連86件、全1,350一意件成功（通常1,307・実CAD43、失敗/error/skip/漏れ/重複なし、既存1,318 ID・固定288入力不変）。1頂点だけの接続・role継ぎ目・連続面/solidは残る。[契約・検証](docs/MESH_SHARED_EDGE_CHECKS.md)。
 
 3D接触候補検査（Stage 3B-1）: 明示XYZ格子を三角形化し、BVH/SATで非局所自己接触・最近接周期翼・Main/Splitterの候補を調べるAPIを追加。同一平面接触にも対応し、退化/打切り/局所隣接面等の未検査範囲を明示する。連続曲面・包含・全周の保証や出力ゲートではなく、既存形状・GUI・保存・出力条件は維持。新規54件を含む関連129件、全1,318一意件成功（通常1,275・実CAD43、失敗/error/skip/漏れ/重複なし、既存1,264 ID・固定286入力不変）。[範囲・検証](docs/MESH_CONTACT_SCREENING.md)。
