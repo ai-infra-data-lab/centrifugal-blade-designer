@@ -42,8 +42,9 @@ class MeridionalEditor(QWidget):
             box.setKeyboardTracking(False)
             self.start_controls[name]=box;form.addRow(label,box)
             box.valueChanged.connect(lambda value,key=name:self._start_changed(key,value))
-        self.table=QTableWidget(0,6);self.table.setHorizontalHeaderLabels(["Type","Length","Radius","Sweep [deg]","Direction","所属翼列 / Blade Row"])
+        self.table=QTableWidget(0,7);self.table.setHorizontalHeaderLabels(["Type","Length","Radius","Sweep [deg]","Direction","所属翼列 / Blade Row","翼列距離 s 始→終"])
         self.table.horizontalHeader().moveSection(5, 1)
+        self.table.horizontalHeader().moveSection(6, 2)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setMinimumHeight(170);layout.addWidget(self.table)
@@ -176,6 +177,21 @@ class MeridionalEditor(QWidget):
             self.table.setCellWidget(row,5,owner)
         self.table.resizeColumnsToContents();self._loading=False
         self._update_segment_coordinates()
+        self._update_row_positions()
+
+    def _update_row_positions(self):
+        coordinates=(self.blade_edges.coordinate_map if self.curves==self.blade_edges._coordinate_curves else None)
+        wall="hub" if self.selector.currentIndex()==0 else "shroud"
+        for index in range(self.table.rowCount()):
+            item=QTableWidgetItem("—");item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            if coordinates is not None:
+                interval=coordinates.segment_interval(wall,index)
+                if interval is not None:
+                    item.setText(f"{interval[0]:.8g} → {interval[1]:.8g}")
+                    item.setToolTip("入口順の翼列区間。各翼列の所属壁面長を1とした表示座標。")
+                else:item.setToolTip("未所属の区間には翼列距離を割り当てません。")
+            else:item.setToolTip(self.blade_edges.coordinate_error)
+            self.table.setItem(index,6,item)
 
     def _update_segment_coordinates(self):
         if self._loading:return
@@ -283,11 +299,13 @@ class MeridionalEditor(QWidget):
         try:
             geometry=[generate_meridional(p) for p in self.curves];validate_flow_path(*geometry)
             self._segment_geometries=geometry;self._segment_geometry_source=deepcopy(self.curves)
+            self.blade_edges.set_coordinate_curves(self.curves)
             self.blade_edges.set_walls(*geometry)
             self._show_ownership(geometry)
             from types import SimpleNamespace
             g=SimpleNamespace(hub=geometry[0],shroud=geometry[1])
             self.context.update_geometry(g,self.flow_path,self.mean_points)
+            self.context.set_row_coordinates(self.blade_edges.coordinate_map,self.blade_edges._names,self.blade_edges.coordinate_error)
             if hasattr(self,'blade_edges'):
                 self.context.update_edge_groups(g,self.blade_edges.edge_groups())
             for g,item,joins in zip(geometry,self.items,self.joins):
@@ -295,7 +313,11 @@ class MeridionalEditor(QWidget):
                 points=np.array([g.segments[0].start.zr]+[s.end.zr for s in g.segments])
                 joins.setData(points[:,0],points[:,1])
             self.message.setText("G1 continuous • angle measured from +Z toward +R")
-        except (ValueError,ArithmeticError) as exc:self.message.setText(f"ERROR: {exc} — showing last valid curves")
+        except (ValueError,ArithmeticError) as exc:
+            self.message.setText(f"ERROR: {exc} — showing last valid curves")
+            self.blade_edges.clear_coordinate_map(str(exc))
+            self.context.set_row_coordinates(None,{},str(exc))
+        self._update_row_positions()
         self._update_segment_coordinates()
         self.plot.disableAutoRange()
 

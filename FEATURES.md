@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+子午面の翼列距離表示: 所属壁面の入口順にImpeller 0–1、Diffuser 1–2、RC 2–3等の整数区間へ換算し、線/円弧の始終とLE/TEのHub/Shroud位置をR/Zと併記する。範囲外は赤字、所属不足/分断/順序不一致は未設定。R/Z編集・内部0–1・角度/厚さ横軸・既定値・JSON/出力を維持。新規35件を含む全1,486一意件成功（通常1,442・実CAD44、失敗/error/skip/漏れ/重複なし、既存1,451 ID・固定297入力不変）。[契約・操作・検証](docs/MERIDIONAL_ROW_COORDINATES.md)。
+
 LE/TEの単一接線円弧: Typeに`Tangent arc (G1)`を追加。PS/SS上の接点を端部近傍で移動し、両側に接する単一円弧を生成。2円弧へ退避せず、不成立は明示エラー。元の角度/厚さ分布とcamber、旧半円・楕円・Cutoff・既定JSONを保持。選択・Undo/Redo・保存/読込と、実CADの単一閉solid/STEP再読込を確認。全1,451一意件成功（通常1,407・実CAD44、失敗/error/skip/漏れ/重複なし、既存1,381 ID・固定294入力不変）。[操作・一般手順・検証](docs/ROUNDED_EDGE_TANGENCY.md)。
 
 共有vertexの局所診断（Stage 3B-2b）: 明示モード`check_shared_edges=True, check_shared_vertices=True`で1頂点だけの接続と重なり候補を区別し、vertex linkの分断・分岐・重複や未判定を不完全として記録。既定/edge-onlyの既存値、形状/GUI/保存/出力は維持。新規31件を含む関連117件成功。全1,381一意件成功（通常1,338・実CAD43、失敗/error/skip/漏れ/重複なし、既存1,350 ID・固定290入力不変）。[契約・全回帰](docs/MESH_VERTEX_CHECKS.md)。

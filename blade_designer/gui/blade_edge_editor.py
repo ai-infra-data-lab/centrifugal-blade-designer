@@ -1,11 +1,13 @@
 """Physical R/Z endpoint input; normalized arclength remains the storage API."""
 from copy import deepcopy
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal,Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QLabel,QTableWidget,QTableWidgetItem,QPushButton,QAbstractItemView
 from .control_point_editor import CompactDoubleSpinBox
 from ..models.parameters import BladeParameters
 from ..geometry.meridional_segments import generate_meridional
 from ..geometry.blade_edge import edge_endpoints,project_to_wall
+from ..geometry.row_coordinates import build_row_coordinates
 
 class BladeEdgeEditor(QWidget):
     parametersChanged=Signal()
@@ -15,7 +17,10 @@ class BladeEdgeEditor(QWidget):
         super().__init__();layout=QVBoxLayout(self)
         label=QLabel("Blade Edges — R / Z [mm]\nRとZを入力して適用。対応する壁面上の最近点へ投影します。")
         label.setWordWrap(True);layout.addWidget(label)
-        self.table=QTableWidget(8,4);self.table.setHorizontalHeaderLabels(["Row","Wall / Edge","R [mm]","Z [mm]"])
+        self.scale_label=QLabel();self.scale_label.setWordWrap(True);layout.addWidget(self.scale_label)
+        self.coordinate_map=None;self.coordinate_error="";self.row_positions={};self.position_items={}
+        self.table=QTableWidget(8,5);self.table.setHorizontalHeaderLabels(["Row","Wall / Edge","R [mm]","Z [mm]","翼列距離 s"])
+        self.table.horizontalHeader().moveSection(4,2)
         self.table.setMinimumHeight(275);self.table.setMaximumHeight(310)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         layout.addWidget(self.table);self.controls={};self.coordinate_controls={}
@@ -29,6 +34,7 @@ class BladeEdgeEditor(QWidget):
         for box in self.row_controls.values():box.deleteLater()
         self.table.setRowCount(0)
         self.row_controls={};self.all_coordinate_controls={};self.all_display_coordinates={}
+        self.position_items={}
         self.table.setRowCount(4*len(self._group_order));row=0
         for key in self._group_order:
             for side,wall in (("leading_edge","hub"),("leading_edge","shroud"),("trailing_edge","hub"),("trailing_edge","shroud")):
@@ -39,6 +45,8 @@ class BladeEdgeEditor(QWidget):
                     coordinate.setRange(0 if axis=="r" else -1e9,1e9);coordinate.setSingleStep(.1)
                     self.all_coordinate_controls[key,side,wall,axis]=coordinate
                     self.table.setCellWidget(row,column,coordinate)
+                item=QTableWidgetItem('—');item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.position_items[key,side,wall]=item;self.table.setItem(row,4,item)
                 # Retain the normalized programmatic API, outside the visible UI.
                 box=CompactDoubleSpinBox(self);box.setDecimals(12);box.setRange(0,1);box.setSingleStep(.01);box.hide()
                 self.row_controls[key,side,wall]=box
@@ -59,6 +67,7 @@ class BladeEdgeEditor(QWidget):
             self.walls=(generate_meridional(params.hub),generate_meridional(params.shroud))
         except (ValueError,ArithmeticError):
             pass  # invalid wall edits retain the last valid projection geometry
+        self.set_coordinate_curves([params.hub,params.shroud])
         self._sync_controls()
         self.table.resizeColumnsToContents()
 
@@ -79,12 +88,54 @@ class BladeEdgeEditor(QWidget):
                 self._group_order=order;self._rebuild_controls();self._sync_controls()
                 for key,value in pending.items():
                     if key in self.all_coordinate_controls:self.all_coordinate_controls[key].setValue(value)
+        self._refresh_coordinate_map()
         self._sync_aliases()
         for index,key in enumerate(self._group_order):
             for offset in range(4):
                 item=self.table.item(4*index+offset,0)
                 item.setText(self._names[key]);item.setToolTip(self._names[key])
         self.table.resizeColumnsToContents()
+
+    def set_coordinate_curves(self,curves):
+        self._coordinate_curves=deepcopy(curves);self._refresh_coordinate_map()
+
+    def clear_coordinate_map(self,message):
+        self.coordinate_map=None;self.coordinate_error=message;self._sync_positions()
+
+    def _refresh_coordinate_map(self):
+        try:
+            self.coordinate_map=build_row_coordinates(self._coordinate_curves,self._group_order)
+            self.coordinate_error=''
+        except (ValueError,ArithmeticError) as exc:
+            self.coordinate_map=None;self.coordinate_error=str(exc)
+        self._sync_positions()
+
+    def _sync_positions(self):
+        self.row_positions={}
+        if self.coordinate_map is None:
+            self.scale_label.setText('翼列距離 s: 未設定 — '+self.coordinate_error)
+        else:
+            self.scale_label.setText('子午面の翼列距離 s: '+'  |  '.join(
+                f'{i}–{i+1} {self._names[key]}' for i,key in enumerate(self.coordinate_map.order)))
+        for key,item in self.position_items.items():self._sync_position(*key)
+
+    def _sync_position(self,key,side,wall):
+        item=self.position_items.get((key,side,wall))
+        if item is None:return
+        item.setData(Qt.ItemDataRole.ForegroundRole,None)
+        if self.coordinate_map is None:
+            item.setText('—');item.setToolTip(self.coordinate_error);return
+        try:
+            value=self.coordinate_map.position(key,wall,getattr(getattr(self._primary_edges()[key],side),wall+'_m_flow_norm'))
+            offset=self.coordinate_map.order.index(key)
+            self.row_positions[key,side,wall]=value
+            outside=value<offset-1e-10 or value>offset+1+1e-10
+            item.setText(f'{value:.8g}')
+            item.setToolTip(f's = {value:.12g}\n翼列内位置 = {value-offset:.12g}（範囲 {offset}–{offset+1}）'
+                            +('\n所属翼列の範囲外です。' if outside else ''))
+            if outside:item.setForeground(QColor('#dc6868'))
+        except (ValueError,KeyError) as exc:
+            item.setText('—');item.setToolTip(str(exc))
 
     def _primary_edges(self):return self.row_edges if self.row_edges else self._legacy_edges
 
@@ -125,6 +176,7 @@ class BladeEdgeEditor(QWidget):
             index=(key,side,wall,axis);box=self.all_coordinate_controls[index]
             box.blockSignals(True);box.setValue(float(value));box.blockSignals(False)
             self.all_display_coordinates[index]=box.value()
+        self._sync_position(key,side,wall)
 
     def apply_to(self,params):
         for key,edges in self.edges.items():setattr(params,key,deepcopy(edges))

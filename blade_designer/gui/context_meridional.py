@@ -43,6 +43,8 @@ class ContextMeridional(QWidget):
         self.region_legend.setWordWrap(True);self.region_legend.setMinimumWidth(220)
         row.addWidget(self.region_legend,1)
         layout.addLayout(row);self.plot.disableAutoRange()
+        self.row_scale=QLabel();self.row_scale.setWordWrap(True);layout.addWidget(self.row_scale)
+        self.coordinate_map=None
 
     def update_geometry(self,geometry,parameters=None,mean_points=4001):
         for item,wall in zip(self.curves,(geometry.hub,geometry.shroud)):item.setData(wall.z,wall.r)
@@ -75,6 +77,12 @@ class ContextMeridional(QWidget):
         groups=([(row.identifier,row.name,getattr(row.parameters,row.kind+"_edges")) for row in parameters.blade_rows]
                 if parameters.blade_rows is not None else [(key,name,getattr(parameters,key))
                 for key,name in (("impeller_edges","Impeller"),("diffuser_edges","Diffuser"))])
+        from ..geometry.row_coordinates import build_row_coordinates
+        try:
+            coordinates=build_row_coordinates([parameters.hub,parameters.shroud],[key for key,name,edges in groups])
+            error=''
+        except (ValueError,ArithmeticError) as exc:coordinates=None;error=str(exc)
+        self.set_row_coordinates(coordinates,{key:name for key,name,edges in groups},error)
         self.update_edge_groups(geometry,groups)
         stations=list(StationType)
         for key,prefix in (("impeller_edges","IMP"),("diffuser_edges","DIF")):
@@ -82,6 +90,14 @@ class ContextMeridional(QWidget):
                 points=edge_endpoints(getattr(getattr(parameters,key),side),geometry.hub,geometry.shroud)
                 self.boundaries[stations.index(StationType(prefix+"_"+suffix))].setData(points[:,0],points[:,1])
         self.legend.setToolTip("Scalar Component Stations are used for Flow Area. Visible IMP/DIF boundaries follow the independent blade edges.")
+
+    def set_row_coordinates(self,coordinates,names,error=''):
+        self.coordinate_map=coordinates
+        if coordinates is None:
+            self.row_scale.setText('翼列距離 s: 未設定 — '+error)
+        else:
+            self.row_scale.setText('子午面の翼列距離 s: '+'  |  '.join(
+                f'{i}–{i+1} {names[key]}' for i,key in enumerate(coordinates.order)))
 
     def update_edge_groups(self,geometry,groups):
         from .blade_edge_handles import BladeEdgeHandles
@@ -99,6 +115,13 @@ class ContextMeridional(QWidget):
                 item=existing.get((key,side))
                 if item is None:item=BladeEdgeHandles(self,key,side,colors[(2*index+offset)%len(colors)])
                 item.set_name(name);item.update_edge(edges,geometry.hub,geometry.shroud);handles.append(item)
+                text='翼列距離 s: 未設定'
+                if self.coordinate_map is not None:
+                    try:
+                        values=[self.coordinate_map.position(key,wall,getattr(getattr(edges,side),wall+'_m_flow_norm')) for wall in ('hub','shroud')]
+                        text=f'{name} {"LE" if side=="leading_edge" else "TE"} • Hub s={values[0]:.8g} / Shroud s={values[1]:.8g}'
+                    except (ValueError,KeyError):pass
+                item.setToolTip(text)
         self.edge_handles=handles
 
 
