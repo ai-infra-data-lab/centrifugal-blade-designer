@@ -92,3 +92,7 @@
 ## Stage 3Aの位置差包絡（続き）
 
 同一Span/xi・同degree基準splineについて、共通knotの差control netから全域の位置差包絡を求めるAPIを追加した。新規29件、関連82件成功。全1,213一意件成功（通常1,172・実CAD41、失敗/error/skip/漏れ/重複なし、固定276入力不変）。現既定では旧均一標本がSS/Hub始端近くの差を見逃していたことを確認した。実数モデルの包絡でありfloat丸めの区間保証は未対応。次はその誤差予算と法線/Jacobian・物理対応・互換条件へ進む。3A/3B全体や実モデル根元filletの完了とはしない。[契約・結果](SURFACE_DISTANCE_ENVELOPE.md)。
+
+## Stage 3AのJacobian区間包絡（続き）
+
+基準splineの微分外積をBernstein係数へ展開し、全Bézier区間のJの数値下限/上限と未判定箇所を返すAPIを追加。新規25件を含む全1,238一意件成功（通常1,196・実CAD42、失敗/error/skip/漏れ/重複なし、固定279入力不変）。正の局所Jacobianでも内部交差するnegativeで3Bとの境界を維持する。float丸めの保証、法線の全域比較、物理対応、3Bの実干渉ゲートは残る。GUI/出力条件やCAD公差を変えない。[契約](SURFACE_REGULARITY_ENVELOPE.md)。

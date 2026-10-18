@@ -67,3 +67,7 @@ native GUI、高DPI、ANSYS Import/Meshは今回も未検証。現既定形状�
 ## 位置差の全域モデル包絡
 
 後続で同一対応基準splineのcontrol包絡を追加し、旧均一標本が見逃す始端付近の差を確認した。本書の41×101点の数値は当時の有限標本として保持する。距離包絡とfloat丸め/法線/干渉の残課題は[位置差包絡](SURFACE_DISTANCE_ENVELOPE.md)を参照。
+
+## Jacobianの区間モデル包絡
+
+後続でBézier微分外積係数による区間下限/上限を追加した。有限標本で折返しを見逃す例を未判定として残し、局所正則と内部交差を区別する。float丸めを含む証明は未完了。[契約](SURFACE_REGULARITY_ENVELOPE.md)。

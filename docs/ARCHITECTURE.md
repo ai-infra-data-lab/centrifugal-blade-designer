@@ -237,3 +237,7 @@ MainWindowはlegacy計算失敗時にlegacy表・曲線・current sourceを解�
 ## 同一対応面の位置差包絡
 
 `geometry/surface_envelope.py`は同degree/clamped/非周期の基準splineを共通knotへ挿入し、差のcontrol netから実数モデル上の全域位置差包絡を計算する。refitや既存生成の切替は行わない。float丸めは未証明と返し、CAD/GUI/出力の合否へ自動接続しない。[契約](SURFACE_DISTANCE_ENVELOPE.md)。
+
+## 基準面の局所正則性包絡
+
+`geometry/surface_regularity.py`は既存splineをBézier区間へ分け、微分外積のBernstein係数からJの下限/上限を計算する。標本で見えない折返しを未判定として残す。元C1/同じパラメータ尺度が前提で、局所正則を自己交差なしに置き換えない。Qt/OCP/ファイルへ依存せず、既存生成/出力や公差は維持。[契約](SURFACE_REGULARITY_ENVELOPE.md)。

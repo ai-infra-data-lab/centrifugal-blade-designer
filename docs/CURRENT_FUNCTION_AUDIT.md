@@ -133,3 +133,7 @@ Mechanicalはsolid数・結合・根元半径・実機ディスク寸法・周�
 ## 追加: 基準spline間の距離包絡
 
 同一対応/同degree/clamped/非周期面の位置差control包絡を実装した。純数値28件・実OCCT1件と現既定の主翼/Splitterで検証。float丸めの厳密保証、法線/Jacobianの全域包絡、干渉・cap/fillet/STEP後の面・GUI統合は未対応。既存生成/保存/出力条件は維持。[根拠](SURFACE_DISTANCE_ENVELOPE.md)。
+
+## 追加: 基準splineのJacobian区間包絡
+
+C1を形式上保証できるclamped基準面のJ下限/上限と未判定箇所のAPIは実装済み。数値24・実OCCT1の新規試験、現既定Main/Splitterの65〜513格子を確認。局所正則と自己交差なしを区別し、丸めの厳密保証・実干渉/法線比較・最終solid/STEPは未対応。[根拠](SURFACE_REGULARITY_ENVELOPE.md)。

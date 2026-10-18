@@ -195,3 +195,7 @@ Hub/Tipは`geometry/blade_edge.py::blade_wall_parameters`の共通参照LE/TE節
 ## G05の位置差包絡の進展
 
 同degree基準splineの共通control netによる包絡を追加した。Main129対513は旧41×101点で最大0.003313 mmだったが、SS/Hubのxi=0.0029296875に0.0138795 mmを確認。1回細分のcontrol包絡は0.0145150 mm。旧標本差を全面誤差と扱えない実例である。float丸めの区間保証は未対応で、設計公差の合否やCAD採用条件へは使わない。[条件・解析negative](SURFACE_DISTANCE_ENVELOPE.md)。
+
+## G05/G02のJacobian評価の進展
+
+標本では退化が見えない折返しを、Bézier外積係数の包絡で未判定として残せるようにした。現既定のMain/Splitterは固定65〜513格子で全cellに正の数値下限が得られた。ただし局所Jが非零のまま内部で交差する独立negativeも確認しており、G02の全体自己交差や周期干渉は解決していない。float丸めの証明と最終CAD/STEPも残る。[条件](SURFACE_REGULARITY_ENVELOPE.md)。

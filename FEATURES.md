@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+基準翼面のJacobian区間包絡: Bézier微分外積の係数から全区間のJ下限/上限を計算し、標本間の折返しを未判定として残す数値APIを追加。局所正則と内部交差を区別し、float丸めや最終CADの成立を保証しない。既存生成・GUI・保存・出力条件は維持。新規25件を含む全1,238一意件成功（通常1,196・実CAD42、失敗/error/skip/漏れ/重複なし、既存1,213 ID・固定279入力不変）。[契約・実測](docs/SURFACE_REGULARITY_ENVELOPE.md)。
+
 基準翼面の位置差包絡: 共通knotへの挿入とcontrol net差により、同一Span/xiで対応するspline面全域のモデル上の位置差を評価。標本間の膨らみと現既定SS/Hub始端の見逃しを確認した。float丸めは未証明と明示し、既存生成・GUI・CAD・保存/出力条件は維持。新規29件、関連82件成功。全1,213一意件成功（通常1,172・実CAD41、失敗/error/skip/漏れ/重複なし、既存1,184 ID・固定276入力不変）。[契約・限界](docs/SURFACE_DISTANCE_ENVELOPE.md)。
 
 開発用RTK: project内にchecksum固定のRTK OSSを配置し、読取りGit履歴と保存済みpytestログの任意圧縮helperを追加。失敗/error/skip/不完全結果は圧縮せず、元の終了コードとraw logを保持。全体hook/設定やアプリvenvは変更しない。短いpytestは既存briefを優先。関連23件成功、全1,184一意件成功（通常1,144・実CAD40、失敗/error/skip/漏れ/重複なし、既存1,161 ID・固定273入力不変）。[実測・操作](docs/DEVELOPMENT_TOOLS.md)。
