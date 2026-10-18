@@ -47,9 +47,9 @@ class ParameterPanel(QWidget):
             form = QFormLayout(group)
             combo = QComboBox()
             for kind in EdgeType:
-                combo.addItem({EdgeType.CIRCULAR:"Circular (legacy)",
+                combo.addItem({EdgeType.CIRCULAR:"Circular (G1)",EdgeType.ELLIPTICAL:"Elliptical (G1)",
                                EdgeType.TANGENT_CIRCULAR:"Tangent arc (G1)"}.get(kind,kind.value.title()),kind)
-            combo.setToolTip("Tangent arc (G1): PS/SS上の接点を端部近傍で動かして単一円弧を接線接続。\nCircular (legacy): 従来の半円。Ellipse/Cutoffは従来形状。")
+            combo.setToolTip("Circular / Tangent arc: 単一円弧でPS/SSへ接線接続。\nElliptical: 指定軸比の単一楕円でPS/SSへ接線接続。\n接点は元のPS/SS上の端部近傍で移動します。Cutoffは直線カット。")
             ratio = CompactDoubleSpinBox()
             ratio.setDecimals(12)
             ratio.setRange(.000001,1e6)

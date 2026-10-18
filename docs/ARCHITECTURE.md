@@ -258,7 +258,7 @@ MainWindowはlegacy計算失敗時にlegacy表・曲線・current sourceを解�
 
 ## 接線円弧の端部生成
 
-`geometry/tangent_arcs.py`は元PS/SS曲線上で接点を移動し、内向き法線と他方の接線拘束から単一円を構成する。EdgeType.TANGENT_CIRCULARだけを新経路へ渡し、2D designerと3D sectionが同じ接円核を使う。3Dは元側面の(m,theta)補間と壁面微分を共有し、接点探索と残存側面の再標本化に同じ写像を使う。旧type・JSON構造・CAD公差・角度/厚さ入力を保持する。[方式・検証](ROUNDED_EDGE_TANGENCY.md)。
+`geometry/tangent_arcs.py`は元PS/SS曲線上で接点を移動し、内向き法線と他方の接線拘束から単一円を構成する。Circular/Tangent Circularは同じ接円核を、Ellipticalは指定軸比の線形変換を介した接円核を使い、Cutoff以外は常に接線接続する。2D designerと3D sectionで核を共有し、3Dでは元側面の(m,theta)補間と壁面微分を使う。接点探索と残存側面の再標本化に同じ写像を使い、JSON構造・CAD公差・角度/厚さ入力を保持する。旧円/楕円の端部座標は利用者指定で変更される。[方式・検証](ROUNDED_EDGE_TANGENCY.md)。
 
 ## 子午面の翼列距離表示
 

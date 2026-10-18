@@ -3,11 +3,28 @@ from copy import deepcopy
 from pathlib import Path
 import numpy as np
 import pytest
+from scipy.interpolate import make_interp_spline
 from blade_designer.fileio.project_migration import migrate_v03_flow_path
 from blade_designer.fileio.project_io import load_project,save_project
 from blade_designer.geometry.geometry_3d import generate_impeller
 
 FIXTURES=Path(__file__).parent/"fixtures"
+
+
+def assert_tangent_upgrade(section,reference,index,camber_atol):
+    """Archive values stay frozen; only rounded joins changed by specification.
+
+    Camber retains the original strict tolerance. PS/SS now have trimmed domains
+    and a different sample grid: compare their continuous archived interpolants,
+    not old array indices. 3e-6 mm is the historical geometry comparison scale.
+    Old cap coordinates deliberately describe the superseded half-circle.
+    """
+    np.testing.assert_allclose(section.camber.xyz,reference[f'{index}_camber'],rtol=0,atol=camber_atol)
+    for name in ('master_ps','master_ss'):
+        side=getattr(section,name);old=reference[f'{index}_{name}']
+        assert 0<=side.m_blade_norm[0]<=.15 and .85<=side.m_blade_norm[-1]<=1
+        spline=make_interp_spline(np.linspace(0,1,len(old)),old)
+        np.testing.assert_allclose(side.xyz,spline(side.m_blade_norm),rtol=0,atol=3e-6)
 
 def test_earlier_v03_keeps_original_wall_geometry_and_coordinates(tmp_path):
     path=FIXTURES/"old_v03_flow_path.json"
@@ -20,8 +37,7 @@ def test_earlier_v03_keeps_original_wall_geometry_and_coordinates(tmp_path):
     assert path.read_bytes()==original
     with np.load(FIXTURES/"old_v03_profiles.npz") as reference:
         for i,section in enumerate(g.sections):
-            for name in ("camber","master_ps","master_ss","master_le","master_te"):
-                np.testing.assert_allclose(getattr(section,name).xyz,reference[f"{i}_{name}"],rtol=0,atol=3e-6)
+            assert_tangent_upgrade(section,reference,i,3e-6)
     save_project(tmp_path/"upgraded.json",p)
     assert load_project(tmp_path/"upgraded.json")==p
     saved=json.loads((tmp_path/"upgraded.json").read_text())
@@ -52,8 +68,7 @@ def test_existing_normal_cut_v03_keeps_every_master_coordinate(tmp_path):
     original=path.read_bytes();p=load_project(path);g=generate_impeller(p)
     with np.load(FIXTURES/"flow_path_before_additional.npz") as reference:
         for i,section in enumerate(g.sections):
-            for name in ("camber","master_ps","master_ss","master_le","master_te"):
-                np.testing.assert_allclose(getattr(section,name).xyz,reference[f"{i}_{name}"],rtol=0,atol=1e-12)
+            assert_tangent_upgrade(section,reference,i,1e-12)
     assert path.read_bytes()==original
     save_project(tmp_path/"upgraded.json",p)
     assert load_project(tmp_path/"upgraded.json")==p

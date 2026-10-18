@@ -9,7 +9,7 @@ from .distributions import interpolate_beta_m_deg
 from .thickness import generate_thickness
 from .meridional import calculate_meridional
 from .edges import generate_edge
-from .tangent_arcs import fit_circular_cap, contact_intervals
+from .tangent_arcs import fit_circular_cap, fit_elliptical_cap, contact_intervals
 from .checks import has_self_intersection
 from .cylindrical_cutoff import cylinder_distance, cut_surface
 from .curve_source import resample_source_map
@@ -94,7 +94,7 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
     # Single-circle rounding moves contacts along the original side curves.
     # The m/theta splines are shared by root evaluation and trimmed-side output.
     caps={};kinds=(section.edge_parameters.le_type,section.edge_parameters.te_type)
-    if EdgeType.TANGENT_CIRCULAR in kinds:
+    if any(kind!=EdgeType.CUTOFF for kind in kinds):
         from scipy.interpolate import make_interp_spline
         originals=(ps,ss)
         coordinates=[np.linspace(0,1,len(c.r)) for c in originals]
@@ -113,9 +113,12 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
                 dr=(wall_zr[k+1,1]-wall_zr[k,1])/(wall_m[k+1]-wall_m[k])
                 return np.array([dm,rotation_sign*(dtheta*radius+(theta-self.reference)*dr*dm)])
         for leading,kind,index in ((True,kinds[0],0),(False,kinds[1],-1)):
-            if kind==EdgeType.TANGENT_CIRCULAR:
+            if kind!=EdgeType.CUTOFF:
                 sides=[LocalSide(s,d,theta_rad[index]) for s,d in zip(splines,derivatives)]
-                caps[leading]=fit_circular_cap(*sides,leading,np.array([np.cos(beta_m_rad[index]),np.sin(beta_m_rad[index])]))
+                direction=np.array([np.cos(beta_m_rad[index]),np.sin(beta_m_rad[index])])
+                ratio=section.edge_parameters.le_ellipse_ratio if leading else section.edge_parameters.te_ellipse_ratio
+                caps[leading]=(fit_elliptical_cap(*sides,leading,direction,ratio)
+                               if kind==EdgeType.ELLIPTICAL else fit_circular_cap(*sides,leading,direction))
         trimmed=[]
         for spline,source,u,interval in zip(splines,originals,coordinates,contact_intervals(caps)):
             q=np.linspace(*interval,len(source.r));distance,theta=spline(q).T

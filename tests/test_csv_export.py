@@ -14,7 +14,11 @@ def test_exports(default_blade,tmp_path):
     assert Counter(r["segment"] for r in rows) == {"LE":21,"PS":101,"TE":21,"SS":101}
     assert rows[0]["m_norm"] == "" and rows[0]["curvature"] == ""
     ps = [r for r in rows if r["segment"] == "PS"]
-    assert ps[0]["m_norm"] == "0" and ps[-1]["m_norm"] == "1"
+    # G1 rounding trims PS/SS on their original distribution coordinate.
+    # Do not renormalize it to 0/1 and move the angle/thickness data.
+    assert ps[0]["m_norm"] == format(float(b.surfaces.ps.m_norm[0]),".6g")
+    assert ps[-1]["m_norm"] == format(float(b.surfaces.ps.m_norm[-1]),".6g")
+    assert ps[0]["segment_fraction"] == "0" and ps[-1]["segment_fraction"] == "1"
     assert ps[0]["x"] == format(float(b.surfaces.ps.x[0]),".6g")
     export_contour_csv(tmp_path/"contour.csv",b)
     with (tmp_path/"contour.csv").open() as f: contour = list(csv.DictReader(f))

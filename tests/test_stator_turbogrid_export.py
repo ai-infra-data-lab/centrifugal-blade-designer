@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 from blade_designer.fileio.project_io import load_project, save_project
-from blade_designer.fileio.turbogrid_export import export_turbogrid
-from blade_designer.geometry.geometry_3d import generate_diffuser_3d
+from blade_designer.fileio.turbogrid_export import export_turbogrid,closed_profile
+from blade_designer.geometry.geometry_3d import generate_diffuser_3d,generate_impeller
 from blade_designer.geometry.row_domain import preview_wall_chunks
 from blade_designer.models.blade_rows import initial_rows, row_parameters, row_snapshot
 from blade_designer.models.meridional import MeridionalCurveParameters, LineSegmentParameters
@@ -150,13 +150,31 @@ def test_static_invalid_input_preserves_existing_output(tmp_path,invalid):
 
 @pytest.mark.parametrize('case',['legacy','middle_span','cutoff_x_cm'])
 def test_impeller_output_matches_prechange_ascii_reference(tmp_path,case):
-    # Historical compatibility reference, captured before changing exporter code.
+    # Keep the archived hashes. Rounded profiles intentionally change to G1;
+    # wall/metadata bytes, units, axis and markers retain the old contract.
     p=BladeParameters()
     if case=='middle_span':p.sections.insert(1,BladeSection(.5))
     if case=='cutoff_x_cm':
         for s in p.sections:s.edge_parameters.te_type=EdgeType.CUTOFF
         p.turbogrid.rotation_axis='X';p.turbogrid.geometry_unit='CM'
     reference=json.loads((Path(__file__).parent/'fixtures/turbogrid_impeller_sha256.json').read_text())
-    actual={f.name:hashlib.sha256(f.read_bytes().replace(b'\r\n',b'\n')).hexdigest()
-            for f in export_turbogrid(tmp_path,p)}
-    assert actual==reference['cases'][case]
+    files=export_turbogrid(tmp_path,p)
+    actual={f.name:hashlib.sha256(f.read_bytes().replace(b'\r\n',b'\n')).hexdigest() for f in files}
+    archived=reference['cases'][case]
+    assert set(actual)==set(archived)
+    for name in actual:
+        if name!=p.turbogrid.profile_curve_filename:assert actual[name]==archived[name]
+    assert actual[p.turbogrid.profile_curve_filename]!=archived[p.turbogrid.profile_curve_filename]
+    geometry=generate_impeller(p)
+    order=[2,0,1] if case=='cutoff_x_cm' else [0,1,2]
+    scale=.1 if case=='cutoff_x_cm' else 1.
+    parsed=profiles(next(f for f in files if f.name==p.turbogrid.profile_curve_filename))
+    assert len(parsed)==len(geometry.sections)
+    for (_,xyz,markers),section in zip(parsed,geometry.sections):
+        expected,expected_markers=closed_profile(section)
+        expected=expected[:,order]*scale
+        # The exporter records significant decimal digits, so compare to the
+        # correctly rounded new geometry without widening a geometry tolerance.
+        rounded=np.array([[float(f'{v:.{p.export.significant_digits}g}') for v in row] for row in expected])
+        np.testing.assert_array_equal(xyz,rounded)
+        assert markers==expected_markers

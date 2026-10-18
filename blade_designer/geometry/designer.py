@@ -7,7 +7,7 @@ from .camber import generate_camber
 from .thickness import generate_thickness
 from .surface import generate_surfaces
 from .edges import generate_edge
-from .tangent_arcs import SampledSide, fit_circular_cap, contact_intervals
+from .tangent_arcs import SampledSide, fit_circular_cap, fit_elliptical_cap, contact_intervals
 from ..models.parameters import EdgeType
 from .curvature import calculate_curvature
 from .throat import calculate_throat
@@ -60,11 +60,13 @@ class BladeDesigner:
                 tangent = np.column_stack((np.cos(direction), np.sin(direction)))
                 caps={}
                 kinds=(params.edges.le_type,params.edges.te_type)
-                if EdgeType.TANGENT_CIRCULAR in kinds:
+                if any(kind!=EdgeType.CUTOFF for kind in kinds):
                     sides=[SampledSide(side.xy) for side in (ps,ss)]
                     for leading,kind,index in ((True,kinds[0],0),(False,kinds[1],-1)):
-                        if kind==EdgeType.TANGENT_CIRCULAR:
-                            caps[leading]=fit_circular_cap(*sides,leading,tangent[index])
+                        if kind!=EdgeType.CUTOFF:
+                            ratio=params.edges.le_ellipse_ratio if leading else params.edges.te_ellipse_ratio
+                            caps[leading]=(fit_elliptical_cap(*sides,leading,tangent[index],ratio)
+                                           if kind==EdgeType.ELLIPTICAL else fit_circular_cap(*sides,leading,tangent[index]))
                     trimmed=[]
                     for side,source,interval in zip(sides,(ps,ss),contact_intervals(caps)):
                         u=np.linspace(*interval,len(source.x));xy=side.evaluate(u)

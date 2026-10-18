@@ -1,8 +1,9 @@
-"""One circle tangent to two sides, with contact motion confined to end regions.
+"""One circular/elliptical arc tangent to sides, with bounded contact motion.
 
 The side evaluators own the geometry/chart. No Qt, CAD or serialization imports.
 """
 from dataclasses import dataclass
+from numbers import Real
 import numpy as np
 from scipy.interpolate import make_interp_spline
 from scipy.optimize import brentq
@@ -131,3 +132,53 @@ def contact_intervals(caps):
         if hi<=lo:raise ValueError('Circular LE/TE contact regions overlap.')
         result.append((lo,hi))
     return result
+
+
+@dataclass(frozen=True)
+class EllipticalCap:
+    """An affine image of one tangent circle; derivatives use the same map."""
+    circle: CircularCap
+    origin: np.ndarray
+    inverse: np.ndarray
+
+    @property
+    def ps_parameter(self):return self.circle.ps_parameter
+    @property
+    def ss_parameter(self):return self.circle.ss_parameter
+    @property
+    def start(self):return self.origin+self.inverse@self.circle.start
+    @property
+    def end(self):return self.origin+self.inverse@self.circle.end
+
+    def evaluate(self,fraction):return self.origin+self.circle.evaluate(fraction)@self.inverse.T
+
+    def direction(self,fraction):
+        vector=self.circle.direction(fraction)@self.inverse.T
+        return vector/np.linalg.norm(vector,axis=-1,keepdims=True)
+
+    def sample(self,count):
+        points=self.circle.sample(count)@self.inverse.T+self.origin
+        points[0]=self.start;points[-1]=self.end
+        return points
+
+
+def fit_elliptical_cap(ps,ss,leading,flow_direction,ratio):
+    """Scale the flow axis to a circle chart, solve both tangencies, map back.
+
+    The axis along the end camber tangent has semi-axis ratio a/b=ratio.
+    Nonsingular linear maps preserve the contact and tangent directions.
+    Contacts obey the same bounded original-side search as circular caps.
+    """
+    if isinstance(ratio,(bool,np.bool_)) or not isinstance(ratio,Real) or not np.isfinite(ratio) or ratio<=0:
+        raise ValueError('Ellipse ratio must be finite and > 0.')
+    axis=unit(flow_direction);projector=np.outer(axis,axis)
+    transform=np.eye(2)+(1/ratio-1)*projector
+    inverse=np.eye(2)+(ratio-1)*projector
+    edge=0. if leading else 1.
+    origin=(ps.evaluate(edge)+ss.evaluate(edge))/2
+    class TransformedSide:
+        def __init__(self,side):self.side=side
+        def evaluate(self,q):return (self.side.evaluate(q)-origin)@transform.T
+        def derivative(self,q):return self.side.derivative(q)@transform.T
+    circle=fit_circular_cap(TransformedSide(ps),TransformedSide(ss),leading,axis)
+    return EllipticalCap(circle,origin,inverse)
