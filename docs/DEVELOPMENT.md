@@ -152,3 +152,7 @@ python3 -m venv .venv
 8. Testing画面からテストを実行し、Source Controlでこのアプリの差分だけを確認。
 9. Codex拡張で本人が認証し、このフォルダの説明を依頼する。コード変更は別依頼とする。
 10. TurboGridを利用できる場合は4ファイルのImport・方向・形状エラーを確認。
+
+## 開発補助ツール
+
+短時間検査と要約出力、Ruff/Skill/RTKの段階導入は[開発検査と結果報告](DEVELOPMENT_TOOLS.md)を参照。既存pytestランナー/アプリ用venvと全回帰条件は維持する。

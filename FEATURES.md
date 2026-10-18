@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+開発検査の短時間対象/要約: 既存pytestランナーへ`--suite quick/full`と`--brief`を追加。完全ログ/JUnit・終了コード・失敗/collection error/skipの区別を保持し、短時間検査は全回帰の代用にしない。形状・GUI・保存値は変更しない。[開発補助](docs/DEVELOPMENT_TOOLS.md)。
+
 曲面の局所品質診断: tensor splineの解析微分からJacobianの大きさ・向き付き法線を評価する読取り専用APIを追加。退化標本の法線は未定義とし、同一対応点の距離/法線角と比較可能点数を返す。既存生成・GUI・CAD・出力・保存値は維持し、全面保証や干渉PASSには使わない。新規29件を含む全1,161一意件成功（通常1,121・実CAD40、failure/error/skip/漏れ/重複なし）。既存1,132 IDと固定258入力不変。[契約・実既定の標本比較](docs/SURFACE_DIFFERENTIAL_DIAGNOSTICS.md)。
 
 CAD参照の採用格子対応: `View → CAD Surface Reference`に実CADのrole別格子を使うモードを追加。同一snapshot・成功した翼面/単一閉鎖BREP・Main/Splitter別の完全な格子記録を照合し、LE/PS/TE/SSごとに再構成する。不足・失敗・異なる設計では参照を隠し、固定格子へ自動退避しない。従来の固定モード・生成・保存・出力条件は維持。新規31件を含む全1,132一意件成功（通常1,092・実CAD40、failure/error/skip/漏れ/重複なし）。既存1,101 ID・固定256入力不変。[操作・検証](docs/CAD_ADOPTED_SURFACES.md)。
