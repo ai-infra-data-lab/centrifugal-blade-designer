@@ -203,3 +203,7 @@ Hub/Tipは`geometry/blade_edge.py::blade_wall_parameters`の共通参照LE/TE節
 ## G05の法線角包絡の進展
 
 共通Bézier区間の内積/外積係数から向き付き角度上限を追加した。解析例では9点の方向差がすべて90度未満でも、その間に約116.565度の差がある。包絡は180度を残して見逃しを避けるが、この上限だけで実際の反転を断定しない。実CADの一部LEはJ下限を確保できず未判定として保持した。既定Main129対513は旧均一標本1.433度に対し6.90688度を観測したが、数値上限35.8903度はまだ広い。丸め保証・通常Previewとの物理対応・干渉ゲート・最終CAD/STEPは未完了。[条件と実測](SURFACE_NORMAL_ENVELOPE.md)。
+
+## G02の三角形接触候補検査の進展
+
+BVH/SATによる明示格子の非局所自己接触と最近接Main/Main–Splitter検査を追加した。実1000枚ではLE–LE/TE–PSの候補があり、接触roleをPS–SSに限定できない。源面が交差しても粗い格子で見逃すnegative、包含だけなら表面接触がないnegativeも試験化した。共有頂点の局所fold、同じ翼のrole継ぎ目、離れた周期コピー、cap/fillet/STEP・実solidは未対応。出力前の干渉ゲートや全体の設計PASSへはまだ使用しない。[範囲](MESH_CONTACT_SCREENING.md)。

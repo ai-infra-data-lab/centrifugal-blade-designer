@@ -245,3 +245,7 @@ MainWindowはlegacy計算失敗時にlegacy表・曲線・current sourceを解�
 ## 同一対応面の法線角包絡
 
 `geometry/surface_orientation.py`は同degree/C1の2面を共通Bézier区間へ分け、微分外積の内積/外積係数から向き付き法線角の上限を返す。J下限未確保はNone、角度を絞れない正則区間は180度とする。物理対応はcallerの契約で、外向き・丸め保証・干渉検査を意味しない。Qt/OCP/出力条件に依存しない。[契約](SURFACE_NORMAL_ENVELOPE.md)。
+
+## 明示三角形の接触候補
+
+`geometry/mesh_contacts.py`は格子三角形化・BVH・分離軸検査を担当する。`geometry/blade_contacts.py`が4role×Main/Splitterの自己/近接ピッチ組を作る。入力はcallerが選択したXYZ格子で、生成や密度を切り替えず、結果もQt/保存/出力へ自動接続しない。非局所の三角形接触候補を返し、局所隣接面/role継ぎ目/遠いコピー/包含/連続面を未検査として残す。退化・計算上限を不完全として上位へ伝播する。[契約](MESH_CONTACT_SCREENING.md)。

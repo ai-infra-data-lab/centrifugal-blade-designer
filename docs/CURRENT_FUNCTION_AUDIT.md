@@ -141,3 +141,7 @@ C1を形式上保証できるclamped基準面のJ下限/上限と未判定箇所
 ## 追加: 同一対応基準splineの法線角包絡
 
 同degree/C1面の向き付き角度上限と未判定区間のAPIは実装済み。純数値25・実OCCT1の新規試験を含む関連80件成功。標本点の間に90度超の方向差がある解析例を保守的な包絡に残す。実CADの一部LE区間はJ下限未確保としてNoneを維持する。外向き・物理対応の自動同定・丸め保証・自己/周期干渉・最終solid/STEP・GUI統合は未対応。[根拠・全回帰](SURFACE_NORMAL_ENVELOPE.md)。
+
+## 追加: Stage 3B-1の三角形接触候補（部分対応）
+
+明示XYZ格子の非局所自己/最近接周期/Main–Splitter接触候補APIを追加し、新規54件を含む関連129件を確認した。実1000枚のMainでLE–LE/TE–PSの35候補を観測。曲面の標本間交差・完全包含・隣接faceの局所foldを保証しないnegativeも保持する。全周・連続面・role継ぎ目・cap/fillet/STEPの検査、GUI/出力ゲート統合は未対応で、G02全体は未完了。[根拠・全回帰](MESH_CONTACT_SCREENING.md)。
