@@ -2,6 +2,7 @@
 import json
 import subprocess
 import sys
+import os
 from pathlib import Path
 import pytest
 from tools.run_tests import ROOT, QUICK_TESTS, summarize_report
@@ -81,3 +82,16 @@ def test_fixed_suite_cannot_silently_accept_subset_arguments():
                             cwd=ROOT,capture_output=True,text=True,encoding='utf-8',timeout=45)
     assert result.returncode == 2
     assert 'fixed suite' in result.stderr
+
+
+def test_cli_paths_remain_utf8_when_parent_python_utf8_mode_is_disabled(tmp_path):
+    test = tmp_path/'test_encoding_probe.py'
+    test.write_text('def test_ok(): pass\n',encoding='utf-8')
+    env = os.environ.copy()
+    env['PYTHONUTF8'] = '0'
+    env['PYTHONIOENCODING'] = 'cp932'
+    result = subprocess.run([sys.executable,'tools/run_tests.py','--brief',str(test)],
+                            cwd=ROOT,env=env,capture_output=True,timeout=45)
+    assert result.returncode == 0
+    text = result.stdout.decode('utf-8')
+    assert str(ROOT/'artifacts/test-runs') in text

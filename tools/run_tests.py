@@ -36,6 +36,8 @@ def summarize_report(path):
 
 
 def main(argv=None):
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--brief', action='store_true')
     parser.add_argument('--suite', choices=('quick', 'full'))

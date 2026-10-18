@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+開発用RTK: project内にchecksum固定のRTK OSSを配置し、読取りGit履歴と保存済みpytestログの任意圧縮helperを追加。失敗/error/skip/不完全結果は圧縮せず、元の終了コードとraw logを保持。全体hook/設定やアプリvenvは変更しない。短いpytestは既存briefを優先。関連23件成功、全1,184一意件成功（通常1,144・実CAD40、失敗/error/skip/漏れ/重複なし、既存1,161 ID・固定273入力不変）。[実測・操作](docs/DEVELOPMENT_TOOLS.md)。
+
 開発用Skill: project内に`blade-designer-checks`を追加。関連資料だけの読込み、短時間/関連/全回帰、要約とraw log、限定Ruff、project限定Gitの使い分けを記載。skill-creator形式検証と相対参照を確認。新セッションでの自動選択は未確認。[手順](docs/DEVELOPMENT_TOOLS.md)。
 
 開発用Ruff: 独立venvへ固定導入し、未定義名等の限定ルールを読取り検査。既存指摘0件、正常/未定義/構文エラーの終了コードを実確認。VS Codeへ短時間試験とRuffタスクを追加。アプリ用venv・計算・全体整形は変更しない。[手順](docs/DEVELOPMENT_TOOLS.md)。

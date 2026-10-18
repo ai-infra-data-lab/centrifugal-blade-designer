@@ -1,0 +1,7 @@
+{
+  "version": "1.0.1",
+  "edition": "rtk-oss",
+  "url": "https://github.com/rtk-ai/rtk/releases/download/v1.0.1/rtk-oss-x86_64-pc-windows-msvc.zip",
+  "archive_sha256": "0e53e2eca471e15fbd3636e64e6bc0b182cbc278ed0339c80450a2dd03f4cd6b",
+  "exe_sha256": "4346e25f54d4a4aaa39809d8384e59193d6646d8b008f9f9a90acaea5d6b37da"
+}
