@@ -233,3 +233,7 @@ MainWindowはlegacy計算失敗時にlegacy表・曲線・current sourceを解�
 ## 解析微分による局所診断
 
 `geometry/surface_diagnostics.py`は`SplineSurface`の解析微分から位置/接線/Jacobian/法線を評価する。Qt/OCP/ファイルへ依存せず、生成・表示・出力への適用は行わない。退化閾値をcallerが明示し、未定義法線と有効比較点数を区別する。向きはパラメータ依存で、CAD外向きや全面妥当性は示さない。[契約](SURFACE_DIFFERENTIAL_DIAGNOSTICS.md)。
+
+## 同一対応面の位置差包絡
+
+`geometry/surface_envelope.py`は同degree/clamped/非周期の基準splineを共通knotへ挿入し、差のcontrol netから実数モデル上の全域位置差包絡を計算する。refitや既存生成の切替は行わない。float丸めは未証明と返し、CAD/GUI/出力の合否へ自動接続しない。[契約](SURFACE_DISTANCE_ENVELOPE.md)。

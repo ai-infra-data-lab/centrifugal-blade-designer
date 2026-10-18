@@ -63,3 +63,7 @@ Stage 3Aの局所品質評価の基盤として、`geometry/surface_diagnostics.
 | 実CAD | 40 | 826.827 | 20261018T033731Z-96d0fb85 |
 
 native GUI、高DPI、ANSYS Import/Meshは今回も未検証。現既定形状の根元fillet未成立は本診断で解決したとしない。
+
+## 位置差の全域モデル包絡
+
+後続で同一対応基準splineのcontrol包絡を追加し、旧均一標本が見逃す始端付近の差を確認した。本書の41×101点の数値は当時の有限標本として保持する。距離包絡とfloat丸め/法線/干渉の残課題は[位置差包絡](SURFACE_DISTANCE_ENVELOPE.md)を参照。

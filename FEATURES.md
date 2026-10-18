@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+基準翼面の位置差包絡: 共通knotへの挿入とcontrol net差により、同一Span/xiで対応するspline面全域のモデル上の位置差を評価。標本間の膨らみと現既定SS/Hub始端の見逃しを確認した。float丸めは未証明と明示し、既存生成・GUI・CAD・保存/出力条件は維持。新規29件、関連82件成功。全1,213一意件成功（通常1,172・実CAD41、失敗/error/skip/漏れ/重複なし、既存1,184 ID・固定276入力不変）。[契約・限界](docs/SURFACE_DISTANCE_ENVELOPE.md)。
+
 開発用RTK: project内にchecksum固定のRTK OSSを配置し、読取りGit履歴と保存済みpytestログの任意圧縮helperを追加。失敗/error/skip/不完全結果は圧縮せず、元の終了コードとraw logを保持。全体hook/設定やアプリvenvは変更しない。短いpytestは既存briefを優先。関連23件成功、全1,184一意件成功（通常1,144・実CAD40、失敗/error/skip/漏れ/重複なし、既存1,161 ID・固定273入力不変）。[実測・操作](docs/DEVELOPMENT_TOOLS.md)。
 
 開発用Skill: project内に`blade-designer-checks`を追加。関連資料だけの読込み、短時間/関連/全回帰、要約とraw log、限定Ruff、project限定Gitの使い分けを記載。skill-creator形式検証と相対参照を確認。新セッションでの自動選択は未確認。[手順](docs/DEVELOPMENT_TOOLS.md)。

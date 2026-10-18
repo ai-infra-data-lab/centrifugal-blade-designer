@@ -129,3 +129,7 @@ Mechanicalはsolid数・結合・根元半径・実機ディスク寸法・周�
 ## 追加: 曲面の局所微分診断
 
 解析微分によるJacobian/法線と同一対応標本の比較APIは実装済み。新規解析29件と既定ImpellerのMain/Splitter標本比較を確認。GUI統合・全面品質ゲート・干渉検査・STEP後の面偏差は未対応で、native/ANSYSは未検証。[根拠・制限](SURFACE_DIFFERENTIAL_DIAGNOSTICS.md)。
+
+## 追加: 基準spline間の距離包絡
+
+同一対応/同degree/clamped/非周期面の位置差control包絡を実装した。純数値28件・実OCCT1件と現既定の主翼/Splitterで検証。float丸めの厳密保証、法線/Jacobianの全域包絡、干渉・cap/fillet/STEP後の面・GUI統合は未対応。既存生成/保存/出力条件は維持。[根拠](SURFACE_DISTANCE_ENVELOPE.md)。

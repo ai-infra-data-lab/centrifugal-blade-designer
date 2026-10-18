@@ -191,3 +191,7 @@ Hub/Tipは`geometry/blade_edge.py::blade_wall_parameters`の共通参照LE/TE節
 ## G05の局所微分評価の進展
 
 解析Jacobian/法線の標本診断を追加。既定の同一role/同一座標を513格子と比較すると、Mainの距離は33→65で減るが最大法線角は2.94466→3.33429度に増える。位置偏差だけでは法線誤差を保証しない。標本間の退化・自己交差・物理対応・cap/fillet/STEP全域は未解決。生成式や公差は変更しない。[測定条件](SURFACE_DIFFERENTIAL_DIAGNOSTICS.md)。
+
+## G05の位置差包絡の進展
+
+同degree基準splineの共通control netによる包絡を追加した。Main129対513は旧41×101点で最大0.003313 mmだったが、SS/Hubのxi=0.0029296875に0.0138795 mmを確認。1回細分のcontrol包絡は0.0145150 mm。旧標本差を全面誤差と扱えない実例である。float丸めの区間保証は未対応で、設計公差の合否やCAD採用条件へは使わない。[条件・解析negative](SURFACE_DISTANCE_ENVELOPE.md)。
