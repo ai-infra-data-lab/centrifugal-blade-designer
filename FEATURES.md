@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+LE/TEの単一接線円弧: Typeに`Tangent arc (G1)`を追加。PS/SS上の接点を端部近傍で移動し、両側に接する単一円弧を生成。2円弧へ退避せず、不成立は明示エラー。元の角度/厚さ分布とcamber、旧半円・楕円・Cutoff・既定JSONを保持。選択・Undo/Redo・保存/読込と、実CADの単一閉solid/STEP再読込を確認。全1,451一意件成功（通常1,407・実CAD44、失敗/error/skip/漏れ/重複なし、既存1,381 ID・固定294入力不変）。[操作・一般手順・検証](docs/ROUNDED_EDGE_TANGENCY.md)。
+
 共有vertexの局所診断（Stage 3B-2b）: 明示モード`check_shared_edges=True, check_shared_vertices=True`で1頂点だけの接続と重なり候補を区別し、vertex linkの分断・分岐・重複や未判定を不完全として記録。既定/edge-onlyの既存値、形状/GUI/保存/出力は維持。新規31件を含む関連117件成功。全1,381一意件成功（通常1,338・実CAD43、失敗/error/skip/漏れ/重複なし、既存1,350 ID・固定290入力不変）。[契約・全回帰](docs/MESH_VERTEX_CHECKS.md)。
 
 共有edgeの局所診断（Stage 3B-2a）: 明示モード`check_shared_edges=True`で正常なedge接続と同じ側へ折り返す重なり候補を区別し、短edge/高さは未判定、3面以上のedgeは不完全として記録。既定Falseの検査範囲・既存結果フィールド、形状/GUI/保存/出力は維持。新規32件を含む関連86件、全1,350一意件成功（通常1,307・実CAD43、失敗/error/skip/漏れ/重複なし、既存1,318 ID・固定288入力不変）。1頂点だけの接続・role継ぎ目・連続面/solidは残る。[契約・検証](docs/MESH_SHARED_EDGE_CHECKS.md)。

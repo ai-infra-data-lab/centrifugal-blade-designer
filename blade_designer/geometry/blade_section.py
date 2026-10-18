@@ -9,6 +9,7 @@ from .distributions import interpolate_beta_m_deg
 from .thickness import generate_thickness
 from .meridional import calculate_meridional
 from .edges import generate_edge
+from .tangent_arcs import fit_circular_cap, contact_intervals
 from .checks import has_self_intersection
 from .cylindrical_cutoff import cylinder_distance, cut_surface
 from .curve_source import resample_source_map
@@ -90,10 +91,47 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
         return curve
     ps=surface(sign)
     ss=surface(-sign)
+    # Single-circle rounding moves contacts along the original side curves.
+    # The m/theta splines are shared by root evaluation and trimmed-side output.
+    caps={};kinds=(section.edge_parameters.le_type,section.edge_parameters.te_type)
+    if EdgeType.TANGENT_CIRCULAR in kinds:
+        from scipy.interpolate import make_interp_spline
+        originals=(ps,ss)
+        coordinates=[np.linspace(0,1,len(c.r)) for c in originals]
+        splines=[make_interp_spline(u,np.column_stack((c.meridional_distance,c.theta_rad)),k=3) for u,c in zip(coordinates,originals)]
+        derivatives=[s.derivative() for s in splines]
+        class LocalSide:
+            def __init__(self,spline,derivative,theta_reference):
+                self.spline=spline;self.slope=derivative;self.reference=theta_reference
+            def evaluate(self,q):
+                distance,theta=self.spline(q).T;radius=wall_at(np.atleast_1d(distance))[0,1]
+                return np.array([distance,rotation_sign*(theta-self.reference)*radius])
+            def derivative(self,q):
+                distance,theta=self.spline(q);dm,dtheta=self.slope(q)
+                radius=wall_at(np.array([distance]))[0,1]
+                k=int(np.clip(np.searchsorted(wall_m,distance,side='right')-1,0,len(wall_m)-2))
+                dr=(wall_zr[k+1,1]-wall_zr[k,1])/(wall_m[k+1]-wall_m[k])
+                return np.array([dm,rotation_sign*(dtheta*radius+(theta-self.reference)*dr*dm)])
+        for leading,kind,index in ((True,kinds[0],0),(False,kinds[1],-1)):
+            if kind==EdgeType.TANGENT_CIRCULAR:
+                sides=[LocalSide(s,d,theta_rad[index]) for s,d in zip(splines,derivatives)]
+                caps[leading]=fit_circular_cap(*sides,leading,np.array([np.cos(beta_m_rad[index]),np.sin(beta_m_rad[index])]))
+        trimmed=[]
+        for spline,source,u,interval in zip(splines,originals,coordinates,contact_intervals(caps)):
+            q=np.linspace(*interval,len(source.r));distance,theta=spline(q).T
+            norm=np.interp(q,u,source.m_blade_norm)
+            curve=mapped(distance,theta,np.zeros(len(q)),norm)
+            if cutoff_radius is not None:curve.r[-1]=cutoff_radius
+            trimmed.append(curve)
+        ps,ss=trimmed
     edges=[]
-    for index,leading,kind,ratio in ((0,True,section.edge_parameters.le_type,section.edge_parameters.le_ellipse_ratio),
-                                   (-1,False,section.edge_parameters.te_type,section.edge_parameters.te_ellipse_ratio)):
+    for index,leading,kind,ratio in ((0,True,kinds[0],section.edge_parameters.le_ellipse_ratio),
+                                   (-1,False,kinds[1],section.edge_parameters.te_ellipse_ratio)):
         beta=beta_m_rad[index];center=np.array([m[index],0.])
+        if leading in caps:
+            xy=caps[leading].sample(resolution.edge_points)
+            edges.append(mapped(xy[:,0],np.full(len(xy),theta_rad[index]),xy[:,1]))
+            continue
         if not leading and cutoff_radius is not None:
             n=resolution.edge_points
             edges.append(Curve3D(np.full(n,cutoff_radius),

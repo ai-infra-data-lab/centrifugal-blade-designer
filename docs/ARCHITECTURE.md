@@ -255,3 +255,7 @@ MainWindowはlegacy計算失敗時にlegacy表・曲線・current sourceを解�
 ## 共有頂点とvertex linkの追加診断
 
 `geometry/mesh_vertex_adjacency.py`は1頂点共有のcone方向・線分長とlink graphを独立に診断する。mesh/blade入口の`check_shared_vertices=True`はedge検査を前提とし、role内自己検査だけへ適用する。点接続でもfan分断は不完全となる。既定/edge-onlyの結果値を維持し、Qt/OCP/GUI/出力条件へ自動接続しない。[契約・検証](MESH_VERTEX_CHECKS.md)。
+
+## 接線円弧の端部生成
+
+`geometry/tangent_arcs.py`は元PS/SS曲線上で接点を移動し、内向き法線と他方の接線拘束から単一円を構成する。EdgeType.TANGENT_CIRCULARだけを新経路へ渡し、2D designerと3D sectionが同じ接円核を使う。3Dは元側面の(m,theta)補間と壁面微分を共有し、接点探索と残存側面の再標本化に同じ写像を使う。旧type・JSON構造・CAD公差・角度/厚さ入力を保持する。[方式・検証](ROUNDED_EDGE_TANGENCY.md)。

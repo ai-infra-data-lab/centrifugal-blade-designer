@@ -1,12 +1,14 @@
 import numpy as np
 from ..models.parameters import BladeParameters
-from ..models.geometry import BladeGeometry, BladeSurfaceGeometry, CurvatureGeometry
+from ..models.geometry import BladeGeometry, BladeSurfaceGeometry, CurvatureGeometry, BladeSegment
 from ..models.validation import validate_parameters, ValidationLevel, ValidationIssue
 from .resolution import validate_resolution
 from .camber import generate_camber
 from .thickness import generate_thickness
 from .surface import generate_surfaces
 from .edges import generate_edge
+from .tangent_arcs import SampledSide, fit_circular_cap, contact_intervals
+from ..models.parameters import EdgeType
 from .curvature import calculate_curvature
 from .throat import calculate_throat
 from .metrics import calculate_metrics
@@ -56,10 +58,28 @@ class BladeDesigner:
                 ps, ss, mapping, ambiguous = generate_surfaces(camber, thickness, params.surface_mapping)
                 direction = camber.theta_rad + camber.rotation_sign * camber.beta_m_rad
                 tangent = np.column_stack((np.cos(direction), np.sin(direction)))
-                le = generate_edge(np.array([camber.x[0], camber.y[0]]), tangent[0],
-                                   ps.xy[0], ss.xy[0], params.edges.le_type, params.edges.le_ellipse_ratio, True, params.resolution.edge_points)
-                te = generate_edge(np.array([camber.x[-1], camber.y[-1]]), tangent[-1],
-                                   ps.xy[-1], ss.xy[-1], params.edges.te_type, params.edges.te_ellipse_ratio, False, params.resolution.edge_points)
+                caps={}
+                kinds=(params.edges.le_type,params.edges.te_type)
+                if EdgeType.TANGENT_CIRCULAR in kinds:
+                    sides=[SampledSide(side.xy) for side in (ps,ss)]
+                    for leading,kind,index in ((True,kinds[0],0),(False,kinds[1],-1)):
+                        if kind==EdgeType.TANGENT_CIRCULAR:
+                            caps[leading]=fit_circular_cap(*sides,leading,tangent[index])
+                    trimmed=[]
+                    for side,source,interval in zip(sides,(ps,ss),contact_intervals(caps)):
+                        u=np.linspace(*interval,len(source.x));xy=side.evaluate(u)
+                        trimmed.append(BladeSegment(xy[:,0],xy[:,1],np.interp(u,np.linspace(0,1,len(source.x)),source.m_norm)))
+                    ps,ss=trimmed
+                edges=[]
+                for leading,kind,ratio,index in ((True,kinds[0],params.edges.le_ellipse_ratio,0),
+                                                (False,kinds[1],params.edges.te_ellipse_ratio,-1)):
+                    if leading in caps:
+                        xy=caps[leading].sample(params.resolution.edge_points)
+                        edges.append(BladeSegment(xy[:,0],xy[:,1]))
+                    else:
+                        edges.append(generate_edge(np.array([camber.x[index],camber.y[index]]),tangent[index],
+                            ps.xy[index],ss.xy[index],kind,ratio,leading,params.resolution.edge_points))
+                le,te=edges
                 master = BladeSurfaceGeometry(ps, ss, le, te)
                 curvature = CurvatureGeometry(camber.m_norm, calculate_curvature(ps), calculate_curvature(ss))
                 issues.extend(check_geometry(master, curvature, thickness, direction, params.edges))

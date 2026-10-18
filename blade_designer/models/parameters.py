@@ -21,6 +21,7 @@ class EdgeType(str, Enum):
     CIRCULAR = "circular"
     ELLIPTICAL = "elliptical"
     CUTOFF = "cutoff"
+    TANGENT_CIRCULAR = "tangent_circular"
 
 
 class SurfaceMapping(str, Enum):
