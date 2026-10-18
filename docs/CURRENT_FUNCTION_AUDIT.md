@@ -137,3 +137,7 @@ Mechanicalはsolid数・結合・根元半径・実機ディスク寸法・周�
 ## 追加: 基準splineのJacobian区間包絡
 
 C1を形式上保証できるclamped基準面のJ下限/上限と未判定箇所のAPIは実装済み。数値24・実OCCT1の新規試験、現既定Main/Splitterの65〜513格子を確認。局所正則と自己交差なしを区別し、丸めの厳密保証・実干渉/法線比較・最終solid/STEPは未対応。[根拠](SURFACE_REGULARITY_ENVELOPE.md)。
+
+## 追加: 同一対応基準splineの法線角包絡
+
+同degree/C1面の向き付き角度上限と未判定区間のAPIは実装済み。純数値25・実OCCT1の新規試験を含む関連80件成功。標本点の間に90度超の方向差がある解析例を保守的な包絡に残す。実CADの一部LE区間はJ下限未確保としてNoneを維持する。外向き・物理対応の自動同定・丸め保証・自己/周期干渉・最終solid/STEP・GUI統合は未対応。[根拠・全回帰](SURFACE_NORMAL_ENVELOPE.md)。

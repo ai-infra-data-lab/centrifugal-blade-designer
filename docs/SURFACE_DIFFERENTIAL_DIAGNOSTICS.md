@@ -71,3 +71,7 @@ native GUI、高DPI、ANSYS Import/Meshは今回も未検証。現既定形状�
 ## Jacobianの区間モデル包絡
 
 後続でBézier微分外積係数による区間下限/上限を追加した。有限標本で折返しを見逃す例を未判定として残し、局所正則と内部交差を区別する。float丸めを含む証明は未完了。[契約](SURFACE_REGULARITY_ENVELOPE.md)。
+
+## 法線角の区間モデル包絡
+
+同一対応C1面の向き付き法線角上限を追加した。退化が未解決な区間はNoneとし、非反転を確保できない正則区間は180度を残す。旧標本の角度値は有限標本の記録として保持する。[条件・独立negative・実測](SURFACE_NORMAL_ENVELOPE.md)。

@@ -241,3 +241,7 @@ MainWindowはlegacy計算失敗時にlegacy表・曲線・current sourceを解�
 ## 基準面の局所正則性包絡
 
 `geometry/surface_regularity.py`は既存splineをBézier区間へ分け、微分外積のBernstein係数からJの下限/上限を計算する。標本で見えない折返しを未判定として残す。元C1/同じパラメータ尺度が前提で、局所正則を自己交差なしに置き換えない。Qt/OCP/ファイルへ依存せず、既存生成/出力や公差は維持。[契約](SURFACE_REGULARITY_ENVELOPE.md)。
+
+## 同一対応面の法線角包絡
+
+`geometry/surface_orientation.py`は同degree/C1の2面を共通Bézier区間へ分け、微分外積の内積/外積係数から向き付き法線角の上限を返す。J下限未確保はNone、角度を絞れない正則区間は180度とする。物理対応はcallerの契約で、外向き・丸め保証・干渉検査を意味しない。Qt/OCP/出力条件に依存しない。[契約](SURFACE_NORMAL_ENVELOPE.md)。
