@@ -42,3 +42,9 @@ Hypothesis/uvは今回の4段階へ自動追加しない。後続の数値境界
 既存app/tests/tools/mainの初回指摘は0件。正常入力exit 0、未定義名F821と構文エラーexit 1の実プローブを確認した。構文と限定ルールの成功は型/幾何/工学的な正しさを保証しない。結果はartifacts/devtools/ruff-baseline.json、ruff-probes.json。VS CodeへQuick TestsとRuff Checkのタスクを追加し、既存の実行/回帰/依存確認タスクは維持した。CLIからの実行は検証済み、VS Codeのタスク選択操作は未確認。
 
 Ruff設定の根拠: https://docs.astral.sh/ruff/configuration/
+
+## 3. プロジェクト専用Codex Skill
+
+`.agents/skills/blade-designer-checks/SKILL.md`を追加した。Codexで`$blade-designer-checks`を明示するか、このアプリの変更/検証で選択されることを想定する。入口を短く保ち、本手順とDEVELOPMENT.mdへ必要時だけ参照する。親の家計簿やユーザー全体のSkill設定は変更しない。
+
+skill-creatorのquick_validate.py成功、参照ファイル解決成功。記載したquick/関連検査/Ruffコマンドはこの環境で実行済み。frontmatter検証は自動選択の精度や新セッションでの表示まで保証しない。Skillが一覧へ出ない場合はプロジェクトを開き直して確認する。形式とproject discoveryの根拠: https://learn.chatgpt.com/docs/build-skills

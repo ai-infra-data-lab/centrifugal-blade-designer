@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+開発用Skill: project内に`blade-designer-checks`を追加。関連資料だけの読込み、短時間/関連/全回帰、要約とraw log、限定Ruff、project限定Gitの使い分けを記載。skill-creator形式検証と相対参照を確認。新セッションでの自動選択は未確認。[手順](docs/DEVELOPMENT_TOOLS.md)。
+
 開発用Ruff: 独立venvへ固定導入し、未定義名等の限定ルールを読取り検査。既存指摘0件、正常/未定義/構文エラーの終了コードを実確認。VS Codeへ短時間試験とRuffタスクを追加。アプリ用venv・計算・全体整形は変更しない。[手順](docs/DEVELOPMENT_TOOLS.md)。
 
 開発検査の短時間対象/要約: 既存pytestランナーへ`--suite quick/full`と`--brief`を追加。完全ログ/JUnit・終了コード・失敗/collection error/skipの区別を保持し、短時間検査は全回帰の代用にしない。形状・GUI・保存値は変更しない。[開発補助](docs/DEVELOPMENT_TOOLS.md)。
