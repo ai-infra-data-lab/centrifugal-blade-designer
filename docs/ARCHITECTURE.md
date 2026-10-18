@@ -18,6 +18,8 @@
 
 流れ: main → gui → models / geometry / fileio / optimization。
 
+TurboGridの主翼/Splitterは`fileio/turbogrid_export.py`が既存`geometry.sections`/`splitter_sections`を翼別のASCIIに変換する。クリアランス時は既存のQt非依存`span_extension`を各翼へ適用し、両方の所属範囲と整形検証を済ませてからケースpublishへ渡す。数値generator/保存schemaを変更せず、Readinessも同じ非書込みprepareを使う。[契約](TURBOGRID_SPLITTER.md)。
+
 ## 翼面評価の数値層（Stage 3A-1）
 
 `geometry/surface_evaluation.py`はrole別対応座標とSpanで区分線形面／tensor splineを評価する。NumPy／SciPyだけに依存し、OCP・Qt・ファイル形式をimportしない。`cad/occt_backend.py::create_surface`は共通の従来係数構築結果をOCPへ移し、`geometry/impeller_trim.py::_blend`は共通の列補間を呼ぶ。Previewの既存wireframeは維持する。XYZ／円筒座標、表示index／master m_norm、派生source_spanは同一視しない。対応点差は全面誤差保証や干渉判定ではない。[方式・検証・残課題](SURFACE_EVALUATION_CONTRACT.md)。

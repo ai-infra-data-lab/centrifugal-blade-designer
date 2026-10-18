@@ -166,7 +166,7 @@ Hub/Tipは`geometry/blade_edge.py::blade_wall_parameters`の共通参照LE/TE節
 ### D01 — 現既定の表示成立と出力成立が異なる [P1・A]
 
 - **対象**: `defaults/default_project.json`、`geometry/row_domain.py::export_wall_intervals`、`fileio/turbogrid_export.py::export_turbogrid`、READMEの既定寸法説明。
-- **再現**: 現既定ImpellerはSplitter有効なのでProfile Pointsが拒否される。さらにメモリ上で所属検証すると`The assigned meridional export domain must contain the blade LE and TE.`。Diffuser／RCの所属は通る。仮ディスク生成は構造CAD用で、流体の所属制約を解除しない。
+- **再現**: 2026-10-19のSplitter対応後も、現既定Impellerは所属範囲がTEを含まないためProfile Pointsが拒否される。ユーザー原本と同梱既定の両方でHub/Shroudの所属終端R80 mmに対しTE基準はR81 mm。メモリ上で所属検証すると`The assigned meridional export domain must contain the blade LE and TE.`。Diffuser／RCの所属は通る。仮ディスク生成は構造CAD用で、流体の所属制約を解除しない。
 - **影響**: 「起動できる既定」から「出力できる既定」を期待すると誤認する。これは検証ガードの不具合ではなく、入力と出力成立条件の不一致。
 - **修正案**: 非破壊のExport Readiness診断を先に表示し、どの条件で止まるか明示。原本のLE/TE／所属／Splitterを勝手に変更しない。出力用例題は別データとして後Stageで作る。
 

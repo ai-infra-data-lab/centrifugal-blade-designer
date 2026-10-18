@@ -106,7 +106,7 @@ Named SelectionsのSTEP経由の保持は保証しません。`*_surface_roles.j
 
 従来のProfile Pointsはフィレットを含まない翼座標です。通常のFile → Exportも維持します。Profile Pointsは保存済みの従来TurboGrid単位・軸設定を使い、CADの固定mm/Z設定とは独立しています。TurboGridでBladeGen.infを開き、Hub/Shroud/Profile、軸・単位・輪郭向き・LE/TEを確認します。必要ならBlade BlendをHub R8、Shroud無効として設定し、CAD From Profile Pointsへ切り替えて生成・メッシュを試します。この経路のBlendはANSYSが別に生成するもので、Python側フィレットと同一形状の保証はありません。
 
-CAD From Profile Pointsのライセンス・スタンドアロン起動条件は対象リリースで確認してください。スプリッター付きProfile Pointsは従来どおり未対応として明示拒否します。CAD流路が成功してもProfile Pointsの失敗を隠しません。
+CAD From Profile Pointsのライセンス・スタンドアロン起動条件は対象リリースで確認してください。スプリッター付きProfile Pointsは[専用仕様](TURBOGRID_SPLITTER.md)で主翼とSplitterを出力できます。CAD流路が成功してもProfile Pointsの失敗を隠しません。
 
 ### CAD経路
 

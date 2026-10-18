@@ -73,9 +73,12 @@ def test_disabled_json_unchanged_stator_unaffected_and_export_is_protected(tmp_p
     p.splitter=SplitterParameters();newstatic=generate_diffuser_3d(p)
     assert newstatic.splitter_sections is None
     for a,b in zip(static.sections,newstatic.sections):np.testing.assert_array_equal(a.ps.xyz,b.ps.xyz)
-    with pytest.raises(ValueError,match='Splitter TurboGrid'):export_turbogrid(tmp_path/'case',p)
-    with pytest.raises(ValueError,match='Splitter TurboGrid'):export_turbogrid(tmp_path/'new',p)
-    assert all(f.read_bytes()==data for f,data in before.items()) and not (tmp_path/'new').exists()
+    for destination in (tmp_path/'case',tmp_path/'new'):
+        exported=export_turbogrid(destination,p)
+        assert len(exported)==4
+        assert exported[2].read_text().count('## ')==2
+        assert 'Number of Blades Per Set: 2' in exported[3].read_text()
+    assert all(f.read_bytes()==before[f] for f in files[:2])
 
 
 def test_independent_distributions_copy_controls_then_use_visible_domain_without_affecting_main(tmp_path):

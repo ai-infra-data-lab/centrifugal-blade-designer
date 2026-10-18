@@ -1247,9 +1247,12 @@ class MainWindow(QMainWindow):
             try:
                 files = export_turbogrid(directory,self.get_parameters())
                 message=f"TurboGrid: {len(files)} files exported to {directory}"
-                labels=[line for line in files[2].read_text(encoding='ascii').splitlines() if line.startswith('#')]
+                lines=files[2].read_text(encoding='ascii').splitlines()
+                labels=[line for line in lines if line.startswith('# ')]
                 if '# Tip_clearance' in labels:
                     message+=f"; Shroud Tip: Profile Number {labels.index('# Tip_clearance')+1} (Tip_clearance)"
+                if '## Splitter' in lines:
+                    message+='; Main + Splitter; check Theta Direction in BladeGen.inf'
                 self.statusBar().showMessage(message)
             except (OSError,ValueError,ArithmeticError) as exc:
                 QMessageBox.warning(self,"TurboGrid Export",str(exc))

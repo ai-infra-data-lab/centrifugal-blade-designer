@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+Impellerのスプリッター付きTurboGrid Profile Points: 主翼とSplitterを公式`##`区切りの同一profileへ出力し、Blade Setsは主翼枚数・Blades Per Setは2。主翼連動/専用分布、CW/CCW、クリアランス付きの各実TipとShroud延長断面へ対応。両翼の所属/丸め/マーカー/Span点数を完成前に検査し、無効時は既存ケースを保護する。主翼のみ16ファイルは修正前hash/生バイト列を維持。新規60件を含む全1,593一意件成功（通常1,548・実CAD45、failure/error/skip/漏れ/重複なし、既存1,533 ID・固定308入力不変）。ANSYS Import/Meshは未検証。[操作・形式・検証](docs/TURBOGRID_SPLITTER.md)。
+
 円・楕円の常時接線接続: 既存`circular`/`elliptical`もPS/SS上の接点を動かすG1接続へ変更。楕円は指定軸比のアフィン変換を介して単一楕円弧を求める。JSONの設定値/原本・camber/角度/厚さ・Cutoffは保持するが、旧半円/半楕円の端部座標再現は終了。新規47件を含む全1,533一意件成功（通常1,488・実CAD45、旧契約試験の更新/再試験込み、最終failure/error/skip/漏れ/重複なし）。参照fixtureの値は保持。[現行仕様・互換性変更](docs/ROUNDED_EDGE_TANGENCY.md)。
 
 子午面の翼列距離表示: 所属壁面の入口順にImpeller 0–1、Diffuser 1–2、RC 2–3等の整数区間へ換算し、線/円弧の始終とLE/TEのHub/Shroud位置をR/Zと併記する。範囲外は赤字、所属不足/分断/順序不一致は未設定。R/Z編集・内部0–1・角度/厚さ横軸・既定値・JSON/出力を維持。新規35件を含む全1,486一意件成功（通常1,442・実CAD44、失敗/error/skip/漏れ/重複なし、既存1,451 ID・固定297入力不変）。[契約・操作・検証](docs/MERIDIONAL_ROW_COORDINATES.md)。

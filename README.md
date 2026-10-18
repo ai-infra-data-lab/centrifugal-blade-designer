@@ -44,7 +44,7 @@ Hub/ShroudのLine・Circular Arc子午面、Hub/Tip・中間Spanの翼断面、C
 
 ## CAD / Fillet（v0.4）
 
-オープンインペラは`LE / TE → オープンインペラ / Tip Clearance`でLE・TEの隙間[mm]を指定します。Shroudを固定ケーシングとし、Hub側法線方向へ翼Tipを移し、間はケーシング沿いの距離で線形補間します。入力はEnter／フォーカス移動で確定。子午面と3DにTipとケーシングを分けて表示し、翼列別保存・Undoに対応します。TurboGrid Profile Pointsは実Tip断面に加え、ShroudまでSpan方向に延長した断面を同じprofileファイルへ出力します。読込み後はShroud TipのProfile Numberに出力後表示の実Tip番号を指定してください。TurboGrid CAD・Splitter付きの出力は未対応です。操作と検証は[クリアランス付きTurboGrid](docs/TURBOGRID_CLEARANCE.md)、CADの成立範囲・面積の扱いは[翼端クリアランス](docs/TIP_CLEARANCE.md)を参照してください。
+オープンインペラは`LE / TE → オープンインペラ / Tip Clearance`でLE・TEの隙間[mm]を指定します。Shroudを固定ケーシングとし、Hub側法線方向へ翼Tipを移し、間はケーシング沿いの距離で線形補間します。入力はEnter／フォーカス移動で確定。子午面と3DにTipとケーシングを分けて表示し、翼列別保存・Undoに対応します。TurboGrid Profile Pointsは実Tip断面に加え、ShroudまでSpan方向に延長した断面を同じprofileファイルへ出力します。読込み後はShroud TipのProfile Numberに出力後表示の実Tip番号を指定してください。Splitter付きProfile Pointsにも対応し、主翼とSplitterの各Tip/延長断面を出力します。両翼の実Tip番号とTheta方向をTurboGrid側で確認してください。正の隙間のTurboGrid CADは未対応です。[スプリッター出力](docs/TURBOGRID_SPLITTER.md)。操作と検証は[クリアランス付きTurboGrid](docs/TURBOGRID_CLEARANCE.md)、CADの成立範囲・面積の扱いは[翼端クリアランス](docs/TIP_CLEARANCE.md)を参照してください。
 
 Impellerの`CAD / Fillet`タブで、master座標から実BREPの翼・Hub・根元フィレットを生成し、Mechanical用STEPとTurboGrid用流路CADを検証付きで出力できます。`根元フィレットR`へ正の半径を入力し、Enter/フォーカス移動で確定して再生成します。初期値は8 mmです。Shroud無効、mm、Z軸は維持します。
 

@@ -77,17 +77,23 @@ def prepare_turbogrid_export(params):
         from ..geometry.tip_clearance import has_tip_clearance
         if has_tip_clearance(row.parameters) and params.tip_clearance!=row.parameters.tip_clearance:
             raise ValueError('Active Impeller Tip clearance disagrees with its row snapshot. Reselect the row before export.')
+        if params.splitter!=row.parameters.splitter:
+            raise ValueError('Active Impeller Splitter disagrees with its row snapshot. Reselect the row before export.')
     if not stator:
         from ..fileio.trim_export_guard import guard_trim_export
         guard_trim_export(params)
         if row is not None:guard_trim_export(row.parameters)
-    if not stator and params.splitter is not None:
-        raise ValueError("Splitter TurboGrid export is not supported yet. No output was written.")
     geometry=generate_diffuser_3d(params) if stator else generate_impeller(params)
+    splitter=not stator and params.splitter is not None
+    if splitter and (not geometry.splitter_sections or [s.span for s in geometry.splitter_sections]!=[s.span for s in geometry.sections]):
+        raise ValueError('Splitter export requires matching Main and Splitter span sections.')
     clearance=not stator and geometry.tip is not None
     if clearance:
         from ..geometry.span_extension import extend_tip_to_shroud
-        geometry=replace(geometry,sections=[*geometry.sections,extend_tip_to_shroud(geometry)])
+        split_sections=geometry.splitter_sections
+        if splitter:
+            split_sections=[*split_sections,extend_tip_to_shroud(replace(geometry,sections=split_sections))]
+        geometry=replace(geometry,sections=[*geometry.sections,extend_tip_to_shroud(geometry)],splitter_sections=split_sections)
     edges=params.diffuser_edges if stator else params.impeller_edges
     settings=params.turbogrid;digits=params.export.significant_digits
     filenames=[settings.hub_curve_filename,settings.shroud_curve_filename,settings.profile_curve_filename,"BladeGen.inf"]
@@ -95,22 +101,27 @@ def prepare_turbogrid_export(params):
         raise ValueError("TurboGrid filenames must be distinct simple filenames.")
     contents={}
     intervals = export_wall_intervals(project, geometry, edges)
+    if splitter:
+        export_wall_intervals(project,replace(geometry,sections=geometry.splitter_sections),edges)
     for (wall,p,name),(start,end) in zip(((geometry.hub,params.hub,filenames[0]),(geometry.shroud,params.shroud,filenames[1])), intervals):
         zr=sample_meridional(wall,np.linspace(start,end,p.export_points))
         xyz=np.column_stack((zr[:,1],np.zeros(len(zr)),zr[:,0]))
         contents[name]=_coordinates(_external_xyz(xyz,settings),digits)
     profiles=[]
-    profile_counts=[]
-    for index,section in enumerate(geometry.sections):
-        label="Hub" if section.span==0 else "Tip" if section.span==1 else f"Span_{section.span:.15g}"
-        if clearance and index==len(geometry.sections)-2:label="Tip_clearance"
-        if clearance and index==len(geometry.sections)-1:label="Shroud_extension"
-        xyz,markers=closed_profile(section)
-        coordinates=_coordinates(_external_xyz(xyz,settings),digits,markers)
-        profile_counts.append(_validate_profile_coordinates(coordinates))
-        profiles.append(f"# {label}\n"+coordinates)
-    if len(set(profile_counts))!=1:
-        raise ValueError("Blade profiles must have matching contour point counts.")
+    groups=[('Main',geometry.sections)]+([('Splitter',geometry.splitter_sections)] if splitter else [])
+    for name,sections in groups:
+        if splitter:profiles.append(f'## {name}\n')
+        profile_counts=[]
+        for index,section in enumerate(sections):
+            label="Hub" if section.span==0 else "Tip" if section.span==1 else f"Span_{section.span:.15g}"
+            if clearance and index==len(sections)-2:label="Tip_clearance"
+            if clearance and index==len(sections)-1:label="Shroud_extension"
+            xyz,markers=closed_profile(section)
+            coordinates=_coordinates(_external_xyz(xyz,settings),digits,markers)
+            profile_counts.append(_validate_profile_coordinates(coordinates))
+            profiles.append(f"# {label}\n"+coordinates)
+        if len(set(profile_counts))!=1:
+            raise ValueError(f"{name} blade profiles must have matching contour point counts.")
     contents[filenames[2]]="".join(profiles)
     def end_type(choice,side):
         if choice not in ('auto','EllipseEnd','CutOffEnd','SquareEnd'):
@@ -122,19 +133,24 @@ def prepare_turbogrid_export(params):
         if all(k!=EdgeType.CUTOFF for k in kinds):return 'EllipseEnd'
         return None  # Mixed span shapes use curve markers and TurboGrid detection.
     edge_lines=''
-    for side,choice in (('le',settings.leading_edge_type),('te',settings.trailing_edge_type)):
-        kind=end_type(choice,side)
-        if kind:edge_lines+=f"Blade 0 {side.upper()}: {kind}\n"
+    for blade in range(len(groups)):
+        for side,choice in (('le',settings.leading_edge_type),('te',settings.trailing_edge_type)):
+            kind=end_type(choice,side)
+            if kind:edge_lines+=f"Blade {blade} {side.upper()}: {kind}\n"
     contents["BladeGen.inf"]=("!======  CFX-BladeGen Export  ========\n"
         f"Axis of Rotation: {settings.rotation_axis}\nNumber of Blade Sets: {params.geometry.vane_count}\n"
-        f"Number of Blades Per Set: 1\nGeometry Units: {settings.geometry_unit}\n"
+        f"Number of Blades Per Set: {len(groups)}\nGeometry Units: {settings.geometry_unit}\n"
         +edge_lines+f"Hub Data File: {filenames[0]}\n"
         f"Shroud Data File: {filenames[1]}\nProfile Data File: {filenames[2]}\n")
+    if splitter:
+        direction='Right Handed' if params.rotation_direction.sign==1 else 'Left Handed'
+        contents["BladeGen.inf"]+=f'! Main is Blade 0; Splitter is Blade 1. Set Machine Data Theta Direction to {direction}.\n'
     if clearance:
         contents["BladeGen.inf"]+=(
             f"! Physical Tip: Profile Number {len(geometry.sections)-1} (1-based, Tip_clearance).\n"
             "! Set Shroud Tip / Tip Option = Profile Number in TurboGrid to restore the physical gap.\n"
             "! The final Shroud_extension profile is for spanwise surface continuation only.\n")
+        if splitter:contents['BladeGen.inf']+='! Apply the physical Tip profile number to both Main and Splitter.\n'
     # Preserve the platform text-file newlines used by the original writer.
     return filenames,{name:content.replace('\n',os.linesep).encode('ascii') for name,content in contents.items()}
 

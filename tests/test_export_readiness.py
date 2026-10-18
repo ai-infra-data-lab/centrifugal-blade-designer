@@ -28,7 +28,8 @@ def test_default_reports_splitter_and_domain_without_creating_files(monkeypatch)
     report=er.assess_exports(p,forbidden)
     profile=route(report,'Profile Points')
     assert profile.status=='BLOCKED'
-    assert {'splitter','domain'}<={c.code for c in profile.checks if c.state=='BLOCKED'}
+    assert 'domain' in {c.code for c in profile.checks if c.state=='BLOCKED'}
+    assert any(c.code=='splitter' and c.state=='PASS' for c in profile.checks)
     assert report.row_name=='Impeller' and p==before
     assert route(report,'Mechanical STEP').status=='BLOCKED'
     assert any(c.code=='kernel' and c.state=='NOT_TESTED' for c in route(report,'Mechanical STEP').checks)

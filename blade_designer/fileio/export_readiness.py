@@ -66,7 +66,7 @@ def assess_exports(project,prepare_profiles=None):
     check(('Mechanical STEP','TurboGrid CAD'),'kind',lambda:require(not stator,'CAD currently supports Impeller rows only.'),'Impeller CAD supported.')
     if not stator:
         check(all_routes,'trim',lambda:guard_trim_export(params),'No unsupported trim export.')
-        check(('Profile Points',),'splitter',lambda:require(params.splitter is None,'Splitter Profile Points export is not supported.'),'No unsupported splitter Profile Points.')
+        checks['Profile Points'].append(Check('splitter','PASS','Main and one Splitter per blade set supported.' if params.splitter is not None else 'Main-only blade set.'))
     geometry=None
     if any(c.code=='trim' and c.state=='BLOCKED' for c in checks['Profile Points']):
         for route in all_routes:checks[route].append(Check('geometry','NOT_TESTED','Unsupported derivative export: no derived geometry was generated.'))

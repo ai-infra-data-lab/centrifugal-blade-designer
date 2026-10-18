@@ -78,8 +78,8 @@ def test_curved_packaged_default_has_exact_casing_extension_and_unchanged_displa
     p=row_parameters(project,project.blade_rows[0]);p.blade_rows=deepcopy(project.blade_rows)
     p.active_blade_row='row-1';p.tip_clearance=TipClearanceParameters(le,te)
     p.blade_rows[0].parameters.tip_clearance=deepcopy(p.tip_clearance)
-    # This test isolates casing extension. The new user template has a
-    # splitter, whose unsupported TurboGrid path is tested separately.
+    # This test isolates main-only casing extension; splitter export has its
+    # own two-blade-set and casing-continuation tests.
     p.splitter=None;p.blade_rows[0].parameters.splitter=None
     # Use a complete export domain on this disposable default-model copy.
     for wall in (p.hub,p.shroud):
@@ -103,7 +103,7 @@ def test_invalid_clearance_export_preserves_existing_case_and_does_not_create_ne
     elif invalid=='width':p.tip_clearance.te_mm=20
     elif invalid=='precision':p.export.significant_digits=1
     elif invalid=='filename':p.turbogrid.profile_curve_filename='../escape.curve'
-    elif invalid=='splitter':p.splitter=SplitterParameters()
+    elif invalid=='splitter':p.splitter=SplitterParameters(thickness_scale=0)
     elif invalid=='snapshot':
         from blade_designer.models.blade_rows import initial_rows
         p.blade_rows=initial_rows(p);p.active_blade_row='row-1';p.tip_clearance=None

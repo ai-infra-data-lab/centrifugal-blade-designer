@@ -1,0 +1,30 @@
+{
+  "source_commit": "3734406591e1acee83b598cce0cb756c9aa2a165",
+  "source": "Pre-splitter exporter; same unchanged geometry implementation. LF-normalized SHA256.",
+  "cases": {
+    "basic": {
+      "hub.curve": "72d139bd4b9a68a39c454014a0c536bbf128f19983dbde7df6e68a6e3e6126e2",
+      "shroud.curve": "94bcbf10fe4a14b2bb7f4edaf5f722a551a1ae1673e5c17ad27a50895df63cf9",
+      "profile.curve": "10a2e50efac311549d517f762d13a5a3b1626615ff8fe8db1b3b49d6f022ebc1",
+      "BladeGen.inf": "dadc288a2397ba292dc5bd3f47efad508ba2ae8cb3c8a2d3a1e1039e1557bb9f"
+    },
+    "middle": {
+      "hub.curve": "72d139bd4b9a68a39c454014a0c536bbf128f19983dbde7df6e68a6e3e6126e2",
+      "shroud.curve": "94bcbf10fe4a14b2bb7f4edaf5f722a551a1ae1673e5c17ad27a50895df63cf9",
+      "profile.curve": "b27c430a928116d9397a3723d666a482ec5ece316f2a3f9f8c7f98ef1a79de86",
+      "BladeGen.inf": "dadc288a2397ba292dc5bd3f47efad508ba2ae8cb3c8a2d3a1e1039e1557bb9f"
+    },
+    "cw_x_cm": {
+      "hub.curve": "9a0056c469d276362ed10f257345d60dfef78dba58e2db2a099f4d8889e62005",
+      "shroud.curve": "0480a6a2e74df9dd48389bc2420a45927961a1429c092655a55168b96a7699bc",
+      "profile.curve": "d3bb488442d78e47808497c925c91e2e61f2a6bf6e2010c1577e3c3e69750456",
+      "BladeGen.inf": "8ab1a209740519945ef5fed1bd15806d2d2bedf2854137add0bff5246b62f42f"
+    },
+    "clearance": {
+      "hub.curve": "34daa1f2a558ab132d2fd1b4ef3c73a7915227a84ec2fd962085c5f1d0f6c683",
+      "shroud.curve": "4713bd0e65ea75c0434904571cf6ddca6293aad8ae9e04263bb254972d0cce73",
+      "profile.curve": "4aca464761effaa93339f1d9a0f4daf091da6c4390d4a8badf26ea032a12e3b5",
+      "BladeGen.inf": "264d8a9f7f98ad2aafe62d7a5a22b82d2bfcc1d3112db976f27ec495ba8dc06a"
+    }
+  }
+}

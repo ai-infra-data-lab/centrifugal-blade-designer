@@ -53,6 +53,8 @@ def test_default_splitter_is_preserved_and_unsupported_impeller_export_is_protec
     p.blade_rows=deepcopy(project.blade_rows);p.active_blade_row='row-1'
     assert p.splitter is not None
     target=tmp_path/'case';target.mkdir();sentinel=target/'keep.txt';sentinel.write_bytes(b'original')
-    with pytest.raises(ValueError,match='Splitter TurboGrid export is not supported'):
+    # Splitter export is supported; this template still owns too short a
+    # meridional interval for its Impeller TE. Keep that independent guard.
+    with pytest.raises(ValueError,match='assigned meridional export domain'):
         export_turbogrid(target,p)
     assert list(target.iterdir())==[sentinel] and sentinel.read_bytes()==b'original'

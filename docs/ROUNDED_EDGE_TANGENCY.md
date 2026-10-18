@@ -84,7 +84,7 @@ CADの既存接線拘束・適応近似・0.01 mm公差・失敗時保護を維�
 出力点数はmaster形状を変えない。出力点を直線で結ぶ表示の角度は分解能に依存する。
 TurboGridの輪郭順・単位・回転軸・中間indexのLE/TEマーカー規約は維持する。
 非対称な接点配置でマーカーが厳密な幾何学的先端になることは保証しない。
-Splitter ASCII・静翼CAD・派生cut・clearance CAD等の従来の未対応ガードは解除しない。
+Splitter ASCIIは[スプリッター仕様](TURBOGRID_SPLITTER.md)で対応。静翼CAD・派生cut・clearance CADの未対応ガードは維持する。
 
 ## 常時接線接続版の検証
 
