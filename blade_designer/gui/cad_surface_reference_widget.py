@@ -7,14 +7,15 @@ from ..geometry.geometry_3d import generate_impeller
 from ..geometry.cad_surface_reference import reference_surfaces,reference_lines
 from ..fileio.geometry_source import geometry_source
 from ..fileio.trim_export_guard import guard_trim_export
+from ..cad.reference_report import adopted_surface_counts
 
 
 class CadSurfaceReferenceWidget(QWidget):
-    def __init__(self,source,parent=None):
-        super().__init__(parent);self.source=source;self.result=None
+    def __init__(self,source,parent=None,*,cad_report=None):
+        super().__init__(parent);self.source=source;self.result=None;self.cad_report=cad_report or (lambda:None)
         layout=QVBoxLayout(self)
-        note=QLabel('CADと同じ補間・端部接線を使う、翼面だけの固定密度の参照表示です。\n'
-            '実CADの自動密度選択・端面・フィレット・STEPは含みません。ANSYS未検証。')
+        note=QLabel('CADと同じ補間・端部接線を使う、翼面だけの参照表示です。\n'
+            '実CADの採用格子は同じsnapshotの完了結果から取得します。端面・フィレット・STEPは含みません。ANSYS未検証。')
         note.setWordWrap(True);layout.addWidget(note)
         row=QHBoxLayout();layout.addLayout(row)
         self.refresh_button=QPushButton('現在の設計を取得 / Refresh');row.addWidget(self.refresh_button)
@@ -22,6 +23,7 @@ class CadSurfaceReferenceWidget(QWidget):
         row.addWidget(QLabel('補間格子'))
         self.density=QComboBox();self.density.addItems(['33','65','129','257','513']);self.density.setCurrentText('65');row.addWidget(self.density)
         self.full=QCheckBox('Full Annulus');row.addWidget(self.full);row.addStretch()
+        self.adopted=QCheckBox('実CADの採用格子を使用');layout.addWidget(self.adopted)
         self.info=QLabel();self.info.setWordWrap(True)
         layout.addWidget(self.info)
         self.preview=Preview3D();layout.addWidget(self.preview,1);self.preview.hide()
@@ -29,6 +31,13 @@ class CadSurfaceReferenceWidget(QWidget):
         self.group.currentIndexChanged.connect(self._render)
         self.density.currentIndexChanged.connect(self._render)
         self.full.toggled.connect(self._annulus)
+        self.adopted.toggled.connect(self._density_mode_changed)
+
+    def _density_mode_changed(self,*_):
+        self.density.setEnabled(not self.adopted.isChecked());self._render()
+
+    def cad_report_changed(self):
+        if self.adopted.isChecked():self._render()
 
     def invalidate(self):
         self.result=None;self.preview.hide()
@@ -62,11 +71,16 @@ class CadSurfaceReferenceWidget(QWidget):
             sections=geometry.sections if self.group.currentIndex()==0 else geometry.splitter_sections
             if not sections:raise ValueError('Splitterがありません。')
             density=int(self.density.currentText())
+            description=f'grid {density}'
+            if self.adopted.isChecked():
+                density=adopted_surface_counts(self.cad_report(),source.snapshot_hash,
+                    'main' if self.group.currentIndex()==0 else 'splitter')
+                description='CAD adopted: '+', '.join(f'{role.upper()}={density[role]}' for role in ('le','ps','te','ss'))
             surfaces=reference_surfaces(sections,params.sections,density)
             lines=reference_lines(surfaces,[s.span for s in sections])
-            self.preview.update_surface_reference(lines,f'{source.row_name} • CAD reference • {self.group.currentText()} • grid {density}')
+            self.preview.update_surface_reference(lines,f'{source.row_name} • CAD reference • {self.group.currentText()} • {description}')
             self._annulus();self.preview.show()
-            self.info.setText(f'{source.row_name} / {self.group.currentText()} / grid {density} / mm / Z axis\nSnapshot: {source.snapshot_hash}\n'
+            self.info.setText(f'{source.row_name} / {self.group.currentText()} / {description} / mm / Z axis\nSnapshot: {source.snapshot_hash}\n'
                 '現在の設計を取得した時点の参照面。BREP・全面偏差・干渉・Import/Meshの合否ではありません。')
         except (ValueError,ArithmeticError) as exc:
             self.result=None;self.preview.hide();self.info.setText('参照面を表示できません: '+str(exc))

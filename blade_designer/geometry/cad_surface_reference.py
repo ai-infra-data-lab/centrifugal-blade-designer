@@ -1,5 +1,6 @@
 """Shared CAD tangent law and numerical reference, without Qt or a CAD kernel."""
 import numpy as np
+from collections.abc import Mapping
 from scipy.interpolate import make_interp_spline
 from .surface_correspondence import cad_curve_coordinates
 from .surface_evaluation import fit_surface_spline
@@ -32,6 +33,8 @@ def reference_surfaces(sections, profiles, density):
     solid validation or export. Callers must reject unsupported trimmed inputs.
     """
     if len(sections) != len(profiles):raise ValueError('Profile/geometry section count mismatch.')
+    if isinstance(density,Mapping) and set(density)!=set(('le','ps','te','ss')):
+        raise ValueError('Reference densities must specify all four contour roles.')
     payload=[]
     for section,profile in zip(sections,profiles):
         entry={'span':section.span, 'le_type':profile.edge_parameters.le_type.value,
@@ -41,7 +44,7 @@ def reference_surfaces(sections, profiles, density):
             entry[role]=curve.xyz;entry[role+'_xi']=cad_curve_coordinates(curve)
         payload.append(entry)
     tangents=join_surface_tangents(payload)
-    return {role:fit_surface_spline([s[role] for s in payload],density,
+    return {role:fit_surface_spline([s[role] for s in payload],density[role] if isinstance(density,Mapping) else density,
             [s[role+'_xi'] for s in payload],[s['span'] for s in payload],tangents[role])
             for role in ('le','ps','te','ss')}
 

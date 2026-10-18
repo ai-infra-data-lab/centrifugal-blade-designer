@@ -61,6 +61,8 @@ Hub/Tipは`geometry/blade_edge.py::blade_wall_parameters`の共通参照LE/TE節
 
 ### G05 — Span間の連続面とCAD近似の一致保証に穴がある [P1・B]
 
+**CAD採用格子追記**: 最新の成功したCAD結果とsnapshotを照合し、role別に異なる密度で基準翼面を再構成可能にした。固定65と実CAD自動格子の不一致を明示的に解消できる。最終solid/STEP後/全面偏差・干渉の保証ではない。[契約](CAD_ADOPTED_SURFACES.md)。
+
 **Stage 3A-2c参照表示追記**: 旧CADの接線計算を共通数値層へ移し、CADと同じ方式の固定密度参照面を別画面で表示可能にした。従来Preview/trimは保持。実CADのrole別採用密度の取込み・全面偏差・干渉は残る。[参照表示の範囲](CAD_SURFACE_REFERENCE.md)。
 
 **Stage 3A-2b追記**: 派生曲線に元集合/roleと重み付き元座標を保持し、外径交点と再サンプリング点を共通の円筒補間面から再構成可能にした。新TEを元TEへ誤対応させず拒否する。既存形状は維持し、表示/CADの方式統一や全面品質は未完了。[派生元面の参照](DERIVED_SOURCE_CONTRACT.md)。

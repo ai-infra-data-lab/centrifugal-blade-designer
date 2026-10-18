@@ -1,5 +1,7 @@
 # 現行機能の実装監査
 
+CAD採用格子追記: 同一snapshotの実CAD結果からMain/Splitter別の4 role格子を照合して参照面へ適用。失敗/不足/異設計の結果を拒否する。対象は結合/fillet前の基準翼面であり、最終solid/STEP後/全面品質は未検証。[契約](CAD_ADOPTED_SURFACES.md)。
+
 Stage 3A-2c参照表示追記: CADと同じ接線・tensor splineの固定密度参照画面を追加。Impeller主翼/Splitter・格子・全周を選び、従来表示と分離して検査可能。実出力の自動密度・閉じたsolid・全面偏差・ANSYSの成立を意味しない。設計変更時は失効する。[契約](CAD_SURFACE_REFERENCE.md)。
 
 Stage 3A-2b追記: 派生曲線の元集合・role・Span/indexと補間比を保持し、共通の円筒補間面を参照して再構成可能にした。外径切断後の位置をカット後indexと同一視しない。新加工TEは参照対象外。既存形状・JSON・出力は維持し、表示/CADの単一正本適用は残る。[派生由来](DERIVED_SOURCE_CONTRACT.md)。

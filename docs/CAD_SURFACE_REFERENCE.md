@@ -7,6 +7,7 @@ Impellerを選択して`View → CAD Surface Reference`を開く。現在の設�
 - `Refresh`: 現在の選択翼列と設計snapshotを取り直す。
 - `Main / Splitter`: 主翼または存在するSplitterを選ぶ。
 - `補間格子`: 33/65/129/257/513を明示して参照面を作る。初期値65は表示設定であり、設計JSONへ保存しない。
+- `実CADの採用格子を使用`: 同じsnapshotの直近CAD結果からrole別の格子を取得する。[照合条件と検証](CAD_ADOPTED_SURFACES.md)。
 - `Full Annulus`: 選択した翼集合を、その翼列の枚数でZ軸回転して表示する。主翼とSplitterを混ぜて合否判定する機能ではない。
 - Camera・正面/上面/側面/等角・Fit・Profiles/Spanwiseを使える。同じ表示中の格子・翼集合・Refresh変更でCameraを保持する。翼集合や全周へ切替えて表示範囲を調整したい場合は「全体」を押す。初回表示や無効化後の再取得は従来Previewの初回Fitを使う。
 
@@ -34,7 +35,7 @@ Impellerを選択して`View → CAD Surface Reference`を開く。現在の設�
 | 参照表示のpolyline | 上記数値面上の31×101標本と等パラメータ線 | 描画線の標本間偏差上限、法線反転、自己交差・翼間干渉 |
 | 従来Preview/trim | 互換方式を維持し、参照画面と明示的に分離 | 全経路を単一正本へ切り替えたという主張 |
 
-実出力の`surface_grid_counts`と参照画面の補間格子が同じ場合に限って、同じ入力・roleの面を比較できる。自動密度はroleごとに異なることがある。現在の参照画面は単一の固定密度であり、出力済みCADの全roleの密度・root topology・capを取り込む機能ではない。
+実出力の`surface_grid_counts`と参照画面の補間格子が同じ場合に限って、同じ入力・roleの面を比較できる。自動密度はroleごとに異なることがある。初期実装は単一固定密度だったが、追加した採用格子モードでは同じsnapshotの実CAD結果からrole別の密度を取得できる。root topology・capは引き続き対象外。[採用格子の契約](CAD_ADOPTED_SURFACES.md)。
 
 実CADのmaster点の偏差条件・cap/sewing/BREP/fillet/STEP公差は変更しない。新しい面全域の誤差予算やPASS閾値は設けていない。標本上の浮動小数点一致を設計精度や全面保証へ換算しない。表示設定は設計JSONやUndoへ追加しない。
 
@@ -56,7 +57,7 @@ offscreen画像を900×700で生成し、主翼・Splitter・Full Annulusで線�
 
 ## 残る改善
 
-実CADの自動採用密度を全role別に取得して表示へ適用すること、加工TE/cap/STEP後の参照、面全域の偏差・法線・Jacobian、周期翼/主翼-Splitter干渉、物理対応を含む単一正本への移行・互換条件は残る。参照取得は同期処理で、大規模設計・多数翼の応答性とworker化はStage 6で扱う。Stage 3A全体は未完了。実モデル根元フィレット成立とANSYS Import/MeshはNOT_TESTED/未成立の既存記録を維持する。
+実CADのrole別採用密度の適用は[追加対応](CAD_ADOPTED_SURFACES.md)で実施した。加工TE/cap/STEP後の参照、面全域の偏差・法線・Jacobian、周期翼/主翼-Splitter干渉、物理対応を含む単一正本への移行・互換条件は残る。参照取得は同期処理で、大規模設計・多数翼の応答性とworker化はStage 6で扱う。Stage 3A全体は未完了。実モデル根元フィレット成立とANSYS Import/MeshはNOT_TESTED/未成立の既存記録を維持する。
 
 
 ## 最終全回帰

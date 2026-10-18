@@ -63,6 +63,7 @@ class MainWindow(QMainWindow):
         self._displaying_geometry = False
         self.project_path: Path | None = None
         self._cad_worker=None
+        self._cad_reference_report=None
         self._cad_closing=False
         self._sections = deepcopy(BladeParameters().sections)
         self._section_index = 0
@@ -453,7 +454,8 @@ class MainWindow(QMainWindow):
     def show_cad_surface_reference(self):
         from .cad_surface_reference_widget import CadSurfaceReferenceWidget
         if not hasattr(self,'cad_surface_reference_widget'):
-            self.cad_surface_reference_widget=CadSurfaceReferenceWidget(self._surface_reference_parameters)
+            self.cad_surface_reference_widget=CadSurfaceReferenceWidget(self._surface_reference_parameters,
+                cad_report=lambda:self._cad_reference_report)
         self.cad_surface_reference_widget.refresh()
         return self._show_tool_dialog('CAD Surface Reference',self.cad_surface_reference_widget)
 
@@ -1395,6 +1397,8 @@ class MainWindow(QMainWindow):
             try:report=publish_job(job,Path(target),snapshot)
             except (ValueError,OSError) as exc:report={"overall":"FAIL","error":{"message":str(exc)}}
         self.cad_editor.set_busy(False)
+        self._cad_reference_report=deepcopy(report)
+        if hasattr(self,'cad_surface_reference_widget'):self.cad_surface_reference_widget.cad_report_changed()
         error=report.get("error",{}).get("message","")
         self.cad_editor.status.setText(f"CAD {report['overall']}: {error}\nReport: {job/'result.json'}")
         self.messages.appendPlainText("CAD "+report['overall']+": "+error)
