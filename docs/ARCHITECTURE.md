@@ -249,3 +249,5 @@ MainWindowはlegacy計算失敗時にlegacy表・曲線・current sourceを解�
 ## 明示三角形の接触候補
 
 `geometry/mesh_contacts.py`は格子三角形化・BVH・分離軸検査を担当する。`geometry/blade_contacts.py`が4role×Main/Splitterの自己/近接ピッチ組を作る。入力はcallerが選択したXYZ格子で、生成や密度を切り替えず、結果もQt/保存/出力へ自動接続しない。非局所の三角形接触候補を返し、局所隣接面/role継ぎ目/遠いコピー/包含/連続面を未検査として残す。退化・計算上限を不完全として上位へ伝播する。[契約](MESH_CONTACT_SCREENING.md)。
+
+`geometry/mesh_adjacency.py`が共有edgeの幾何関係と3面以上のedge incidenceを担当する。mesh/blade入口の`check_shared_edges=True`が各roleの自己検査だけを拡張する。既定Falseの範囲を維持し、別meshのindexを同一頂点とせず、1頂点だけの接続・role間・vertex link等は未検査として残す。[追加契約](MESH_SHARED_EDGE_CHECKS.md)。

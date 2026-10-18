@@ -2,6 +2,8 @@
 
 既存の局所Jacobian/法線診断と別に、明示的なXYZ面格子の三角形近似を調べる非Qt/非OCPのAPIを追加した。既存の形状生成・通常表示・CAD生成・JSON/CSV/TurboGrid・出力ガード・公差は変更しない。GUIへの接続、連続曲面の干渉なし保証、Stage 3B全体の完了ではない。
 
+後続で明示的な`check_shared_edges=True`モードを追加した。本書のStage 3B-1の測定/除外数は従来のFalseモードの記録として保持する。共有edgeの正常接続・重なり候補・3面以上のedge診断は[追加契約](MESH_SHARED_EDGE_CHECKS.md)を参照。
+
 ## 追加した入口
 
 - `geometry/mesh_contacts.py::grid_mesh`: S×T×3の明示XYZ格子を、各quadの固定対角線で2三角形へ分割する。頂点・面IDの順序は決定的で、元格子を変更しない。

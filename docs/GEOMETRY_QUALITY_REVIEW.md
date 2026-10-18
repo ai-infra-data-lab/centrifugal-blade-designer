@@ -207,3 +207,7 @@ Hub/Tipは`geometry/blade_edge.py::blade_wall_parameters`の共通参照LE/TE節
 ## G02の三角形接触候補検査の進展
 
 BVH/SATによる明示格子の非局所自己接触と最近接Main/Main–Splitter検査を追加した。実1000枚ではLE–LE/TE–PSの候補があり、接触roleをPS–SSに限定できない。源面が交差しても粗い格子で見逃すnegative、包含だけなら表面接触がないnegativeも試験化した。共有頂点の局所fold、同じ翼のrole継ぎ目、離れた周期コピー、cap/fillet/STEP・実solidは未対応。出力前の干渉ゲートや全体の設計PASSへはまだ使用しない。[範囲](MESH_CONTACT_SCREENING.md)。
+
+## G02の共有edge診断の進展
+
+従来除外していた2頂点共有の折返しnegativeを、明示モードで重なり候補として記録できるようにした。正常な共有edgeは候補にせず、近接同一平面の帯域・短辺/短高さの未判定を区別する。3面以上のedgeも不完全へ伝播する。既定診断・設計値・出力条件は維持し、1頂点だけの局所交差・role継ぎ目・丸め/連続面の保証は残る。[条件](MESH_SHARED_EDGE_CHECKS.md)。

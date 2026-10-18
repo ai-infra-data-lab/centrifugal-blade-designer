@@ -145,3 +145,7 @@ C1を形式上保証できるclamped基準面のJ下限/上限と未判定箇所
 ## 追加: Stage 3B-1の三角形接触候補（部分対応）
 
 明示XYZ格子の非局所自己/最近接周期/Main–Splitter接触候補APIを追加し、新規54件を含む関連129件を確認した。実1000枚のMainでLE–LE/TE–PSの35候補を観測。曲面の標本間交差・完全包含・隣接faceの局所foldを保証しないnegativeも保持する。全周・連続面・role継ぎ目・cap/fillet/STEPの検査、GUI/出力ゲート統合は未対応で、G02全体は未完了。[根拠・全回帰](MESH_CONTACT_SCREENING.md)。
+
+## 追加: Stage 3B-2aの共有edge局所診断（部分対応）
+
+明示モードで2頂点共有のedge接続と重なり候補を区別し、短いedge/高さを未判定、3面以上のedgeを不完全として記録する。新規32件を含む関連86件成功。既定モードと形状/出力は維持し、1頂点接続・vertex link・role継ぎ目・連続面・包含・実solid/ANSYSは未対応/未検証のまま。[根拠](MESH_SHARED_EDGE_CHECKS.md)。
