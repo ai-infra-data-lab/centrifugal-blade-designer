@@ -255,6 +255,7 @@ class MainWindow(QMainWindow):
             action.triggered.connect(lambda checked=False, name=label: self.show_analysis_view(name))
             if label in ('Metrics','Diffuser Curvature'):
                 action.setToolTip('Legacy radial 2D. Use Selected Row Metrics for the actual XYZ model.')
+        self.view_menu.addAction('CAD Surface Reference').triggered.connect(self.show_cad_surface_reference)
         # Retain the existing rotation controls as hidden state adapters.
         rotation_widget=QWidget(root);rotation_layout=QHBoxLayout(rotation_widget)
         rotation_widget.hide()
@@ -446,6 +447,20 @@ class MainWindow(QMainWindow):
     def _invalidate_export_readiness(self):
         if hasattr(self, "export_readiness_widget"):
             self.export_readiness_widget.invalidate()
+        if hasattr(self, "cad_surface_reference_widget"):
+            self.cad_surface_reference_widget.invalidate()
+
+    def show_cad_surface_reference(self):
+        from .cad_surface_reference_widget import CadSurfaceReferenceWidget
+        if not hasattr(self,'cad_surface_reference_widget'):
+            self.cad_surface_reference_widget=CadSurfaceReferenceWidget(self._surface_reference_parameters)
+        self.cad_surface_reference_widget.refresh()
+        return self._show_tool_dialog('CAD Surface Reference',self.cad_surface_reference_widget)
+
+    def _surface_reference_parameters(self):
+        if self._editing_meridional:return None
+        if self._editing_target!=0:raise ValueError('CAD参照はImpeller専用です。静翼CADは未対応です。')
+        return self.get_parameters()
 
     def show_export_readiness(self):
         if not hasattr(self, "export_readiness_widget"):

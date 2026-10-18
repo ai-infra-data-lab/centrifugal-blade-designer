@@ -1,5 +1,7 @@
 # 現行機能の実装監査
 
+Stage 3A-2c参照表示追記: CADと同じ接線・tensor splineの固定密度参照画面を追加。Impeller主翼/Splitter・格子・全周を選び、従来表示と分離して検査可能。実出力の自動密度・閉じたsolid・全面偏差・ANSYSの成立を意味しない。設計変更時は失効する。[契約](CAD_SURFACE_REFERENCE.md)。
+
 Stage 3A-2b追記: 派生曲線の元集合・role・Span/indexと補間比を保持し、共通の円筒補間面を参照して再構成可能にした。外径切断後の位置をカット後indexと同一視しない。新加工TEは参照対象外。既存形状・JSON・出力は維持し、表示/CADの単一正本適用は残る。[派生由来](DERIVED_SOURCE_CONTRACT.md)。
 
 Stage 3A-2a追記: 実表示点の対応写像と派生source_spanの読取り専用診断を追加。既定Impeller等の実wireframeを参照splineと比較できるが、物理対応・単一正本適用・全面保証は未完了。既存生成・出力は変更しない。[実対応座標](SURFACE_CORRESPONDENCE.md)。

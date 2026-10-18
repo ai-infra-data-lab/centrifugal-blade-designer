@@ -361,23 +361,8 @@ class OcctBackend:
         return result
 
     def _join_tangents(self,sections):
-        from scipy.interpolate import make_interp_spline
-        values={}
-        for role in ("le","ps","te","ss"):
-            endpoints=[]
-            for section in sections:
-                row=np.asarray(section[role]);xi=np.asarray(section.get(role+"_xi",np.linspace(0,1,len(row))))
-                spline=make_interp_spline(xi,row,k=min(3,len(row)-1))
-                endpoints.append([spline.derivative()(0.),spline.derivative()(1.)])
-            values[role]=np.asarray(endpoints)
-        for a,ia,b,ib,sign,edge_role in (("le",1,"ps",0,1,"le"),("ps",1,"te",0,1,"te"),("te",1,"ss",1,-1,"te"),("ss",0,"le",0,-1,"le")):
-            if any(section.get(edge_role+"_type","circular")=="cutoff" for section in sections):continue
-            va=values[a][:,ia].copy();vb=values[b][:,ib].copy()*sign
-            ma=np.linalg.norm(va,axis=1);mb=np.linalg.norm(vb,axis=1)
-            direction=va/ma[:,None]+vb/mb[:,None];direction/=np.linalg.norm(direction,axis=1)[:,None]
-            values[a][:,ia]=direction*float(np.median(ma))
-            values[b][:,ib]=sign*direction*float(np.median(mb))
-        return {name:(array[:,0],array[:,1]) for name,array in values.items()}
+        from ..geometry.cad_surface_reference import join_surface_tangents
+        return join_surface_tangents(sections)
 
     def edge_polylines(self,model):
         from OCP.BRepAdaptor import BRepAdaptor_Curve

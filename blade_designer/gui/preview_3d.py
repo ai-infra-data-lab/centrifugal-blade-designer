@@ -18,6 +18,7 @@ class Preview3D(QWidget):
         self.surfaces = {}
         self._line_blade_counts = {}
         self.model_label = "3D"
+        self._reference_mode = False
         self.visibility_controls={}
         layout=QVBoxLayout(self);row=QHBoxLayout();layout.addLayout(row)
         for key,label in (("profiles","Profiles"),("spanwise","Spanwise"),("hub","Hub"),("shroud","Shroud")):
@@ -85,6 +86,7 @@ class Preview3D(QWidget):
 
 
     def update_geometry(self,geometry,wall_chunks=None):
+        self._reference_mode = False
         self.model_label = "3D • Impeller"
         lines,spanwise=self._profile_lines(geometry)
         chunks={name:[getattr(geometry,name)] for name in ("hub","shroud")} if wall_chunks is None else wall_chunks
@@ -105,6 +107,13 @@ class Preview3D(QWidget):
             spanwise.extend(connections)
         return lines,spanwise
 
+    def update_surface_reference(self,lines,label):
+        """Blade patches only; no source walls, caps or solid validity implied."""
+        self._reference_mode=True
+        self.surfaces={};self.base_lines=dict(lines);self.spanwise_lines=[];self._line_blade_counts={}
+        for key in ('hub','shroud','tip_wall'):self.visibility_controls[key].hide()
+        self.model_label=label;self._rebuild_lines()
+
     @staticmethod
     def _section_lines(sections):
         spanwise=build_spanwise_wireframe(sections)
@@ -124,6 +133,7 @@ class Preview3D(QWidget):
 
     def update_rows(self,rows,walls):
         """Compose independent rows; each row retains its own annulus count."""
+        self._reference_mode=False
         lines={};counts={};spanwise=[]
         for identifier,name,geometry,count in rows:
             row_lines,row_spanwise=self._profile_lines(geometry)
@@ -279,7 +289,8 @@ class Preview3D(QWidget):
             painter.drawPolyline(QPolygonF([QPointF(float(xx),float(yy)) for xx,yy in zip(x,y)]))
         painter.restore();painter.setPen(QColor("#d1dae7"))
         painter.drawText(12,self._plot_top-8,self.model_label)
-        painter.drawText(12,self.height()-14,"XYZ [mm] • Z axis • revolved walls / blade wireframe")
+        caption="XYZ [mm] • Z axis • CAD reference (sampled)" if self._reference_mode else "XYZ [mm] • Z axis • revolved walls / blade wireframe"
+        painter.drawText(12,self.height()-14,caption)
         painter.end()
 
     def _paint_surfaces(self,painter,camera,right,up,factor):

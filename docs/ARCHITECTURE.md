@@ -26,6 +26,8 @@ Stage 3A-2aの`geometry/surface_correspondence.py`は実表示index→CAD xi、�
 
 Stage 3A-2bでは`models/geometry_3d.py::CurveSourceMap`と`geometry/curve_source.py`が派生曲線の元集合・role・Span/indexと合成重みを保持する。trimと表示用resampleは形状を変えず由来を継承し、共通数値層から元の円筒補間面を参照する。設計JSONへ保存せず生成時に再作成する。新加工TEは元TEの由来を持たない。[契約と検証](DERIVED_SOURCE_CONTRACT.md)。
 
+Stage 3A-2cの参照表示では`geometry/cad_surface_reference.py`が旧CADの端部接線計算と固定密度の参照面を提供し、OCCT backendも同じ接線関数を呼ぶ。`gui/cad_surface_reference_widget.py`が読取り専用snapshot・表示設定・失効を管理する。通常Previewとは別widgetで描画し、設計JSONや計算方式を切り替えない。[契約](CAD_SURFACE_REFERENCE.md)。
+
 ## 翼種別の生成時検証（Stage 2B-1）
 
 `models/validation.py::validate_row_settings`は3Dで使用する共通設定と翼種固有設定を検査する。実断面・Span・壁面・選択LE/TEは`geometry/geometry_3d.py`以下が検査する。旧`validate_parameters`はlegacy 2Dとrow一覧なしのJSONの従来契約を保持する。Stage 2B-1の検証記録は[検証契約](ROW_VALIDATION_CONTRACT.md)。
