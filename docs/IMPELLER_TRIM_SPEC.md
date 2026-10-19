@@ -10,6 +10,33 @@
 4. 数値はEnter／入力欄からのフォーカス移動で確定する。中央の2D／3D・Full Annulus・Flow Area・Passageは派生結果。角度・厚さグラフ、子午面のLine/Arc・LE/TE編集は元設計を維持する。
 5. 設定は翼列ごとに独立し、Undo／Redo・JSON保存／読込に対応する。無効／0%では元設計を使用する。元のJSON原本や既定値ファイルは上書きしない。
 
+## 後流Shroudの選択（2026-10-19）
+
+`LE / TE → 派生設計 → Shroudカットの後流側`で、次の2方式を選択できます。
+
+- `後流も同じ率でカット`：従来どおり、元壁面の全域で一定面積比を使用します。既定値です。
+- `TEから後流端まで滑らかに元へ戻す`：翼部は同じカット形状を保持し、TE全体を覆う位置から元Shroudの後流端まで徐々に復元します。途中の断面は一定面積比ではありません。全ての後流点を直ちに元の輪郭へ戻す方式ではありません。
+
+まず従来と同じShroud・翼面カットと任意の外径カットを行います。その後、主翼とSplitterの実Tip輪郭（camber・LE・PS・TE・SS）の投影位置の最下流点を復元開始位置とします。丸めTEを途中で切らないため、公称TE点より少し下流になる場合があります。投影はカット済み壁面の離散ポリライン上で行います。
+
+元Shroudの距離`s`、開始位置`s0`、元壁面終端`s1`に対し、`t=clip((s-s0)/(s1-s0),0,1)`、`w=10t³−15t⁴+6t⁵`として、`S_new=S_cut+w(S_original−S_cut)`で接続します。補間重みの1階・2階微分は両端で0となり、段差を作りません。ただし、元Line/Arcの曲率不連続はそのままで、生成物は従来どおり離散ポリラインです。連続CAD面の厳密なC2保証ではありません。
+
+主翼・Splitterの全Span座標、角度・厚さ、Hub、共有子午面、他翼列の設計値は変更しません。図面Tipの壁面距離対応は復元後の距離へ写像し、翼より後流の補助Tip線にも同じ壁面変位を加えます。この補助線は後流に実在する翼を意味しません。解析用Shroudが有効なら、復元後の壁面と保持した実Tipから既存方式で生成します。解析クリアランスは翼LE–TEを基準とし、後流補助線は実翼外の補間表現です。
+
+後流端は選択Impellerの私有派生壁面の終端です。隣接翼列入口で自動的に復元を終わらせたり、共有壁面・Diffuser/RCを変形させたりしません。所属区間のプレビュー・汎用CSV/TXTは復元した壁面と元区間の距離対応を使用します。派生形状のTurboGrid/CAD出力は従来の保護を維持し、書込み前に拒否します。
+
+`impeller_trim.shroud_downstream_mode`は`cut`／`restore`。旧JSONで省略された場合は`cut`として読み、保存時も既定値は省略します。0%／外径カットのみでは復元を行いません。後流長さ不足、壁面の逆行・折返し・交差はエラーにし、既存保存ファイルを置換しません。数値形状生成とJSON／履歴は自動試験、実画面とANSYSは別の確認対象です。
+
+試験・証跡：`tests/test_trim_downstream.py`、`tests/test_trim_downstream_gui.py`、`artifacts/quality-trim-downstream/`。
+
+検証（2026-10-19）：基礎63件、関連88件、最終全回帰1,733一意件（通常1,688・実CAD45）が成功。収集IDと実行IDは一致し、失敗/error/skip/漏れ/重複は0、固定320入力は不変です。全回帰7区分の記録・原本/既定JSONを含むハッシュ照合は`artifacts/quality-trim-downstream/final-test-coverage.json`、関連試験は`artifacts/test-runs/20261019T123806Z-212df8d8`。Ruff・差分検査も成功しています。実画面/F5/ANSYS Import/Meshは未確認です。
+
+初回14件は9成功/5失敗でした。Splitter未使用時の空リスト処理漏れ4件を修正し、新規所属試験1件はrow snapshotがactive IDを持たないことに合わせて実際の所属IDを使いました。同時期の関連37件中GUI1件も同じ処理漏れで失敗し、修正後は上記の関連88件と全回帰で成功しています。長さ不足の初回試験fixtureは公称TE=1で既存の重複サンプル拒否に先に到達したため、新規境界単体試験と保存ファイル保護試験を分けました。既存の期待値・fixtureは変更していません。
+
+Qt offscreenで実際の設定widgetと曲線壁の比較図を取得し、`controls-and-recovery.png`を確認しました。10%カットの例は後流端(Z,R)=(108.5,85) mm、復元時と元形状は(110,85) mm。これは自動取得した確認例で、実ディスプレイでの操作検証ではありません。フォントは画像取得プロセスだけで指定しています。
+
+変更ファイル：`models/parameters.py`・`models/validation.py`（設定/検証）、`geometry/impeller_trim.py`（翼を保持した後流復元）、`gui/impeller_trim_editor.py`（選択/状態表示）、`fileio/project_io.py`（旧JSON互換/保存）、上記新規試験2ファイル、`FEATURES.md`・`docs/ARCHITECTURE.md`・本仕様書の計10ファイルです。models/geometry/gui/fileioのパスは`blade_designer/`配下です。ユーザーJSON・既定JSON・親フォルダの家計簿は変更していません。
+
 ## 一般的な方法と今回の採用方針
 
 Xu／Amano（2012）は、Hubと元の翼角定義を維持し、翼高さまたはShroud輪郭を変えるflow cutを説明しています。局所翼高さの割合によるShroud cutと外径cutを区別し、外径cutが効率・運転範囲にも影響すると報告しています。[Empirical Design Considerations for Industrial Centrifugal Compressors, §7](https://onlinelibrary.wiley.com/doi/10.1155/2012/184061)

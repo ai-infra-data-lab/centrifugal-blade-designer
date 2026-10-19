@@ -79,6 +79,58 @@ def _casing(base,cut):
     return wall,np.asarray(reference)
 
 
+def _restore_downstream(base,result):
+    """Restore the original casing beyond the complete retained Tip profile.
+
+    A quintic blend has zero first/second derivative at both ends. Keep the
+    cutting boundary separate: changing the outlet must not regenerate blades.
+    """
+    wall=result.shroud
+    points=np.column_stack((wall.z,wall.r))
+    tree=cKDTree(points)
+    def wall_distances(zr):
+        _,nearest=tree.query(zr)
+        indices=np.clip(np.column_stack((nearest-1,nearest)),0,len(points)-2)
+        starts=points[indices];delta=points[indices+1]-starts
+        fraction=np.clip(np.sum((zr[:,None,:]-starts)*delta,axis=2)/np.sum(delta*delta,axis=2),0,1)
+        error=np.linalg.norm(starts+fraction[:,:,None]*delta-zr[:,None,:],axis=2)
+        choose=np.argmin(error,axis=1);rows=np.arange(len(zr))
+        index=indices[rows,choose]
+        return wall.m[index]+fraction[rows,choose]*(wall.m[index+1]-wall.m[index])
+    distances=[]
+    for group in (result.sections,result.splitter_sections or []):
+        if not group:continue
+        s=group[-1]
+        for name in ('camber','master_le','master_ps','master_te','master_ss'):
+            curve=getattr(s,name)
+            distances.extend(wall_distances(np.column_stack((curve.z,curve.r))))
+    start=float(np.interp(max(distances),wall.m,wall.source_m))
+    end=float(wall.source_m[-1])
+    if end-start<=max(1e-8,end*1e-9):
+        raise ValueError('Shroud restoration requires a downstream interval beyond the complete blade TE.')
+    source=np.sort(np.r_[wall.source_m[np.abs(wall.source_m-start)>1e-10],start])
+    old_m=np.interp(source,wall.source_m,wall.m)
+    cut=sample_meridional(wall,old_m)
+    original=sample_meridional(base.shroud,source)
+    t=np.clip((source-start)/(end-start),0,1)
+    weight=t**3*(10-15*t+6*t*t)
+    restored=cut+weight[:,None]*(original-cut)
+    if np.any(np.einsum('ij,ij->i',np.diff(restored,axis=0),np.diff(cut,axis=0))<=0):
+        raise ValueError('Shroud restoration folds or reverses along the original passage.')
+    new_wall=_wall(restored,source,wall.source_boundaries)
+    validate_flow_path(base.hub,new_wall);_check_polyline(restored)
+    # Carry the generated Tip's distance correspondence through the new wall.
+    tip=result.tip
+    tip_points=np.column_stack((np.interp(old_m,tip.casing_m,tip.z),
+                                np.interp(old_m,tip.casing_m,tip.r)))+restored-cut
+    _check_polyline(tip_points)
+    result.tip=TipMeridionalGeometry(new_wall.m,tip_points[:,0],tip_points[:,1],
+        np.interp(old_m,tip.casing_m,tip.clearance_mm),
+        float(np.interp(tip.le_casing_m,old_m,new_wall.m)),
+        float(np.interp(tip.te_casing_m,old_m,new_wall.m)))
+    result.shroud=new_wall
+
+
 def _check_polyline(points):
     # All nonadjacent segment pairs; vectorized O(N²), bounded by wall resolution.
     a=points[:-1];v=np.diff(points,axis=0)
@@ -220,6 +272,8 @@ def apply_trim(base,params):
     if od:
         for group in (result.sections,result.splitter_sections or []):
             for section in group:_diameter_section(section,diameter/2)
+    if settings.shroud_area_cut_percent and settings.shroud_downstream_mode=='restore':
+        _restore_downstream(base,result)
     # Data arrays describe the retained camber, not a regenerated beta distribution.
     for group,source in ((result.sections,base.sections),(result.splitter_sections or [],base.splitter_sections or [])):
         for section,original in zip(group,source):

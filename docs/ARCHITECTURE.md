@@ -52,6 +52,8 @@ Passageの断面測定は、生成Hub camberのmeridional_distanceと壁面上�
 
 ## インペラ派生カット（2026-10-17）
 
+後流選択`shroud_downstream_mode`は既定`cut`／任意`restore`。`geometry/impeller_trim.py::_restore_downstream`が従来の翼カット・外径カットの後に壁面だけを五次補間で復元し、翼座標を再計算しません。実Tip全輪郭の最下流投影から元壁面終端までを使い、元所属区間とTip距離を写像します。後続の解析用Shroudもこの結果を参照します。旧JSONは既定補完・既定値省略、GUIは既存の翼列snapshot／履歴に接続します。詳細・制約は[派生カット仕様](IMPELLER_TRIM_SPEC.md)。
+
 models/parameters.pyの任意`impeller_trim`は翼列snapshotに保持し、未指定の既定値・JSONには追加しません。数値・モードはmodels/validation.pyで検証します。geometry/impeller_trim.pyは元のImpeller生成・TE Rake・Splitter処理の後に、固定した元平均線の断面面積から派生ケーシングを求め、元の離散翼面を円筒座標でSpan補間して切り出します。外径は元のPS/SS・camberを円筒で切断し、平らなTEを接続します。Qt・ファイル形式へ依存しません。
 
 ImpellerGeometry.source_geometryは元設計の結果、trim_reportは径・元基準面積比です。派生Curve3D.source_spanとm_blade_normは元座標との対応を保持します。DerivedWallは元壁面上の距離・区間境界との対応を持ち、既存の解析Line/Arcは置換しません。sample_meridional・wall_tangent・crossflow_intersectionsは派生ポリライン用の分岐を持ち、元の解析的経路を維持します。描画用の所属区間は元距離から派生距離へ写像します。

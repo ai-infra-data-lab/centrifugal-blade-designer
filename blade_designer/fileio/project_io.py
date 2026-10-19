@@ -120,6 +120,7 @@ def save_project(path: str | Path, params: BladeParameters) -> None:
     default_cad=asdict(CadExportParameters())
     def omit_unassigned(value):
         if isinstance(value, dict):
+            if value.get('shroud_downstream_mode') == 'cut':value.pop('shroud_downstream_mode')
             for key in ('analysis_le_mm','analysis_te_mm'):
                 if value.get(key,False) is None:value.pop(key)
             if value.get("cad_export") == default_cad:value.pop("cad_export")
@@ -220,7 +221,9 @@ def _decode_v03(data, row_snapshot=False):
         params.impeller_te_rake_deg=data.get("impeller_te_rake_deg")
         if data.get('impeller_trim') is not None:
             from ..models.parameters import ImpellerTrimParameters
-            params.impeller_trim=_group(data,'impeller_trim',ImpellerTrimParameters)
+            values=data['impeller_trim']
+            if isinstance(values,dict):values={'shroud_downstream_mode':'cut',**values}
+            params.impeller_trim=_group({'impeller_trim':values},'impeller_trim',ImpellerTrimParameters)
         if data.get("tip_clearance") is not None:
             from ..models.parameters import TipClearanceParameters
             values=data['tip_clearance']

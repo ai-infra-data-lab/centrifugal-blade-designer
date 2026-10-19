@@ -25,6 +25,8 @@ def validate_impeller_trim(settings):
     from .parameters import ImpellerTrimParameters
     if settings is None:return
     if not isinstance(settings,ImpellerTrimParameters):raise ValueError('Invalid impeller trim settings.')
+    if settings.shroud_downstream_mode not in ('cut','restore'):
+        raise ValueError('Invalid Shroud downstream mode.')
     values=[settings.shroud_area_cut_percent,settings.diameter_mm,settings.diameter_cut_percent]
     if any(not is_finite_number(x) for x in values):
         raise ValueError('Impeller trim values must be finite numbers.')

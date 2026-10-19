@@ -138,6 +138,7 @@ class ImpellerTrimParameters:
     diameter_mode: str = "off"
     diameter_mm: float = 0.0
     diameter_cut_percent: float = 0.0
+    shroud_downstream_mode: str = "cut"
 
 
 @dataclass
