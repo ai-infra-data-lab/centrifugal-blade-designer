@@ -37,6 +37,8 @@ from .metrics_widget import MetricsWidget
 from .row_metrics_widget import RowMetricsWidget
 from ..fileio.geometry_source import geometry_source
 from ..fileio.row_xyz_csv import export_row_xyz_csv
+from ..fileio.coordinate_csv import export_coordinate_csv
+from .coordinate_export_dialog import CoordinateExportDialog
 from .passage_widget import PassageWidget
 from .optimization_widget import OptimizationWidget
 
@@ -289,7 +291,7 @@ class MainWindow(QMainWindow):
         self.projection.currentIndexChanged.connect(self._projection_changed)
         self.file_menu.addSeparator()
         export_menu = self.file_menu.addMenu("Export")
-        for label,callback in (("Diffuser Segments CSV",self.export_segments_dialog),("Diffuser Contour CSV",self.export_contour_dialog),("TurboGrid Export",self.export_turbogrid_dialog),("Export Readiness",self.show_export_readiness),("Selected Row XYZ CSV",self.export_row_xyz_dialog)):
+        for label,callback in (("Diffuser Segments CSV",self.export_segments_dialog),("Diffuser Contour CSV",self.export_contour_dialog),("TurboGrid Export",self.export_turbogrid_dialog),("Export Readiness",self.show_export_readiness),("Selected Row XYZ CSV",self.export_row_xyz_dialog),("Selected Row Coordinate CSV",self.export_coordinate_dialog)):
             action=export_menu.addAction(label)
             action.triggered.connect(callback)
             if label in ('Diffuser Segments CSV','Diffuser Contour CSV'):
@@ -1154,6 +1156,36 @@ class MainWindow(QMainWindow):
         if path:
             try:self.export_row_xyz_to_path(path)
             except (ValueError,ArithmeticError,OSError) as exc:QMessageBox.warning(self,'XYZ CSV',str(exc))
+
+    def export_coordinate_to_path(self, path, options):
+        if self._editing_meridional:
+            raise ValueError('Select a blade row for coordinate CSV export.')
+        params = self.get_parameters()
+        geometry = (self.designer.generate_3d(params) if self._editing_target == 0
+                    else self.designer.generate_diffuser_3d(params))
+        source = geometry_source(params, 'meridional_3d', kind='impeller' if self._editing_target == 0 else 'diffuser',
+                                 variant='derived' if geometry.trim_report else 'base')
+        files = export_coordinate_csv(path, geometry, source, options, params.export.significant_digits)
+        self.statusBar().showMessage(f'Coordinate CSV: {len(files)} files | {source.label}')
+        return files
+
+    def export_coordinate_dialog(self):
+        if self._editing_meridional:
+            QMessageBox.warning(self, 'Coordinate CSV', 'Select a blade row for coordinate CSV export.')
+            return
+        dialog = CoordinateExportDialog(self)
+        try:
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            options = dialog.options()
+            path, _ = QFileDialog.getSaveFileName(self, 'Export selected row coordinates', 'coordinates.csv', 'CSV (*.csv)')
+            if path:
+                target = Path(path).with_name(Path(path).stem + '_spans') if options.split_spans else Path(path)
+                self.export_coordinate_to_path(target, options)
+        except (ValueError, ArithmeticError, OSError) as exc:
+            QMessageBox.warning(self, 'Coordinate CSV', str(exc))
+        finally:
+            dialog.deleteLater()
 
     def export_to_path(self, path: str | Path, contour: bool = False) -> None:
         if self._blade_rows is not None and self._editing_target != 1:

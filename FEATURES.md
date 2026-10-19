@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+選択翼列の汎用座標CSV: XYZ／R／θ[deg・rad]／Rθ[mm]／Zを選択・並べ替え、識別列の有無と主翼・SplitterのSpan別ファイル分割を設定できる。Impeller／Diffuser／RCの実3D masterを使い、実Tip・派生カットへ追従。既存XYZ・legacy CSV・TurboGrid・設計JSONは維持。全1,642一意件成功（通常1,597・実CAD45、失敗/error/skip/漏れ/重複なし、固定313入力不変）。実画面・外部ソフト取り込みは未確認。[操作・検証](docs/COORDINATE_CSV.md)。
+
 スプリッター形状の部位別配色: 2D・3Dとも主翼と共通のLE＝黄、PS＝水色、TE＝橙、SS＝ピンクを使用。2DではSplitterを破線として主翼の実線と区別し、凡例にも反映する。単翼・全周・全翼列表示に適用し、設計値・生成形状・出力は維持。全1,609一意件成功（通常1,564・実CAD45、失敗/error/skip/漏れ/重複なし、固定309入力不変）。実画面の視認性・DPIは未確認。[配色・検証](docs/SPLITTER_DISPLAY_COLORS.md)。
 
 Impellerのスプリッター付きTurboGrid Profile Points: 主翼とSplitterを公式`##`区切りの同一profileへ出力し、Blade Setsは主翼枚数・Blades Per Setは2。主翼連動/専用分布、CW/CCW、クリアランス付きの各実TipとShroud延長断面へ対応。両翼の所属/丸め/マーカー/Span点数を完成前に検査し、無効時は既存ケースを保護する。主翼のみ16ファイルは修正前hash/生バイト列を維持。新規60件を含む全1,593一意件成功（通常1,548・実CAD45、failure/error/skip/漏れ/重複なし、既存1,533 ID・固定308入力不変）。ANSYS Import/Meshは未検証。[操作・形式・検証](docs/TURBOGRID_SPLITTER.md)。
