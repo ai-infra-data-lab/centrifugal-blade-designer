@@ -75,7 +75,8 @@ def prepare_turbogrid_export(params):
     if stator:params=row_parameters(project,row)
     elif row is not None:
         from ..geometry.tip_clearance import has_tip_clearance
-        if has_tip_clearance(row.parameters) and params.tip_clearance!=row.parameters.tip_clearance:
+        row_clearance=row.parameters.tip_clearance
+        if (has_tip_clearance(row.parameters) or row_clearance is not None and row_clearance.analysis_le_mm is not None) and params.tip_clearance!=row_clearance:
             raise ValueError('Active Impeller Tip clearance disagrees with its row snapshot. Reselect the row before export.')
         if params.splitter!=row.parameters.splitter:
             raise ValueError('Active Impeller Splitter disagrees with its row snapshot. Reselect the row before export.')
@@ -85,6 +86,14 @@ def prepare_turbogrid_export(params):
         if row is not None:guard_trim_export(row.parameters)
     geometry=generate_diffuser_3d(params) if stator else generate_impeller(params)
     splitter=not stator and params.splitter is not None
+    edges=params.diffuser_edges if stator else params.impeller_edges
+    analysis=geometry.analysis_shroud
+    analysis_intervals=None
+    if analysis is not None:
+        analysis_intervals=export_wall_intervals(project,geometry,edges)
+        if splitter:export_wall_intervals(project,replace(geometry,sections=geometry.splitter_sections),edges)
+        from ..geometry.analysis_shroud import analysis_export_geometry
+        geometry=analysis_export_geometry(geometry)
     if splitter and (not geometry.splitter_sections or [s.span for s in geometry.splitter_sections]!=[s.span for s in geometry.sections]):
         raise ValueError('Splitter export requires matching Main and Splitter span sections.')
     clearance=not stator and geometry.tip is not None
@@ -100,8 +109,16 @@ def prepare_turbogrid_export(params):
     if len(set(name.lower() for name in filenames))!=4 or any(not name or Path(name).name!=name or any(c in name for c in '\\/:\r\n') for name in filenames):
         raise ValueError("TurboGrid filenames must be distinct simple filenames.")
     contents={}
-    intervals = export_wall_intervals(project, geometry, edges)
-    if splitter:
+    intervals = export_wall_intervals(project, geometry, edges) if analysis_intervals is None else [
+        analysis_intervals[0],tuple(np.interp(analysis_intervals[1],analysis.drawing_m,analysis.wall.m))]
+    if analysis is not None and clearance:
+        for sections in (geometry.sections,geometry.splitter_sections or []):
+            if not sections:continue
+            distances=np.concatenate([getattr(sections[-1],'master_'+role).meridional_distance for role in ('le','ps','te','ss')])
+            start,end=intervals[1];tolerance=geometry.shroud.length*1e-6
+            if distances.min()<start-tolerance or distances.max()>end+tolerance:
+                raise ValueError('Analysis Shroud extension exceeds the assigned wall interval.')
+    if splitter and analysis_intervals is None:
         export_wall_intervals(project,replace(geometry,sections=geometry.splitter_sections),edges)
     for (wall,p,name),(start,end) in zip(((geometry.hub,params.hub,filenames[0]),(geometry.shroud,params.shroud,filenames[1])), intervals):
         zr=sample_meridional(wall,np.linspace(start,end,p.export_points))
@@ -151,6 +168,8 @@ def prepare_turbogrid_export(params):
             "! Set Shroud Tip / Tip Option = Profile Number in TurboGrid to restore the physical gap.\n"
             "! The final Shroud_extension profile is for spanwise surface continuation only.\n")
         if splitter:contents['BladeGen.inf']+='! Apply the physical Tip profile number to both Main and Splitter.\n'
+    if analysis is not None:
+        contents['BladeGen.inf']+='! Analysis Shroud selected; physical blade Tip and drawing casing are unchanged.\n'
     # Preserve the platform text-file newlines used by the original writer.
     return filenames,{name:content.replace('\n',os.linesep).encode('ascii') for name,content in contents.items()}
 

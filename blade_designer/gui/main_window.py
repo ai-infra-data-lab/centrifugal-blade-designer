@@ -406,18 +406,19 @@ class MainWindow(QMainWindow):
         if state==self._central_preview_state:return False
         errors=[]
         if self._editing_meridional:
-            entries=[]
+            entries=[];analysis_chunks=[]
             for row in params.blade_rows or initial_rows(params):
                 p=row_parameters(params,row)
                 try:
                     g=(self.designer.generate_3d(p) if row.kind=="impeller"
                        else self.designer.generate_diffuser_3d(p))
                     entries.append((row.identifier,row.name,g,p.geometry.vane_count))
+                    analysis_chunks.extend(preview_wall_chunks(p,g,row.identifier).get('analysis_shroud',[]))
                 except (ValueError,ArithmeticError) as exc:
                     errors.append(f"ERROR — 3D {row.name}: {exc} (row omitted)")
-            self.model_preview_3d.update_rows(entries,self._wall_geometry)
+            self.model_preview_3d.update_rows(entries,self._wall_geometry,analysis_chunks=analysis_chunks)
             for context in (self.context_meridional,self.meridional_editor.context):
-                context.update_tip_profiles([(f'{name} [{identifier}]',g) for identifier,name,g,_ in entries if g.tip is not None or g.trim_report is not None])
+                context.update_tip_profiles([(f'{name} [{identifier}]',g) for identifier,name,g,_ in entries if g.tip is not None or g.trim_report is not None or g.analysis_shroud is not None])
         elif self._selected_3d_geometry is not None:
             g=self._selected_3d_geometry
             chunks=preview_wall_chunks(params,g,params.active_blade_row)

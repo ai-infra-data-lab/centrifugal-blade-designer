@@ -19,7 +19,10 @@ def generate_impeller(params):
         from .splitter import generate_splitter
         geometry.splitter_sections=generate_splitter(params,geometry)
     from .impeller_trim import apply_trim
-    return apply_trim(geometry,params)
+    geometry=apply_trim(geometry,params)
+    from .analysis_shroud import make_analysis_shroud
+    geometry.analysis_shroud=make_analysis_shroud(params,geometry)
+    return geometry
 
 
 def generate_diffuser_3d(params):

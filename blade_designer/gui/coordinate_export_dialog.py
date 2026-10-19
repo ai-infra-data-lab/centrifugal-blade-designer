@@ -29,6 +29,10 @@ class CoordinateExportDialog(QDialog):
                            ('Hub・Shroudをそれぞれ別ファイルにする', 'separate')):
             self.wall_layout.addItem(label, key)
         layout.addWidget(self.wall_layout)
+        self.shroud_source=QComboBox()
+        for label,key in (('Shroud：図面用','drawing'),('Shroud：解析用','analysis'),('Shroud：図面用と解析用の両方','both')):
+            self.shroud_source.addItem(label,key)
+        layout.addWidget(self.shroud_source)
         self.extension = QComboBox()
         self.extension.addItem('CSV (.csv) — カンマ区切り', 'csv')
         self.extension.addItem('TXT (.txt) — タブ区切り', 'txt')
@@ -101,7 +105,7 @@ class CoordinateExportDialog(QDialog):
                         if self.columns.item(i).checkState() == Qt.CheckState.Checked)
         result = CoordinateCsvOptions(columns, self.split.isChecked(), self.metadata.isChecked(),
                                       self.blades.isChecked(), self.hub.isChecked(), self.shroud.isChecked(),
-                                      self.wall_layout.currentData(), self.extension.currentData())
+                                      self.wall_layout.currentData(), self.extension.currentData(),self.shroud_source.currentData())
         result.validate()
         return result
 

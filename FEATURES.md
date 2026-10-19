@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+翼Tip固定の解析用Shroud: 図面用LE/TEクリアランスを維持し、別の解析用LE/TE値でケーシングだけを生成する。子午面/3Dで紫色表示、CSV/TXTは図面用/解析用/両方を選択できる。TurboGrid ASCIIは有効時のみ解析用へ接続し、主翼・Splitterの実Tip、図面Shroud、Mechanical CAD、従来の流路指標は維持。解析用TurboGrid CADは誤出力を防ぐため拒否。全1,715一意件を確認（通常1,670・実CAD45、全回帰1,714件成功＋最終法線補正後34件再試験、延べ1,748件から重複33件を差替え）。ANSYS実機は未確認。[定義・操作・検証](docs/ANALYSIS_SHROUD.md)。
+
 Hub/Shroudの座標出力とTXT: 翼・Hub・Shroudを個別選択し、全て1ファイル／壁面をまとめて別ファイル／Hub・Shroud個別ファイルを選択できる。XYZ・円筒座標の列選択・順序を共用し、壁面は表示と同じ所属区間の子午線（θ=0）、Shroudはケーシングを使用。翼・壁面ともCSV（カンマ）／TXT（タブ）へ対応し、壁面別ファイルと翼Span分割を併用可能。既存の翼のみCSV・JSON・専用出力は維持。全1,681一意件成功（通常1,636・実CAD45、失敗/error/skip/漏れ/重複なし、固定315入力不変）。実画面・外部ソフト取り込みは未確認。[操作・検証](docs/COORDINATE_CSV.md)。
 
 選択翼列の汎用座標CSV: XYZ／R／θ[deg・rad]／Rθ[mm]／Zを選択・並べ替え、識別列の有無と主翼・SplitterのSpan別ファイル分割を設定できる。Impeller／Diffuser／RCの実3D masterを使い、実Tip・派生カットへ追従。既存XYZ・legacy CSV・TurboGrid・設計JSONは維持。全1,642一意件成功（通常1,597・実CAD45、失敗/error/skip/漏れ/重複なし、固定313入力不変）。実画面・外部ソフト取り込みは未確認。[操作・検証](docs/COORDINATE_CSV.md)。

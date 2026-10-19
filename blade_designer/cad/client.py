@@ -47,7 +47,8 @@ def prepare_job(project,action="generate",job_directory=None):
     guard_trim_export(params)
     validate_cad_parameters(params.cad_export)
     from ..geometry.tip_clearance import has_tip_clearance
-    if has_tip_clearance(params) and action in ('turbogrid','both') and params.cad_export.turbogrid_enabled:
+    analysis=params.tip_clearance is not None and params.tip_clearance.analysis_le_mm is not None
+    if (has_tip_clearance(params) or analysis) and action in ('turbogrid','both') and params.cad_export.turbogrid_enabled:
         raise ValueError('Open-impeller Tip clearance TurboGrid CAD export is not supported yet. No output was written.')
     geometry=generate_impeller(params)
     domain_error=None

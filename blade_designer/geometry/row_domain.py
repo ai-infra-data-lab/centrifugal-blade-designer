@@ -32,6 +32,10 @@ def preview_wall_chunks(params,geometry,identifier):
             zr=sample_meridional(wall,distances)
             chunks.append(SimpleNamespace(z=zr[:,0],r=zr[:,1]))
         result[name]=chunks
+    if getattr(geometry,'analysis_shroud',None) is not None:
+        from dataclasses import replace
+        result['analysis_shroud']=preview_wall_chunks(params,replace(geometry,
+            shroud=geometry.analysis_shroud.wall,analysis_shroud=None),identifier)['shroud']
     return result
 
 

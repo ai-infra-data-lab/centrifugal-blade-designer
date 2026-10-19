@@ -70,6 +70,17 @@ class TipMeridionalGeometry:
 
 
 @dataclass
+class AnalysisShroudGeometry:
+    wall: MeridionalGeometry
+    drawing_m: FloatArray
+    tip_z: FloatArray
+    tip_r: FloatArray
+    clearance_mm: FloatArray
+    le_drawing_m: float
+    te_drawing_m: float
+
+
+@dataclass
 class ImpellerGeometry:
     hub: MeridionalGeometry
     shroud: MeridionalGeometry
@@ -78,3 +89,4 @@ class ImpellerGeometry:
     tip: TipMeridionalGeometry | None = None
     source_geometry: "ImpellerGeometry | None" = None
     trim_report: dict | None = None
+    analysis_shroud: AnalysisShroudGeometry | None = None

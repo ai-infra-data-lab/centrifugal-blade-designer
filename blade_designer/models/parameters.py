@@ -127,6 +127,8 @@ class SplitterParameters:
 class TipClearanceParameters:
     le_mm: float = 0.0
     te_mm: float = 0.0
+    analysis_le_mm: float | None = None
+    analysis_te_mm: float | None = None
 
 
 @dataclass

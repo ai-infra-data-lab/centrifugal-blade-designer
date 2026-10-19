@@ -25,6 +25,7 @@ class CoordinateCsvOptions:
     include_shroud: bool = False
     wall_layout: str = 'combined'
     extension: str = 'csv'
+    shroud_source: str = 'drawing'
 
     @property
     def requires_directory(self):
@@ -41,6 +42,8 @@ class CoordinateCsvOptions:
             raise ValueError('Select blades, Hub or Shroud for output.')
         if self.wall_layout not in ('combined', 'together', 'separate') or self.extension not in ('csv', 'txt'):
             raise ValueError('Invalid wall layout or file extension.')
+        if self.shroud_source not in ('drawing','analysis','both'):
+            raise ValueError('Invalid Shroud source.')
         if self.split_spans and (not self.include_blades or
                 ((self.include_hub or self.include_shroud) and self.wall_layout == 'combined')):
             raise ValueError('Span splitting requires blades and a separate wall file layout.')
@@ -104,10 +107,19 @@ def prepare_coordinate_csv(geometry, source, options=None, significant_digits=15
                     else f'coordinates.{extension}')
             for role in ('le', 'ps', 'te', 'ss'):
                 append_curve(name, getattr(section, 'master_' + role), group, span, role.upper())
-    for wall, enabled in (('hub', options.include_hub), ('shroud', options.include_shroud)):
+    walls=[('hub', options.include_hub)]
+    walls.extend((key,options.include_shroud) for key in
+                 (('shroud',) if options.shroud_source=='drawing' else ('analysis_shroud',)
+                  if options.shroud_source=='analysis' else ('shroud','analysis_shroud')))
+    for wall, enabled in walls:
         if not enabled:
             continue
-        chunks = ([getattr(geometry, wall)] if wall_chunks is None else wall_chunks.get(wall, []))
+        if wall=='analysis_shroud':
+            data=getattr(geometry,'analysis_shroud',None)
+            if data is None:raise ValueError('Enable a separate Analysis Shroud before exporting it.')
+            chunks=[data.wall] if wall_chunks is None else wall_chunks.get(wall,[])
+        else:
+            chunks = ([getattr(geometry, wall)] if wall_chunks is None else wall_chunks.get(wall, []))
         if not chunks:
             raise ValueError(f'No {wall} wall is assigned to the selected row.')
         stem = ('coordinates' if options.wall_layout == 'combined' else

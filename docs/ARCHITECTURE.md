@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+解析用Shroudは`geometry/analysis_shroud.py`が既存の実Tipを読み取り、図面ケーシング法線と別の隙間から派生壁面を作る。`ImpellerGeometry.analysis_shroud`へ保持し、通常の`shroud`・翼断面を置換しない。TurboGrid ASCIIの整形時だけ解析用壁面を選び、Mechanical CAD・通常の流路面積/Throatは図面用を参照する。選択壁面の所属は元壁面の距離へ対応付ける。定義・検証は[解析用Shroud](ANALYSIS_SHROUD.md)。
+
 対象は遠心圧縮機アプリ。親フォルダの家計簿は今回の対象外です。
 初回コミット時はPython package内65ファイル、test_*.pyは54ファイルです。2026-10-11の翼端R/Z入力追加後はPythonファイル70、テスト65ファイルです。
 

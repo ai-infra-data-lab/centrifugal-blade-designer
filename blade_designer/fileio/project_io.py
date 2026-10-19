@@ -120,6 +120,8 @@ def save_project(path: str | Path, params: BladeParameters) -> None:
     default_cad=asdict(CadExportParameters())
     def omit_unassigned(value):
         if isinstance(value, dict):
+            for key in ('analysis_le_mm','analysis_te_mm'):
+                if value.get(key,False) is None:value.pop(key)
             if value.get("cad_export") == default_cad:value.pop("cad_export")
             if value.get("provisional") is False:value.pop("provisional")
             if value.get("front_end_m_mm",False) is None:value.pop("front_end_m_mm")
@@ -221,7 +223,9 @@ def _decode_v03(data, row_snapshot=False):
             params.impeller_trim=_group(data,'impeller_trim',ImpellerTrimParameters)
         if data.get("tip_clearance") is not None:
             from ..models.parameters import TipClearanceParameters
-            params.tip_clearance=_group(data,"tip_clearance",TipClearanceParameters)
+            values=data['tip_clearance']
+            if isinstance(values,dict):values={'analysis_le_mm':None,'analysis_te_mm':None,**values}
+            params.tip_clearance=_group({'tip_clearance':values},"tip_clearance",TipClearanceParameters)
         if data.get("splitter") is not None:
             values=data["splitter"]
             required={"hub_start_fraction","tip_start_fraction","pitch_fraction","thickness_scale"}

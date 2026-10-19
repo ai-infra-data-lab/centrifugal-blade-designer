@@ -27,6 +27,9 @@ class Preview3D(QWidget):
         box=QCheckBox('Tip');box.setToolTip('翼端の回転包絡面 / Tip envelope');box.setChecked(True);box.setStyleSheet('color: #8deb87;')
         box.toggled.connect(self.update);row.addWidget(box);self.visibility_controls['tip_wall']=box;box.hide()
         row.addStretch()
+        box=QCheckBox('Analysis');box.setToolTip('解析用Shroud（紫）／図面用Casing（橙）')
+        box.setChecked(True);box.setStyleSheet('color: #d59cfa;');box.toggled.connect(self.update)
+        row.insertWidget(row.count()-1,box);self.visibility_controls['analysis_shroud']=box;box.hide()
         views=QHBoxLayout();layout.addLayout(views);layout.addStretch()
         self.view_buttons={}
         for name,label,tip in (("front","正面","+X方向から見る（YZ）"),
@@ -92,6 +95,8 @@ class Preview3D(QWidget):
         chunks={name:[getattr(geometry,name)] for name in ("hub","shroud")} if wall_chunks is None else wall_chunks
         lines.update(self._wall_lines(chunks))
         self.surfaces=self._wall_surfaces(geometry,chunks)
+        self._analysis_surfaces(chunks.get('analysis_shroud',
+            [geometry.analysis_shroud.wall] if geometry.analysis_shroud is not None else []))
         self._tip_surfaces([geometry])
         self._line_blade_counts={}
         self.base_lines=lines;self.spanwise_lines=spanwise;self._rebuild_lines()
@@ -111,7 +116,7 @@ class Preview3D(QWidget):
         """Blade patches only; no source walls, caps or solid validity implied."""
         self._reference_mode=True
         self.surfaces={};self.base_lines=dict(lines);self.spanwise_lines=[];self._line_blade_counts={}
-        for key in ('hub','shroud','tip_wall'):self.visibility_controls[key].hide()
+        for key in ('hub','shroud','tip_wall','analysis_shroud'):self.visibility_controls[key].hide()
         self.model_label=label;self._rebuild_lines()
 
     @staticmethod
@@ -131,7 +136,7 @@ class Preview3D(QWidget):
         self.update_geometry(geometry,wall_chunks)
         self.model_label = "3D • Diffuser"
 
-    def update_rows(self,rows,walls):
+    def update_rows(self,rows,walls,analysis_chunks=None):
         """Compose independent rows; each row retains its own annulus count."""
         self._reference_mode=False
         lines={};counts={};spanwise=[]
@@ -147,6 +152,8 @@ class Preview3D(QWidget):
         chunks['shroud'].extend(g.shroud for _,_,g,_ in rows if g.trim_report is not None and hasattr(g.shroud,'source_m'))
         lines.update(self._wall_lines(chunks));counts.update(Hub=1,Shroud=1)
         self.surfaces=self._wall_surfaces(walls,chunks)
+        self._analysis_surfaces(analysis_chunks if analysis_chunks is not None else
+            [g.analysis_shroud.wall for _,_,g,_ in rows if g.analysis_shroud is not None])
         self._tip_surfaces([geometry for _,_,geometry,_ in rows])
         self.base_lines=lines;self.spanwise_lines=spanwise;self._line_blade_counts=counts
         self.model_label=f"3D • All blade rows ({len(rows)})"
@@ -159,6 +166,10 @@ class Preview3D(QWidget):
             points=[np.column_stack((c.r,np.zeros_like(c.r),c.z)) for c in chunks[name]]
             result[name.title()]=(np.concatenate(points) if points else np.empty((0,3)),color)
         return result
+
+    def _analysis_surfaces(self,chunks):
+        self.visibility_controls['analysis_shroud'].setVisible(bool(chunks))
+        if chunks:self.surfaces['analysis_shroud']=(np.concatenate([revolve_wall(w) for w in chunks]),'#d59cfa')
 
     def _tip_surfaces(self,geometries):
         from types import SimpleNamespace

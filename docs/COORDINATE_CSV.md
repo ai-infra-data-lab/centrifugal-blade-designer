@@ -2,6 +2,8 @@
 
 左の編集対象で翼列を選び、`File → Export → Selected Row Coordinate CSV / TXT`を開きます。
 
+Impellerで解析用Shroudを作成した場合、`Shroud：図面用／解析用／両方`を選べます。図面用は従来の`shroud`、解析用は`analysis_shroud`で識別し、壁面別出力のファイル名も`shroud.csv/txt`と`analysis_shroud.csv/txt`へ分けます。未作成の解析用を選ぶと保存前にエラーにします。翼はどちらを選んでも共通の実形状です。[解析用Shroudの定義](ANALYSIS_SHROUD.md)。
+
 1. 出力する翼（Main/Splitter）、Hub、Shroudにチェックします。壁面だけの出力も可能です。
 2. 翼・Hub・Shroudを1ファイル、翼とは別にHub＋Shroudをまとめる、Hub・Shroudを個別ファイル、のいずれかを選びます。
 3. CSV（`.csv`、カンマ区切り）／TXT（`.txt`、タブ区切り）を選びます。翼と壁面へ同じ拡張子・区切りを適用します。

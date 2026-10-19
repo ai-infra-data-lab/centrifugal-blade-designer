@@ -24,6 +24,7 @@ class ContextMeridional(QWidget):
         self.curves=[self.plot.plot(pen=pg.mkPen(c,width=2),name=n)
                      for c,n in (("#56d9e0","Hub"),("#eead72","Shroud"))]
         self.tip_profiles={}
+        self.analysis_profiles={}
         self.trim_profiles={}
         self._tip_visible=False
         self.boundaries=[self.plot.plot(pen=pg.mkPen("#909cac",style=__import__("PySide6.QtCore",fromlist=["Qt"]).Qt.PenStyle.DashLine))
@@ -48,7 +49,7 @@ class ContextMeridional(QWidget):
 
     def update_geometry(self,geometry,parameters=None,mean_points=4001):
         for item,wall in zip(self.curves,(geometry.hub,geometry.shroud)):item.setData(wall.z,wall.r)
-        self.update_tip_profiles([('Impeller',geometry)] if getattr(geometry,'tip',None) is not None else [])
+        self.update_tip_profiles([('Impeller',geometry)] if getattr(geometry,'tip',None) is not None or getattr(geometry,'analysis_shroud',None) is not None else [])
         if parameters is None:return
         from ..geometry.meridional_segments import sample_meridional
         values=validate_component_stations(parameters)
@@ -129,6 +130,15 @@ class ContextMeridional(QWidget):
         self.cursor.setData([station.hub_z,station.shroud_z],[station.hub_r,station.shroud_r])
 
     def update_tip_profiles(self,entries):
+        analysis={name:g.analysis_shroud.wall for name,g in entries if getattr(g,'analysis_shroud',None) is not None}
+        for name,line in list(self.analysis_profiles.items()):
+            if name not in analysis:
+                self.plot.plotItem.legend.removeItem(line);self.plot.removeItem(line);del self.analysis_profiles[name]
+        for name,wall in analysis.items():
+            if name not in self.analysis_profiles:
+                from PySide6.QtCore import Qt
+                self.analysis_profiles[name]=self.plot.plot(pen=pg.mkPen('#d59cfa',width=2,style=Qt.PenStyle.DashLine),name=f'{name} Analysis Shroud')
+            self.analysis_profiles[name].setData(wall.z,wall.r)
         trimmed={name:geometry for name,geometry in entries if geometry.trim_report is not None}
         for name,line in list(self.trim_profiles.items()):
             if name not in trimmed:

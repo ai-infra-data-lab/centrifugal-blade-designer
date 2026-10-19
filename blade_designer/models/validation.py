@@ -144,6 +144,10 @@ def _validate_settings(params: BladeParameters, *, source: str) -> list[Validati
             error("tip_clearance", "Invalid Tip clearance parameters.")
         elif any(not is_finite_number(v) or v<0 for v in (clearance.le_mm,clearance.te_mm)):
             error("tip_clearance", "Tip clearance LE/TE must be finite and >= 0 mm.")
+        else:
+            values=(clearance.analysis_le_mm,clearance.analysis_te_mm)
+            if values!=(None,None) and any(not is_finite_number(v) or v<0 for v in values):
+                error('tip_clearance', 'Analysis clearance requires finite LE and TE values >= 0 mm.')
     from .parameters import SplitterParameters
     splitter=params.splitter
     if splitter is not None:
