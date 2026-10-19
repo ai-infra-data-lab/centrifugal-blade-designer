@@ -101,9 +101,9 @@ class Preview3D(QWidget):
         lines,spanwise=Preview3D._section_lines(geometry.sections)
         if geometry.splitter_sections:
             extra,connections=Preview3D._section_lines(geometry.splitter_sections)
-            for name,(xyz,_) in extra.items():
+            for name,(xyz,color) in extra.items():
                 label="Spanwise Splitter "+name[9:] if name.startswith("Spanwise ") else "Splitter "+name
-                lines[label]=(xyz,"#8deb87")
+                lines[label]=(xyz,color)
             spanwise.extend(connections)
         return lines,spanwise
 

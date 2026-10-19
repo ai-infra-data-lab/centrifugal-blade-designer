@@ -1,5 +1,6 @@
 import numpy as np
 import pyqtgraph as pg
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QCheckBox
 from ..models.geometry import BladeGeometry
 from ..geometry.annulus import rotate_xy, project_annulus
@@ -30,7 +31,8 @@ class SplitterPlotMixin:
             return
         for name in COLORS:
             if name not in self.splitter_curves:
-                self.splitter_curves[name]=self.plot(pen=pg.mkPen("#8deb87",width=2),name="Splitter "+name)
+                self.splitter_curves[name]=self.plot(
+                    pen=pg.mkPen(COLORS[name],width=2,style=Qt.PenStyle.DashLine),name="Splitter "+name)
             segment=getattr(section,"master_"+name.lower())
             x,y=project_annulus(segment.x,segment.y,segment.z,blade_count,projection)
             self.splitter_curves[name].setData(x,y,connect="finite")
