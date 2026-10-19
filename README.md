@@ -1,6 +1,6 @@
 # Centrifugal Compressor Blade Designer v0.3
 
-`File → Export → Selected Row Coordinate CSV`で、選択翼列のXYZ・R・θ（度／rad）・Rθ・Zの列選択／順序変更とSpan別CSV出力ができます。RθはR×θ[rad]の長さ（mm）です。実際の3D masterを使い、主翼とSplitter・クリアランス・派生カットにも追従します。既存XYZ／legacy CSV／TurboGrid形式は維持します。[操作・座標定義](docs/COORDINATE_CSV.md)。
+`File → Export → Selected Row Coordinate CSV / TXT`で、選択翼列の翼・Hub・ShroudをXYZ／R・θ（度／rad）・Rθ・Zの任意の列順で出力できます。翼と壁面の一括出力、Hub/Shroud別ファイル、翼のSpan分割、CSV（カンマ）／TXT（タブ）を選べます。RθはR×θ[rad]の長さ（mm）、壁面は所属区間の子午線（θ=0）です。実3Dの翼・ケーシング・派生カットに追従し、既存XYZ／legacy CSV／TurboGrid形式は維持します。[操作・座標定義](docs/COORDINATE_CSV.md)。
 
 起動・Newの既定モデルを指定の`blade_v03.json`（Impeller／Diffuser／RC、RC選択）へ更新しました。静翼の中央2Dは、3Dで生成したHub断面のXY投影を単翼／全周で表示します。RCは子午面に沿って外径側LEから内径側TEへ進みます。元の入力・JSON形式・3D計算は保持します。旧2D Metrics／CSVは別の計算経路のため、子午面ベースのRC形状と区別してください。[原因・操作と確認範囲](docs/RETURN_CHANNEL_DISPLAY.md)。
 

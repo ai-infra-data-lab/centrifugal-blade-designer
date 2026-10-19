@@ -291,7 +291,7 @@ class MainWindow(QMainWindow):
         self.projection.currentIndexChanged.connect(self._projection_changed)
         self.file_menu.addSeparator()
         export_menu = self.file_menu.addMenu("Export")
-        for label,callback in (("Diffuser Segments CSV",self.export_segments_dialog),("Diffuser Contour CSV",self.export_contour_dialog),("TurboGrid Export",self.export_turbogrid_dialog),("Export Readiness",self.show_export_readiness),("Selected Row XYZ CSV",self.export_row_xyz_dialog),("Selected Row Coordinate CSV",self.export_coordinate_dialog)):
+        for label,callback in (("Diffuser Segments CSV",self.export_segments_dialog),("Diffuser Contour CSV",self.export_contour_dialog),("TurboGrid Export",self.export_turbogrid_dialog),("Export Readiness",self.show_export_readiness),("Selected Row XYZ CSV",self.export_row_xyz_dialog),("Selected Row Coordinate CSV / TXT",self.export_coordinate_dialog)):
             action=export_menu.addAction(label)
             action.triggered.connect(callback)
             if label in ('Diffuser Segments CSV','Diffuser Contour CSV'):
@@ -1165,8 +1165,10 @@ class MainWindow(QMainWindow):
                     else self.designer.generate_diffuser_3d(params))
         source = geometry_source(params, 'meridional_3d', kind='impeller' if self._editing_target == 0 else 'diffuser',
                                  variant='derived' if geometry.trim_report else 'base')
-        files = export_coordinate_csv(path, geometry, source, options, params.export.significant_digits)
-        self.statusBar().showMessage(f'Coordinate CSV: {len(files)} files | {source.label}')
+        chunks = (preview_wall_chunks(params, geometry, params.active_blade_row)
+                  if options.include_hub or options.include_shroud else None)
+        files = export_coordinate_csv(path, geometry, source, options, params.export.significant_digits, wall_chunks=chunks)
+        self.statusBar().showMessage(f'Coordinate {options.extension.upper()}: {len(files)} files | {source.label}')
         return files
 
     def export_coordinate_dialog(self):
@@ -1178,9 +1180,13 @@ class MainWindow(QMainWindow):
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
             options = dialog.options()
-            path, _ = QFileDialog.getSaveFileName(self, 'Export selected row coordinates', 'coordinates.csv', 'CSV (*.csv)')
+            extension = options.extension
+            path, _ = QFileDialog.getSaveFileName(self, 'Export selected row coordinates',
+                                                 'coordinates.' + extension, f'{extension.upper()} (*.{extension})')
             if path:
-                target = Path(path).with_name(Path(path).stem + '_spans') if options.split_spans else Path(path)
+                target = Path(path).with_suffix('.' + extension)
+                if options.requires_directory:
+                    target = target.with_name(target.stem + ('_spans' if options.split_spans else '_files'))
                 self.export_coordinate_to_path(target, options)
         except (ValueError, ArithmeticError, OSError) as exc:
             QMessageBox.warning(self, 'Coordinate CSV', str(exc))

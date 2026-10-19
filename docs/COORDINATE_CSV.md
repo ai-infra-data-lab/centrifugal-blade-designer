@@ -1,13 +1,20 @@
-# 選択翼列の座標CSV出力
+# 選択翼列の座標CSV／TXT出力
 
-左の編集対象で翼列を選び、`File → Export → Selected Row Coordinate CSV`を開きます。
+左の編集対象で翼列を選び、`File → Export → Selected Row Coordinate CSV / TXT`を開きます。
 
-1. XYZ、R/θ[deg]/Z、R/θ[rad]/Z、Rθ/Z/Rのプリセットから選択します。
-2. 必要な列にチェックし、上／下ボタンで座標列の順番を変更します。1列だけでも出力でき、複数の座標表現を同時に選べます。
-3. 識別列が必要ならチェックを入れます。識別列は座標列の前に固定順で付加されます。チェックを外すと選択した座標列とヘッダーだけを出力します。
-4. 全Spanを1ファイルにするか、主翼／Splitter・Spanごとの別ファイルにするか選び、OK後に保存名を指定します。
+1. 出力する翼（Main/Splitter）、Hub、Shroudにチェックします。壁面だけの出力も可能です。
+2. 翼・Hub・Shroudを1ファイル、翼とは別にHub＋Shroudをまとめる、Hub・Shroudを個別ファイル、のいずれかを選びます。
+3. CSV（`.csv`、カンマ区切り）／TXT（`.txt`、タブ区切り）を選びます。翼と壁面へ同じ拡張子・区切りを適用します。
+4. XYZ、R/θ[deg]/Z、R/θ[rad]/Z、Rθ/Z/Rのプリセットから選択します。
+5. 必要な列にチェックし、上／下ボタンで座標列の順番を変更します。1列だけでも出力でき、複数の座標表現を同時に選べます。翼・壁面で列設定は共通です。
+6. 識別列が必要ならチェックを入れます。識別列は座標列の前に固定順で付加されます。チェックを外すと選択した座標列とヘッダーだけを出力します。
+7. 翼をSpan別に分割する場合はチェックし、OK後に保存名を指定します。壁面も選択中の場合は、壁面を翼と別ファイルにするモードで利用できます。「全て1ファイル」ではSpan分割を解除・無効化します。
 
 分割時に`model.csv`を指定すると、新規フォルダ`model_spans`へ`main_span_001_0.csv`、`main_span_002_0.5.csv`、`splitter_span_001_0.csv`等を作ります。実際の断面数に従い、Hub/Tipだけの静翼に中間断面を追加しません。既存フォルダには書き込みません。再出力時は別名を指定してください。断面削除後も古いCSVが残って混在することを防ぎます。Spanの識別は通し番号も含み、丸め精度によるファイル名衝突を避けます。
+
+壁面の別ファイル出力だけを使う場合は、保存名`model.txt`に対して新規フォルダ`model_files`を作ります。翼は`coordinates.txt`、壁面をまとめる場合は`walls.txt`、個別なら`hub.txt`／`shroud.txt`です。Span分割と併用する場合は`model_spans`へ翼の各Spanと壁面ファイルをまとめます。CSVを選べば全て`.csv`です。保存画面の初期名とフィルターも選択拡張子に追従し、入力した末尾が異なる場合は選択拡張子へ統一します。
+
+HubとShroudだけを1ファイルで欲しい場合は、翼のチェックを外して両壁面を選び、「翼・Hub・Shroudを1ファイル」を指定してください。この場合は新規フォルダを作らず指定ファイルへ出力します。
 
 ## 座標・データの定義
 
@@ -23,7 +30,9 @@
 
 Impeller、Diffuser、内向きRCの実際の`master_le/ps/te/ss`を、Main→Splitter、各Spanの昇順、LE→PS→TE→SSの順で出力します。各セグメント内の順序・点数・端点を保持し、境界の重複削除・再補間・輪郭の追加閉鎖・全周複製は行いません。クリアランス付きでは実翼Tipを出力し、TurboGrid専用のShroud延長断面は追加しません。派生カット時は派生形状を使います。
 
-識別列は既存XYZ出力と同じ`row_id`, `row_name`, `row_kind`, `engine`, `variant`, `snapshot_hash`, `significant_digits`, `blade_set`, `span`, `segment`, `index`, `m_blade_norm`です。識別列を除く場合は、1ファイル内で複数Spanやセグメントを区別する必要がある用途には注意してください。CSVはUTF-8 BOM付き、カンマ区切り、単位付きヘッダー。数値精度は既存の出力有効桁数（1〜15桁）の設定を使います。
+Hub/Shroudは中央3Dと同じ`preview_wall_chunks`を使い、選択翼列に所属する子午面区間を出力します。所属未設定の旧プロジェクトは全壁面、所属設定を使うプロジェクトで対象壁面が未割当の場合は出力を拒否します。離れた所属区間は補間でつながず、各区間の既存サンプル順・点数を保持します。派生カットは生成後の壁面、クリアランス付きShroudは実翼Tipではなくケーシング側です。θ=0、XYZ=(R,0,Z)、Rθ=0の子午線であり、回転面のメッシュではありません。
+
+識別列は既存XYZ出力と同じ`row_id`, `row_name`, `row_kind`, `engine`, `variant`, `snapshot_hash`, `significant_digits`, `blade_set`, `span`, `segment`, `index`, `m_blade_norm`です。壁面は`blade_set`が`hub`／`shroud`、`span`と`m_blade_norm`は空欄、`segment`は`HUB_001`／`SHROUD_001`等の所属区間番号、`index`は区間ごとの0始まりです。識別列を除く場合は、1ファイル内で複数Span・セグメント・壁面区間を識別できなくなる点に注意してください。CSV/TXTともUTF-8 BOMと単位付きヘッダーを付け、数値精度は既存の出力有効桁数（1〜15桁）の設定を使います。
 
 設定は出力ダイアログ内だけで保持します。設計JSON・Undo・カメラ・形状生成式・旧XYZ/2D CSV・TurboGridは変更しません。毎回プリセットXYZから開始します。
 
@@ -34,6 +43,16 @@ Impeller、Diffuser、内向きRCの実際の`master_le/ps/te/ss`を、Main→Sp
 `gui/coordinate_export_dialog.py`が出力設定を担当し、MainWindowは選択翼列の新しい3D生成結果とsource情報を渡します。子午面選択中は出力を拒否し、無効な現在値から前回表示中の形状を誤って出力しません。幾何学の数値層にQtやCSV依存を追加しません。
 
 ## 検証
+
+### Hub/Shroud・TXT対応
+
+Quick 63件成功（`20261019T112033Z-e785abc5`）。関連77件成功（`20261019T112336Z-c26f046c`）、追加の翼のみTXT試験2件成功（`20261019T112557Z-0b6f608c`）で計79一意件を確認しました。変更したPython 6ファイルのRuff検査成功。設定画面のQt offscreen画像は`artifacts/quality-wall-coordinate-output/options.png`です。
+
+全回帰1,681一意件が成功しました（通常1,636件・実CAD45件）。既存1,642件と新規39件を全収集ID/JUnitで照合し、失敗・error・skip・漏れ・unexpected・重複は0。固定315入力（Python・参照fixture・既定JSON・ユーザー原本等）も変更0です。7区分で実行し、最長区分は802.39秒。各実行記録と照合結果は`artifacts/quality-wall-coordinate-output/final-test-coverage.json`。今回の検証で失敗・環境エラーはありません。
+
+新規39件は、CSV/TXTと3種類のファイル構成、翼・壁面のみ・Span分割、θ=0の解析的な壁面座標、所属区間ごとの識別、クリアランス/派生ケーシング、無効壁面時のファイル保護、GUIの分割条件・拡張子/フィルター・各翼列の所属壁面と出力の一致・設計値/Undo/カメラ不変を確認します。既存CSVの生バイト一致試験は維持しています。
+
+### 初期の翼CSV対応時の記録
 
 Quick 63件成功（`20261019T105105Z-34c80a90`）。関連52件成功（`20261019T105541Z-823e6c40`）。変更したPython 6ファイルのRuff検査成功。設定画面のQt offscreen画像は`artifacts/quality-coordinate-csv/options.png`です。
 

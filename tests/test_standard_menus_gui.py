@@ -23,7 +23,7 @@ def test_standard_menu_order_and_no_toolbar(mode):
             'New','Open Project','Save Project','Export','Exit']
         exports=next(a.menu() for a in w.file_menu.actions() if a.text()=='Export')
         assert [a.text() for a in exports.actions()]==[
-            'Diffuser Segments CSV','Diffuser Contour CSV','TurboGrid Export','Export Readiness','Selected Row XYZ CSV','Selected Row Coordinate CSV']
+            'Diffuser Segments CSV','Diffuser Contour CSV','TurboGrid Export','Export Readiness','Selected Row XYZ CSV','Selected Row Coordinate CSV / TXT']
         assert w.findChildren(QToolBar)==[]
         assert all(action in w.file_menu.actions() for action in w.project_actions.values())
         assert w.undo_action in w.edit_menu.actions() and w.redo_action in w.edit_menu.actions()
