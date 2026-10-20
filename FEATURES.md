@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+Stage 3B-3hの継ぎ目曲線差：LE/PS/TE/SSの4継ぎ目を同じSpan全域で比較し、共通Bézier区間の差control netから位置差の数値上限を評価。次数違い・標本間の隠れたgap・資源上限・丸めによる標本超過を区別し、座標補正/結合は行わない。全1,987一意件成功（新規35、通常1,942・実CAD45、失敗/error/skip/漏れ/重複0・固定339入力不変）。既定16継ぎ目は1e-8 mm予算内だが厳密G0/継ぎ目chart/丸め/最終CADの保証ではない。[契約・検証](docs/BOUNDARY_GAP_ENVELOPE.md)。
+
 Stage 3B-3gの元面単射性診断：選択矩形で固定投影の対称微分に正の下限を得る十分条件を追加。同じroleの隣接元領域で期待境界以外の接触を数値上排除し、別role・rank不足・条件未達・資源上限を未判定として残す。原形状・GUI・保存・出力は維持。最終全1,952一意件成功（新規32、通常1,907・実CAD45、失敗/error/skip/漏れ/重複0・固定337入力不変）。既定の選択96組と14role面は数値条件を達成、別role16組とImpeller Main/SplitterのLE全体は未判定。連続継ぎ目・丸め・最終CADの保証ではない。[式・契約・検証](docs/SOURCE_INJECTIVITY.md)。
 
 Stage 3B-3fの局所細分・再評価：非局所候補IDを別枠で保存し、元role/Span/xi/対角半分へ対応づけ、同じsource snapshotの2領域だけを細分して誤差付き接触診断を再実行できる。source/mapping変更や旧診断を拒否し、原形状・GUI・JSON・出力条件は維持。全1,920一意件成功（新規42、通常1,875・実CAD45、失敗/error/skip/漏れ/重複0・固定335入力不変）。既定Main6/Splitter3組は局所再評価で数値分離。全翼面・共有近傍の単射性・連続面・丸め・最終CADの保証ではない。[契約・検証](docs/CONTACT_PATCH_REFINEMENT.md)。

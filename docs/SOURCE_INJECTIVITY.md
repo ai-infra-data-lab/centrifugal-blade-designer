@@ -151,5 +151,6 @@ Main LEの下限は約−0.18、Splitter LEは約−0.16で、十分条件未達
 いずれも検証用artifactだけの修正で、アプリ/診断API/テスト期待値の変更ではありません。
 初回の有効な104組の結果は`default-probe-initial.json`に保持しています。
 
-次は別roleの連続継ぎ目と片側領域の整合、および局所証拠と接触再評価を集約する条件です。
+後続Stage 3B-3hで[別roleの対応Span境界曲線の差](BOUNDARY_GAP_ENVELOPE.md)を追加しました。
+厳密G0と片側領域を整合するchart、局所証拠と接触再評価を集約する条件は未完了です。
 遠い周期コピー/包含、最終CAD照合、丸め保証、全面精度予算、小R根元fillet、native GUI/ANSYSも残ります。

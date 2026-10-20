@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+`geometry/boundary_gap.py`はclamped ξ端の境界曲線を抽出し、同じSpanの共通knot区間とdegreeへ変換して差の凸包上限を評価する。4宣言継ぎ目のsource snapshot、予算内/観測gap/未判定/資源上限、標本の上限超過を報告する。予算内と境界表現一致を分離し、welding/再fit/片側chart判定は行わない。既存GUI/出力へ自動適用しない。[契約](BOUNDARY_GAP_ENVELOPE.md)。
+
 `geometry/surface_injectivity.py`は元splineの選択矩形全体に一つの投影を固定し、微分control netの対称成分から強単調性の数値下限を評価する。同じroleの隣接元領域はsnapshotを検査して矩形unionで評価し、別roleは継ぎ目chart不足として未判定にする。既存Jacobian/接触reportを改変せず、GUI/出力ゲートへ自動適用しない。[契約](SOURCE_INJECTIVITY.md)。
 
 `geometry/contact_sources.py`が診断source/mappingの識別とface→元role/cell/対角半分の対応を担当する。`merged_role_error.py`は成功meshのsnapshot識別情報を追加し、旧数値fieldは保持する。`geometry/contact_refinement.py`が元Bézier区間を抽出し、元三角形領域内だけを適応細分して選択2領域の誤差付き診断を行う。作業用sourceをコピーし、変更済みsnapshotを拒否する。独立葉のmeshは位相検査へ渡さず、GUI/出力へ自動適用しない。[契約](CONTACT_PATCH_REFINEMENT.md)。
