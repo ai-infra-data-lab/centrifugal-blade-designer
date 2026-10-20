@@ -152,5 +152,7 @@ Main LEの下限は約−0.18、Splitter LEは約−0.16で、十分条件未達
 初回の有効な104組の結果は`default-probe-initial.json`に保持しています。
 
 後続Stage 3B-3hで[別roleの対応Span境界曲線の差](BOUNDARY_GAP_ENVELOPE.md)を追加しました。
-厳密G0と片側領域を整合するchart、局所証拠と接触再評価を集約する条件は未完了です。
+後続Stage 3B-3iで[同一境界表現の共通片側chart](SEAM_INJECTIVITY.md)を追加しました。
+本APIのcross-role判定を上書きせず、別APIで明示した幅の局所十分条件を評価します。
+表現の異なる境界の扱い、局所証拠と接触再評価を集約する条件は未完了です。
 遠い周期コピー/包含、最終CAD照合、丸め保証、全面精度予算、小R根元fillet、native GUI/ANSYSも残ります。
