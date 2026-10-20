@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+`geometry/seam_chart_union.py`は局所chartの全leaf対を覆う。隣接部は重複chartと遠方凸包、非隣接部は元spline制御点凸包の分離で検査する。既存のsource/mapping照合を候補入口へ引き継ぎ、旧分割/候補reportは保持する。明示的な別APIであり、既存GUI/出力判定を変更しない。[契約](SEAM_CHART_UNION.md)。
+
 継ぎ目診断の`projection_strategy`は従来の`average`を既定にし、`balanced_transverse`では横断接線の方向和から基準投影だけを選ぶ。元微分の包絡・要求領域・閾値・source/mapping照合は維持し、分割/候補APIにも明示的に伝達する。生成や出力ゲートを変更しない。[契約](SEAM_PROJECTION_STRATEGIES.md)。
 
 `geometry/seam_contact_refinement.py`はface IDを元role/Span/ξへ戻し、source/mapping snapshotを照合して親セル全域を含む共通chartへ対応付ける。未達Span範囲の分割木と停止理由を記録するが、異なる投影の局所成功をrootや既存接触reportの成功へ昇格させない。GUI/出力条件は変更しない。[契約](SEAM_CONTACT_REFINEMENT.md)。

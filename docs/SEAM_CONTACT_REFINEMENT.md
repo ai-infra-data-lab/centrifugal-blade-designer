@@ -99,6 +99,8 @@ quick63件、関連143件、変更PythonのRuffは成功。
 
 後続Stage 3B-3kで[共通投影と片側微分の関係、および投影選択肢](SEAM_PROJECTION_STRATEGIES.md)を追加した。
 従来方式は既定のまま維持し、新方式の結果は明示した別診断として扱う。
+後続Stage 3B-3lで[候補に対する分割領域の全組検査](SEAM_CHART_UNION.md)を別APIへ追加した。
+本APIのrootだけの結果は保持し、新APIは旧reportと別の和集合reportを返す。
 異なる局所chart間の非干渉、微小gap境界の扱い、全候補の集約規則と丸め保証も残る。
 最終CAD/fillet/STEP・遠い周期翼/包含の照合は別課題。
 GUI/保存/出力条件へは未接続であり、native GUI/F5・ANSYS Import/Meshは今回未実行。
