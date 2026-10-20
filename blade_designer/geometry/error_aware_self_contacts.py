@@ -30,14 +30,16 @@ def error_aware_self_contacts(vertices,faces,error_upper_mm,*,clearance_mm,
     counts={key:0 for key in ('expected_edge_pairs','expected_vertex_pairs','local_error_uncertain_pairs',
                              'local_relation_unresolved_pairs','local_contact_candidates',
                              'nonlocal_contact_candidates','nonlocal_uncertain_pairs','nonlocal_separated_pairs')}
-    examples=[];issues=0
+    examples=[];nonlocal_examples=[];issues=0
 
     def record(i,j,kind,budget,lower=None):
         nonlocal issues
         issues+=1
-        if len(examples)<max_examples:
-            examples.append({'first_face':i,'second_face':j,'kind':kind,
-                             'error_sum_mm':float(budget),'projection_lower_mm':lower})
+        example={'first_face':i,'second_face':j,'kind':kind,
+                 'error_sum_mm':float(budget),'projection_lower_mm':lower}
+        if len(examples)<max_examples:examples.append(example)
+        if kind.startswith('NONLOCAL_') and len(nonlocal_examples)<max_examples:
+            nonlocal_examples.append(example.copy())
 
     try:
         with np.errstate(over='raise',invalid='raise',divide='raise'):
@@ -95,6 +97,8 @@ def error_aware_self_contacts(vertices,faces,error_upper_mm,*,clearance_mm,
             'nonmanifold_edge_count':edge_count,'nonmanifold_edge_examples':edge_examples,
             'nonmanifold_vertex_count':vertex_count,'nonmanifold_vertex_examples':vertex_examples,
             'issue_pairs':issues,'examples':examples,'examples_truncated':issues>len(examples),
+            'nonlocal_examples':nonlocal_examples,
+            'nonlocal_examples_truncated':counts['nonlocal_contact_candidates']+counts['nonlocal_uncertain_pairs']>len(nonlocal_examples),
             'clearance_mm':float(clearance_mm),'adjacency_tolerance_mm':float(adjacency_tolerance_mm),
             'area_epsilon_mm2':float(area_epsilon_mm2),'error_bounds_assumed_valid':True,
             'roundoff_certified':False,'continuous_surface_certified':False,

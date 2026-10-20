@@ -2,6 +2,7 @@
 import numpy as np
 from .conforming_role_grids import conforming_role_grids
 from .role_seams import _role_mesh,ROLES
+from .contact_sources import surface_fingerprint,mapping_fingerprint
 
 
 def merged_role_error_envelope(surfaces, *, target_mm,join_tolerance_mm,
@@ -33,7 +34,7 @@ def merged_role_error_envelope(surfaces, *, target_mm,join_tolerance_mm,
     except FloatingPointError as exc:
         raise ValueError('Non-finite arithmetic in merged triangle error.') from exc
     unresolved=int(np.sum(merged>target_mm))
-    return {**result,'status':'NUMERIC_TARGET_MET' if not unresolved else 'UNRESOLVED',
+    report={**result,'status':'NUMERIC_TARGET_MET' if not unresolved else 'UNRESOLVED',
         'reason':'target' if not unresolved else 'merge_displacement_exceeds_error_budget',
         'numeric_target_met':unresolved==0,'unresolved_triangles':unresolved,'seams':seams,
         'mesh':{'vertices':vertices,'faces':roots[faces],'source_faces':faces,'vertex_roots':roots,
@@ -41,3 +42,6 @@ def merged_role_error_envelope(surfaces, *, target_mm,join_tolerance_mm,
         'unmerged_triangle_upper_mm':raw,'triangle_move_allowance_mm':allowance,
         'merged_triangle_upper_mm':merged,'max_unmerged_upper_mm':float(raw.max()),
         'max_vertex_move_mm':float(displacement.max()),'max_merged_upper_mm':float(merged.max())}
+    report['source_fingerprints']={r:surface_fingerprint(surfaces[r]) for r in ROLES}
+    report['mapping_fingerprint']=mapping_fingerprint(report)
+    return report

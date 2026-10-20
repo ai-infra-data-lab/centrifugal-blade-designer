@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+`geometry/contact_sources.py`が診断source/mappingの識別とface→元role/cell/対角半分の対応を担当する。`merged_role_error.py`は成功meshのsnapshot識別情報を追加し、旧数値fieldは保持する。`geometry/contact_refinement.py`が元Bézier区間を抽出し、元三角形領域内だけを適応細分して選択2領域の誤差付き診断を行う。作業用sourceをコピーし、変更済みsnapshotを拒否する。独立葉のmeshは位相検査へ渡さず、GUI/出力へ自動適用しない。[契約](CONTACT_PATCH_REFINEMENT.md)。
+
 `geometry/error_aware_self_contacts.py`は共有ID数で局所と非局所を分け、既存edge/vertex/link診断と誤差付き投影下限を組み合わせる。正常な三角形接続でも正の元面位置誤差は局所未判定として保持する。例保存上限は走査を止めず、資源/退化/位相の不完全性と非局所だけの分離を別fieldへ返す。形状/GUI/保存/出力には接続しない。[契約](ERROR_AWARE_SELF_CONTACTS.md)。
 
 `geometry/error_aware_contacts.py`は独立した2meshと三角形別の元面誤差を受け取り、拡大AABB/BVHと単位軸投影gapの下限から要求距離込みの数値分離・未判定・接触候補を分類する。既存mesh診断の入力検証/BVHを利用するが、従来SATの投影公差をEuclidean距離として流用しない。結合済みrole meshの誤差を直接渡せる。自己隣接・包含・最終CAD・丸め保証は別契約とし、GUI/保存/出力へ自動接続しない。[契約](ERROR_AWARE_CONTACTS.md)。
