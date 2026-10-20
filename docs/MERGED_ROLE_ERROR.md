@@ -56,7 +56,7 @@ report = merged_role_error_envelope(
 `contact_ready=False`、`whole_geometry_verified=False`のままです。
 三角形の退化・接触・包含・遠い周期コピーは検査せず、法線/windingや閉solidも保証しません。
 三角形に候補がないことを、その間の連続曲面の非干渉証明へ読み替えてはいけません。
-SATの投影公差とEuclidean誤差も同一視しません。誤差を接触判定へ使う条件は次の課題です。
+SATの投影公差とEuclidean誤差も同一視しません。後続の独立2meshへの適用条件は[誤差付き診断](ERROR_AWARE_CONTACTS.md)で定義しています。
 
 ## 試験
 
@@ -94,5 +94,6 @@ native GUI/F5・ANSYS Import/Meshは未実施です。
 `FEATURES.md`、`docs/ARCHITECTURE.md`、`docs/CONFORMING_ROLE_GRIDS.md`、`docs/DEVELOPMENT_ROADMAP.md`の8ファイル。
 設計アルゴリズム・数値fixture・設計JSON・既存出力・親フォルダの家計簿は変更していません。
 
-次は誤差を含む接触/近接の判定条件です。丸め保証、遠いコピー/包含、実CAD照合、
+後続Stage 3B-3dで、独立した2meshの誤差付き接触/近接診断を追加しました。[適用契約](ERROR_AWARE_CONTACTS.md)。
+自己接続近傍、丸め保証、遠いコピー/包含、実CAD照合、
 全面誤差予算、小R根元fillet、native GUI、ANSYS実機も未完了です。
