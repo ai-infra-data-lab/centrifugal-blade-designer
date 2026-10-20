@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+`geometry/error_aware_self_contacts.py`は共有ID数で局所と非局所を分け、既存edge/vertex/link診断と誤差付き投影下限を組み合わせる。正常な三角形接続でも正の元面位置誤差は局所未判定として保持する。例保存上限は走査を止めず、資源/退化/位相の不完全性と非局所だけの分離を別fieldへ返す。形状/GUI/保存/出力には接続しない。[契約](ERROR_AWARE_SELF_CONTACTS.md)。
+
 `geometry/error_aware_contacts.py`は独立した2meshと三角形別の元面誤差を受け取り、拡大AABB/BVHと単位軸投影gapの下限から要求距離込みの数値分離・未判定・接触候補を分類する。既存mesh診断の入力検証/BVHを利用するが、従来SATの投影公差をEuclidean距離として流用しない。結合済みrole meshの誤差を直接渡せる。自己隣接・包含・最終CAD・丸め保証は別契約とし、GUI/保存/出力へ自動接続しない。[契約](ERROR_AWARE_CONTACTS.md)。
 
 `geometry/merged_role_error.py`は整合格子のセル上限を三角形順へ対応づけ、結合による実頂点移動の最大値を各三角形へ加算する。`role_seams.py::_role_mesh`を既存接触診断と共有し、誤差対象の頂点/face参照を一致させる。元面や旧診断fieldは変更せず、出力ゲートへ自動適用しない。[契約](MERGED_ROLE_ERROR.md)。
