@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+`geometry/boundary_identity.py`は保存float64 knot/poleを有理数へ正確に変換し、共通区間のp+1点で差多項式の恒等性を決める。別次数/knot表現の同一曲線と非ゼロ反例を分け、評価数/pole数/整数bit数で資源を制限する。物理的gapや既存chartの採用条件へ自動昇格させない。[契約](BOUNDARY_CURVE_IDENTITY.md)。
+
 `geometry/seam_chart_union.py`は局所chartの全leaf対を覆う。隣接部は重複chartと遠方凸包、非隣接部は元spline制御点凸包の分離で検査する。既存のsource/mapping照合を候補入口へ引き継ぎ、旧分割/候補reportは保持する。明示的な別APIであり、既存GUI/出力判定を変更しない。[契約](SEAM_CHART_UNION.md)。
 
 継ぎ目診断の`projection_strategy`は従来の`average`を既定にし、`balanced_transverse`では横断接線の方向和から基準投影だけを選ぶ。元微分の包絡・要求領域・閾値・source/mapping照合は維持し、分割/候補APIにも明示的に伝達する。生成や出力ゲートを変更しない。[契約](SEAM_PROJECTION_STRATEGIES.md)。

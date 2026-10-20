@@ -122,4 +122,6 @@ quick63件、関連123件、変更PythonのRuffは成功。
 
 残課題は、境界表現が異なる候補の扱い、全候補の集約、遠い周期翼/包含、
 最終CAD/fillet/STEPとの照合、丸め保証と全面誤差予算。
+後続Stage 3B-3mで[境界曲線の正確な係数モデル比較](BOUNDARY_CURVE_IDENTITY.md)を追加したが、
+微小差を持つ20候補を同じ曲線として結合する変更は行っていない。
 native GUI/F5・ANSYS Import/Meshは今回未実行。

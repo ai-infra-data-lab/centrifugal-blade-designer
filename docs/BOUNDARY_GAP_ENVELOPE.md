@@ -130,4 +130,6 @@ DEVELOPMENT_ROADMAP・SOURCE_INJECTIVITYの7ファイル。
 既存生成/設計アルゴリズム・GUI・JSON/出力・数値fixture・ユーザー原本・親フォルダの家計簿は変更していません。
 
 次は連続境界と片側領域を整合させる継ぎ目chartの条件、および位置差予算/丸めの扱いです。
+後続Stage 3B-3mでは[保存係数モデルの正確な対応曲線比較](BOUNDARY_CURVE_IDENTITY.md)を追加しました。
+数値的なgap予算内であることと、モデル上の同一性・物理的な隙間の有無を区別します。
 遠い周期コピー/包含、最終CAD、全体の品質集約、小R根元fillet、native GUI/ANSYSも残ります。
