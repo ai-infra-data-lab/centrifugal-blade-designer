@@ -88,8 +88,8 @@ quick63件、関連101件、変更PythonのRuffは成功。
 全回帰の証跡は`artifacts/quality-seam-chart/final-test-coverage.json`、
 `source-hashes.json`、`collected-tests.txt`、各`group-*.log`に保存している。
 
-未達例への適応的な領域分割と接触候補への紐付け、微小gapを持つ境界の扱い、
-既存mesh/source fingerprint照合を伴う集約条件は次の課題。
+後続Stage 3B-3jで[Span分割とsource/mapping識別値を伴う候補対応](SEAM_CONTACT_REFINEMENT.md)を追加した。
+微小gapを持つ境界、局所chart間の非干渉と全候補の集約条件は引き続き課題。
 局所chartを異なる投影で個別に証明しても、その和集合の単射や非隣接部との非干渉は保証しない。
 遠い周期翼/包含、最終CAD/fillet/STEPとの照合、全面精度予算、丸め保証も残る。
 native GUI/F5・ANSYS Import/Meshは今回未実行でありPASS扱いにしない。

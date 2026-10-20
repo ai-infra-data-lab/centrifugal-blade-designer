@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+`geometry/seam_contact_refinement.py`はface IDを元role/Span/ξへ戻し、source/mapping snapshotを照合して親セル全域を含む共通chartへ対応付ける。未達Span範囲の分割木と停止理由を記録するが、異なる投影の局所成功をrootや既存接触reportの成功へ昇格させない。GUI/出力条件は変更しない。[契約](SEAM_CONTACT_REFINEMENT.md)。
+
 `geometry/seam_injectivity.py`は2面の同一表現の元境界に限って片側領域を共通chartへ写像し、全セルで1つの固定投影による強単調性の下限を調べる。微小gapの移動や結合、別投影の成功の集約を行わない。局所の数値的十分条件であり、既存接触report/GUI/出力ゲートへ自動接続しない。[契約](SEAM_INJECTIVITY.md)。
 
 `geometry/boundary_gap.py`はclamped ξ端の境界曲線を抽出し、同じSpanの共通knot区間とdegreeへ変換して差の凸包上限を評価する。4宣言継ぎ目のsource snapshot、予算内/観測gap/未判定/資源上限、標本の上限超過を報告する。予算内と境界表現一致を分離し、welding/再fit/片側chart判定は行わない。既存GUI/出力へ自動適用しない。[契約](BOUNDARY_GAP_ENVELOPE.md)。
