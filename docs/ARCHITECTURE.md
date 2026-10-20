@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+`geometry/conforming_role_grids.py`は局所細分の境界集合から共通Span・role別xiのtensor格子を作る。合計三角形上限を割当て前に検査し、整合後のcontrol netと実評価頂点に対して誤差を再計算する。継ぎ目gapと数値目標を分離し、元座標を修復・結合しない。既存生成・GUI・出力へは接続しない。[契約](CONFORMING_ROLE_GRIDS.md)。
+
 `geometry/surface_triangulation.py`は基準SplineSurfaceをBézier化し、S−双一次面のcontrol netと双一次面−対角三角形のtwistから数値誤差上限を返す。worst-firstの4分割は元面を再fitせず、未達セルを保持する。局所セルはT junctionを許す診断資料であり、整合mesh・干渉検査・出力へ自動適用しない。[契約](TRIANGLE_ERROR_ENVELOPE.md)。
 
 `geometry/role_seams.py`は4roleの明示的な境界対応だけを共有ID化した診断meshへ組み立て、既存のedge/vertex/link・接触検査をrole間へ適用する。元座標は変更せず、診断移動量・接続ずれ・不完全性を報告する。生成/GUI/保存/出力への自動接続は行わない。[契約・限界](ROLE_SEAM_CHECKS.md)。
