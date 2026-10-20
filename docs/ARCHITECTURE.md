@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+`geometry/surface_triangulation.py`は基準SplineSurfaceをBézier化し、S−双一次面のcontrol netと双一次面−対角三角形のtwistから数値誤差上限を返す。worst-firstの4分割は元面を再fitせず、未達セルを保持する。局所セルはT junctionを許す診断資料であり、整合mesh・干渉検査・出力へ自動適用しない。[契約](TRIANGLE_ERROR_ENVELOPE.md)。
+
 `geometry/role_seams.py`は4roleの明示的な境界対応だけを共有ID化した診断meshへ組み立て、既存のedge/vertex/link・接触検査をrole間へ適用する。元座標は変更せず、診断移動量・接続ずれ・不完全性を報告する。生成/GUI/保存/出力への自動接続は行わない。[契約・限界](ROLE_SEAM_CHECKS.md)。
 
 解析用Shroudは`geometry/analysis_shroud.py`が既存の実Tipを読み取り、図面ケーシング法線と別の隙間から派生壁面を作る。`ImpellerGeometry.analysis_shroud`へ保持し、通常の`shroud`・翼断面を置換しない。TurboGrid ASCIIの整形時だけ解析用壁面を選び、Mechanical CAD・通常の流路面積/Throatは図面用を参照する。選択壁面の所属は元壁面の距離へ対応付ける。定義・検証は[解析用Shroud](ANALYSIS_SHROUD.md)。
