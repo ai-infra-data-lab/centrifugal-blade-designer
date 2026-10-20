@@ -21,6 +21,26 @@ def screen_role_seams(grids, *, join_tolerance_mm, tolerance_mm, area_epsilon_mm
                        (area_epsilon_mm2,'area_epsilon_mm2')):_nonnegative(value,name)
     for value,name in ((max_work,'max_work'),(max_contacts,'max_contacts'),
                        (max_triangles,'max_triangles')):_positive_int(value,name)
+    vertices,faces,roots,seams,face_roles=_role_mesh(grids,join_tolerance_mm,max_triangles,max_contacts)
+    report=mesh_contacts(vertices,roots[faces],tolerance_mm=tolerance_mm,area_epsilon_mm2=area_epsilon_mm2,
+        max_work=max_work,max_contacts=max_contacts,max_triangles=max_triangles,
+        check_shared_edges=True,check_shared_vertices=True)
+    complete=report['scan_complete'] and all(s['unmatched_vertices']==0 for s in seams)
+    return {'status':'CONTACT_CANDIDATES_FOUND' if report['contact_count'] else
+                    'NO_CONTACT_OBSERVED' if complete else 'INCOMPLETE',
+            'scan_complete':bool(complete),'seams':seams,'mesh_report':report,
+            'contact_role_pairs':[[face_roles[a],face_roles[b]] for a,b in report['contact_pairs']],
+            'join_tolerance_mm':float(join_tolerance_mm),
+            'source_model':'caller_supplied_XYZ_role_grids','units':'mm','axis':'Z',
+            'diagnostic_model':'seam_merged_triangle_approximation','source_coordinates_modified':False,
+            'unchecked':['Span row physical correspondence','mesh winding and outward orientation',
+                         'periodic copies and other blade sets','solid containment',
+                         'Hub/Tip caps, walls, disk and fillets','continuous surface between sample points'],
+            'continuous_surface_certified':False,'roundoff_certified':False,'whole_geometry_verified':False}
+
+
+def _role_mesh(grids,join_tolerance_mm,max_triangles,example_limit):
+    """Shared assembly for validated callers; coordinates and face order stay fixed."""
     if not isinstance(grids,Mapping) or set(grids)!=set(ROLES):
         raise ValueError('All four LE/PS/TE/SS grids must be supplied.')
     vertices=[];faces=[];indices={};face_roles=[];nv=0;nf=0;span_count=None
@@ -52,19 +72,5 @@ def screen_role_seams(grids, *, join_tolerance_mm, tolerance_mm, area_epsilon_mm
                           'matched_vertices':int(matched.sum()),'unmatched_vertices':len(bad),
                           'max_gap_mm':float(distances.max()),
                           'max_merge_displacement_mm':float(distances[matched].max()) if matched.any() else 0.,
-                          'unmatched_row_examples':bad[:max_contacts].tolist()})
-    report=mesh_contacts(vertices,roots[faces],tolerance_mm=tolerance_mm,
-        area_epsilon_mm2=area_epsilon_mm2,max_work=max_work,max_contacts=max_contacts,
-        max_triangles=max_triangles,check_shared_edges=True,check_shared_vertices=True)
-    complete=report['scan_complete'] and all(s['unmatched_vertices']==0 for s in seams)
-    return {'status':'CONTACT_CANDIDATES_FOUND' if report['contact_count'] else
-                    'NO_CONTACT_OBSERVED' if complete else 'INCOMPLETE',
-            'scan_complete':bool(complete),'seams':seams,'mesh_report':report,
-            'contact_role_pairs':[[face_roles[a],face_roles[b]] for a,b in report['contact_pairs']],
-            'join_tolerance_mm':float(join_tolerance_mm),
-            'source_model':'caller_supplied_XYZ_role_grids','units':'mm','axis':'Z',
-            'diagnostic_model':'seam_merged_triangle_approximation','source_coordinates_modified':False,
-            'unchecked':['Span row physical correspondence','mesh winding and outward orientation',
-                         'periodic copies and other blade sets','solid containment',
-                         'Hub/Tip caps, walls, disk and fillets','continuous surface between sample points'],
-            'continuous_surface_certified':False,'roundoff_certified':False,'whole_geometry_verified':False}
+                          'unmatched_row_examples':bad[:example_limit].tolist()})
+    return vertices,faces,roots,seams,face_roles

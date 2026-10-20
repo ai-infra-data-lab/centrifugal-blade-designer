@@ -95,5 +95,6 @@ native GUI/F5・ANSYS Import/Meshは未実施です。
 本書、`FEATURES.md`、`docs/ARCHITECTURE.md`、`docs/DEVELOPMENT_ROADMAP.md`の6ファイル。
 既存生成コード・数値fixture・設計JSON・既存出力・親フォルダの家計簿は変更していません。
 
-次は結合移動を含めた近似誤差の伝播と、接触診断の判定条件です。
+結合移動を含む誤差は新しい[診断API](MERGED_ROLE_ERROR.md)へ追加しました。本APIは引き続き未結合格子の上限を返します。
+次は誤差を含む接触/近接判定の条件です。
 遠い周期コピー・包含、実CAD照合、丸め保証、小R根元fillet、native GUI、ANSYS実機も残ります。
