@@ -15,7 +15,7 @@ from .contact_sources import surface_fingerprint
 
 def seam_projection_injectivity(first,first_end,second,second_end,*,
                                 first_width,second_width,reference_min_mm,monotonic_margin,
-                                span_range=(0.,1.),refinements=0,max_cells=4096):
+                                span_range=(0.,1.),refinements=0,max_cells=4096,projection_strategy='average'):
     """Check a continuous joined chart on (u,v) in [0,1] x [-1,1].
 
     Each xi width is a positive source-domain fraction. First side occupies
@@ -23,10 +23,14 @@ def seam_projection_injectivity(first,first_end,second,second_end,*,
     are required before any positive result. Geometrically equal but differently
     represented boundaries conservatively remain unresolved. Span correspondence
     is assumed, not established here. All cells use one fixed projection.
+    'balanced_transverse' balances the two signed transverse directions only
+    when selecting that projection; source derivatives/domain remain unchanged.
     """
     _nonnegative(reference_min_mm,'reference_min_mm');_nonnegative(monotonic_margin,'monotonic_margin')
     _positive_int(max_cells,'max_cells')
     if type(refinements) is not int or not 0<=refinements<=4:raise ValueError('refinements must be in [0,4].')
+    if type(projection_strategy) is not str or projection_strategy not in ('average','balanced_transverse'):
+        raise ValueError('Unknown projection_strategy.')
     for name,width in [('first_width',first_width),('second_width',second_width)]:
         _nonnegative(width,name)
         if not 0<width<=1:raise ValueError('Widths must be in (0,1].')
@@ -37,6 +41,7 @@ def seam_projection_injectivity(first,first_end,second,second_end,*,
     result={'span_range':span.tolist(),'ends':[first_end,second_end],
             'widths':[float(first_width),float(second_width)],'refinements':refinements,'max_cells':max_cells,
             'reference_min_mm':float(reference_min_mm),'monotonic_margin':float(monotonic_margin),
+            'projection_strategy':projection_strategy,
             'source_fingerprints':[surface_fingerprint(s) for s in sources],
             'same_float64_boundary_representation':same,'parameter_correspondence_assumed':True,
             'numeric_injective':False,'projection':None,'cells':[],'required_cells':None,
@@ -66,6 +71,11 @@ def seam_projection_injectivity(first,first_end,second,second_end,*,
                 d=spline_differentials(source,[span[0]+span_length/2],[edge],singular_mm2=0)
                 references.append(np.column_stack((d.d_span[0,0]*span_length,d.d_xi[0,0]*scale)))
             reference=references[0]/2+references[1]/2
+            if projection_strategy=='balanced_transverse':
+                transverse=[a[:,1] for a in references];lengths=[float(np.linalg.norm(a)) for a in transverse]
+                if min(lengths)<=reference_min_mm:
+                    return {**result,'status':'UNRESOLVED','reason':'reference_transverse'}
+                reference[:,1]=(transverse[0]/lengths[0]+transverse[1]/lengths[1])*(lengths[0]/4+lengths[1]/4)
             u,sigma,vt=np.linalg.svd(reference,full_matrices=False)
             result['reference_sigma_mm']=sigma.tolist()
             if sigma[-1]<=reference_min_mm:return {**result,'status':'UNRESOLVED','reason':'reference_rank'}

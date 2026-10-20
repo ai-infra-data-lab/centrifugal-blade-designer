@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+継ぎ目診断の`projection_strategy`は従来の`average`を既定にし、`balanced_transverse`では横断接線の方向和から基準投影だけを選ぶ。元微分の包絡・要求領域・閾値・source/mapping照合は維持し、分割/候補APIにも明示的に伝達する。生成や出力ゲートを変更しない。[契約](SEAM_PROJECTION_STRATEGIES.md)。
+
 `geometry/seam_contact_refinement.py`はface IDを元role/Span/ξへ戻し、source/mapping snapshotを照合して親セル全域を含む共通chartへ対応付ける。未達Span範囲の分割木と停止理由を記録するが、異なる投影の局所成功をrootや既存接触reportの成功へ昇格させない。GUI/出力条件は変更しない。[契約](SEAM_CONTACT_REFINEMENT.md)。
 
 `geometry/seam_injectivity.py`は2面の同一表現の元境界に限って片側領域を共通chartへ写像し、全セルで1つの固定投影による強単調性の下限を調べる。微小gapの移動や結合、別投影の成功の集約を行わない。局所の数値的十分条件であり、既存接触report/GUI/出力ゲートへ自動接続しない。[契約](SEAM_INJECTIVITY.md)。

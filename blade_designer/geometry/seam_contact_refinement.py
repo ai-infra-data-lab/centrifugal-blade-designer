@@ -9,7 +9,7 @@ from .seam_injectivity import seam_projection_injectivity
 
 def subdivide_seam_neighborhood(first,first_end,second,second_end,*,first_width,second_width,
                                 reference_min_mm,monotonic_margin,span_range=(0.,1.),
-                                refinements=0,max_cells=4096,max_depth=4,max_charts=31):
+                                refinements=0,max_cells=4096,max_depth=4,max_charts=31,projection_strategy='average'):
     """Bisect unresolved Span ranges, preserving the original widths and domain.
 
     A positive ROOT chart covers the whole requested neighborhood. Successful
@@ -21,7 +21,8 @@ def subdivide_seam_neighborhood(first,first_end,second,second_end,*,first_width,
     if type(max_depth) is not int or not 0<=max_depth<=8:raise ValueError('max_depth must be in [0,8].')
     sources=[deepcopy(first),deepcopy(second)]
     options=dict(first_width=first_width,second_width=second_width,reference_min_mm=reference_min_mm,
-                 monotonic_margin=monotonic_margin,refinements=refinements,max_cells=max_cells)
+                 monotonic_margin=monotonic_margin,refinements=refinements,max_cells=max_cells,
+                 projection_strategy=projection_strategy)
     root=seam_projection_injectivity(sources[0],first_end,sources[1],second_end,span_range=span_range,**options)
     charts=[{'depth':0,'parent':None,'children':[],'report':root}];queue=[0];stops=Counter()
     while queue:
@@ -53,7 +54,8 @@ def subdivide_seam_neighborhood(first,first_end,second,second_end,*,first_width,
 
 
 def local_seam_pair_injectivity(surfaces,envelope,first_face,second_face,*,reference_min_mm,
-                                monotonic_margin,refinements=0,max_cells=4096,max_depth=4,max_charts=31):
+                                monotonic_margin,refinements=0,max_cells=4096,max_depth=4,max_charts=31,
+                                projection_strategy='average'):
     """Bind a declared cross-role shared-ID pair to its complete parent cells.
 
     The one root chart must cover both recorded cells before expected parameter
@@ -82,7 +84,7 @@ def local_seam_pair_injectivity(surfaces,envelope,first_face,second_face,*,refer
     report=subdivide_seam_neighborhood(snapshots[0],seam[1],snapshots[1],seam[3],
         first_width=widths[0],second_width=widths[1],span_range=span,
         reference_min_mm=reference_min_mm,monotonic_margin=monotonic_margin,refinements=refinements,
-        max_cells=max_cells,max_depth=max_depth,max_charts=max_charts)
+        max_cells=max_cells,max_depth=max_depth,max_charts=max_charts,projection_strategy=projection_strategy)
     return {'status':report['status'],'query_faces':[first_face,second_face],'patches':ordered,
             'seam':list(seam),'source_identity_checked':True,'mapping_identity_checked':True,
             'enclosing_parent_cells':True,'source_basis':'original_unmerged_splines',
