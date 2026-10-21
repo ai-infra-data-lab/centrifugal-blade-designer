@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+根元filletの生成履歴を完成BREPのfaceへ照合し、後続処理で置換された中間面をrole・半径測定から除外する。完成面の半径基準・公差・指定Rは維持し、完成生成面がなければ拒否する。[原因・検証範囲](docs/FINAL_FILLET_TOPOLOGY.md)。
+
 CAD開始の数値準備をQProcessへ移し、snapshot固定→numeric完成→CADの2工程に分離。取消tree helperとclose待機も非同期化し、取消/準備失敗/pending/改変snapshotの公開を拒否。既存同期APIと計算/保存/出力形式は維持。関連試験成功・native計測済み、全2,259一意件成功（通常2,206・実CAD53、新規32・既存2,227保持、失敗/error/skip/漏れ/重複0・固定359入力不変）。一般の同期再計算は残る。[契約・検証](docs/CAD_ASYNC_PREPARATION.md)。
 
 根元CADの修正：元Span面を保ったHub内部延長とcap内包検査、主翼/Splitter一括fillet、rolling/corner/支持面のrole分離、STEP前後の半径不一致拒否、別翼blend接触拒否を追加。明示R0.1 mmでの現既定Blade+Hubを実CADで検査し、全回帰2,227一意件成功（通常2,174・実CAD53、新規35、既存2,192保持、失敗/error/skip/漏れ/重複0・固定356入力不変）。R8・現既定全周/周期・全面STEP精度・ANSYS成立の保証とは区別する。[構成・検証](docs/BURIED_ROOT_CONSTRUCTION.md)。

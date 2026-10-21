@@ -276,10 +276,16 @@ class OcctBackend:
             for face in shapes(model.shape,TopAbs_FACE):
                 location=TopLoc_Location();surface=BRep_Tool.Surface_s(TopoDS.Face(face),location)
                 support_bindings.append((surface,location))
-            fillet_faces=[];excluded=[]
+            final_faces=shapes(builder.Shape(),TopAbs_FACE)
+            fillet_faces=[];excluded=[];intermediate=[]
             for index in range(1,builder.NbSurfaces()+1):
                 for face in builder.NewFaces(index):
                     if face.ShapeType()!=TopAbs_FACE:continue
+                    # OCCT history can retain construction faces replaced by
+                    # later corner trimming. Only final topology is measurable.
+                    if not any(face.IsSame(final) for final in final_faces):
+                        if not any(face.IsSame(old) for old in intermediate):intermediate.append(face)
+                        continue
                     location=TopLoc_Location();surface=BRep_Tool.Surface_s(TopoDS.Face(face),location)
                     inherited_surface=any(surface is old_surface and location.IsEqual(old_location)
                         for old_surface,old_location in support_bindings)
@@ -333,6 +339,7 @@ class OcctBackend:
                     labels['BLADE_GROUP_'+group]=retained
             result=CadShape(builder.Shape(),labels,{**model.metrics,"fillet_radius_mm":float(radius_mm),"root_edge_count":len(root_edges),"fillet_face_count":len(fillet_faces),
                 "fillet_role_basis":"kernel_new_surfaces_excluding_support_history_and_geometry","excluded_support_faces":len(excluded),
+                "excluded_intermediate_fillet_faces":len(intermediate),
                 "rolling_fillet_face_count":len(rolling),"corner_fillet_face_count":len(labels['HUB_FILLET_CORNER']),
                 "fillet_groups":groups})
             self.validate_solid(result)
