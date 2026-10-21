@@ -5,7 +5,6 @@ This is neither an all-surface contact scan nor an export acceptance gate.
 from collections import Counter
 from copy import deepcopy
 from itertools import combinations
-import numpy as np
 from .boundary_gap import boundary_gap_envelope
 from .boundary_identity import boundary_curve_identity
 from .contact_sources import mapping_fingerprint, source_triangle_patch, surface_fingerprint
@@ -17,13 +16,15 @@ from .seam_chart_union import local_seam_union_injectivity
 def seam_candidate_summary(surfaces, envelope, *, gap_tolerance_mm,
                            reference_min_mm, monotonic_margin, nonadjacent_clearance_mm,
                            max_pair_visits=100000, max_candidates=4096, max_evaluated=64,
-                           max_triangles=20000):
+                           max_triangles=20000, projection_strategy='average'):
     """Inventory shared vertices, then diagnose a deterministic bounded prefix.
 
     Counts refer only to discovered unique cross-role face pairs. An interrupted
     inventory is never advertised as a total; unexamined records remain explicit.
     No tolerance-based merging or acceptance of mismatched source curves occurs.
     """
+    if type(projection_strategy) is not str or projection_strategy not in ('average','balanced_transverse'):
+        raise ValueError('Unknown projection_strategy.')
     for value, name in ((max_pair_visits,'max_pair_visits'),(max_candidates,'max_candidates'),
                         (max_evaluated,'max_evaluated'),(max_triangles,'max_triangles')):
         _positive_int(value,name)
@@ -79,18 +80,39 @@ def seam_candidate_summary(surfaces, envelope, *, gap_tolerance_mm,
         identity,gap=cache[key]
         chart=local_seam_union_injectivity(sources,snapshot,a,b,
             reference_min_mm=reference_min_mm,monotonic_margin=monotonic_margin,
-            nonadjacent_clearance_mm=nonadjacent_clearance_mm)
+            nonadjacent_clearance_mm=nonadjacent_clearance_mm,projection_strategy=projection_strategy)
         met=chart['expected_parameter_contact_only']
         records.append({**record,'status':'EXPECTED_PARAMETER_CONTACT_ONLY' if met else 'UNRESOLVED',
                         'identity_report':deepcopy(identity),'gap_report':deepcopy(gap),
                         'chart_report':chart,'expected_parameter_contact_only':met})
     counts=dict(Counter(r['status'] for r in records))
+    diagnostics={key:Counter() for key in ('identity_status','gap_status','chart_status',
+        'chart_root_reason','chart_union_reason','chart_stop_reasons','unresolved_identity_status')}
+    for record in records:
+        fallback='NOT_EVALUATED:'+record['status']
+        identity=record['identity_report'];gap=record['gap_report'];chart=record['chart_report']
+        identity_status=identity['status'] if identity else fallback
+        diagnostics['identity_status'][identity_status]+=1
+        diagnostics['gap_status'][gap['status'] if gap else fallback]+=1
+        if record['status']=='UNRESOLVED':diagnostics['unresolved_identity_status'][identity_status]+=1
+        diagnostics['chart_status'][chart['status'] if chart else fallback]+=1
+        if chart:
+            union=chart['union_report'];partition=union['partition_report']
+            diagnostics['chart_root_reason'][partition['root_report']['reason']]+=1
+            diagnostics['chart_union_reason'][union['reason']]+=1
+            # Count affected candidates, not the number of stopped tree nodes.
+            diagnostics['chart_stop_reasons'].update(partition['stop_reasons'].keys())
+        else:
+            for key in ('chart_root_reason','chart_union_reason','chart_stop_reasons'):
+                diagnostics[key][fallback]+=1
     return {'status':'RESOURCE_LIMIT' if stop or counts.get('UNEXAMINED',0) else 'DIAGNOSTICS_RECORDED',
             'inventory_complete':stop is None,'inventory_stop_reason':stop,
             'candidate_count_is_total':stop is None,'discovered_candidates':len(pairs),
             'pair_visits':visits,'max_pair_visits':max_pair_visits,'max_candidates':max_candidates,
             'max_evaluated':max_evaluated,'records':records,'counts':counts,
             'evaluation_complete':not bool(counts.get('UNEXAMINED',0)),
+            'projection_strategy':projection_strategy,
+            'diagnostic_counts':{key:dict(value) for key,value in diagnostics.items()},
             'source_fingerprints':fingerprints,'mapping_fingerprint':snapshot['mapping_fingerprint'],
             'source_identity_checked':True,'mapping_identity_checked':True,
             'coordinates_modified':False,'physical_gap_certified':False,'roundoff_certified':False,

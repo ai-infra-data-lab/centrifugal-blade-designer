@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+候補集約の`projection_strategy`は既定averageを維持して既存のbalanced_transverseを明示伝達する。`diagnostic_counts`は境界同一性、数値gap、chart root/union、停止理由を独立集計する。停止理由はnode数でなく候補数、未検査は別statusで残し、既存採用条件は変更しない。[契約](SEAM_CANDIDATE_SUMMARY.md)。
+
 `geometry/seam_candidate_summary.py`は記録済みmeshの共有IDを持つ別roleの候補集合を列挙し、source/mapping照合後に厳密同一性・gap・局所chart unionを別々に記録する。件数上限と未検査を隠さず、全面品質や出力ゲートへ自動昇格させない。[契約](SEAM_CANDIDATE_SUMMARY.md)。
 
 `geometry/boundary_identity.py`は保存float64 knot/poleを有理数へ正確に変換し、共通区間のp+1点で差多項式の恒等性を決める。別次数/knot表現の同一曲線と非ゼロ反例を分け、評価数/pole数/整数bit数で資源を制限する。物理的gapや既存chartの採用条件へ自動昇格させない。[契約](BOUNDARY_CURVE_IDENTITY.md)。
