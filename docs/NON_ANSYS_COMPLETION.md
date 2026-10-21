@@ -56,3 +56,12 @@ update_geometry 1.06285 s、prepare_job 0.581605 s、20 ms heartbeatの最大間
 Stage 6の次の実装はimmutable snapshotの数値準備をGUIプロセス外へ移すこと、
 取消/終了時に所有するworker treeだけを非同期に終了すること、編集中の古い結果を採用しないこと。
 従来の同期APIと既存のUndo/JSON/Camera契約を維持する。CAD出力公開と画面更新は別状態として検査する。
+
+## CAD開始/取消と全周の追跡
+
+CAD数値準備、tree取消、close待機を非同期化した。[契約](CAD_ASYNC_PREPARATION.md)。全2,259一意件成功（通常2,206・実CAD53、新規32・既存2,227保持、失敗/error/skip/漏れ/重複0・固定359入力不変）で、一般再計算の同期箇所は継続する。
+実既定11枚の全周Booleanは約60分で未完了となり、診断を停止した。フィレットと5コピーの干渉検査後のsingle/Hub BREPを保存し、同じ形状で並列実行設定を比較する。全周をPASSにしていない。`artifacts/quality-root-interface/full-current-default/profile/incomplete.json`。
+
+全周の単純な直列化も600 s以内では完了せず、診断を停止した。終了コマンドのCP932出力をUTF-8で読んだ診断driver側の記録エラーは別に修正し、実プロセスの終了を確認した。`artifacts/quality-root-interface/cached-serial/watchdog.json`。高速な接合モードは公式の前提条件を満たす証拠なしに採用しない。
+
+全周の追加診断：single−Hubの複製用差分は2solid/37face/遊離face0だが、BREP=Trueに対して自己交差検査=False。元singleはPASS。差分経路を使う高速接合の試行はこの入力検査で拒否し、実際の高速Booleanへは進めていない。元single全体の複製による通常/高速Booleanも300 s以内では未完了。段階logではBoolean開始まで確認し、完了は未確認。根元/pcurveの公差を変えず、次は全周を先に構築してからfilletを作る順序を調べる。診断は私有artifacts内のみで、ユーザー出力へ公開していない。

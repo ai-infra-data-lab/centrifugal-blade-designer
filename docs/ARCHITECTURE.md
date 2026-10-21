@@ -307,3 +307,7 @@ MainWindowはlegacy計算失敗時にlegacy表・曲線・current sourceを解�
 ## CAD根元の内部構築
 
 純数値の`geometry/spline_root_extension.py`が元Span面を保った多項式延長を担当する。OCP backendは共通負Spanで隠れたcapを作り、実Hubへの内包を検証してからBoolean結合する。workerは全翼を先に結合して単一filletを生成し、role履歴と別翼blend距離を検査する。半径標本はrolling/corner/支持面を分離し、前後のSTEP検査で不足や失敗を拒否する。設計値や元JSONへ内部構築量を保存しない。[構成と限界](BURIED_ROOT_CONSTRUCTION.md)。
+
+## CAD数値準備worker
+
+`cad/pending_job.py`が固定入力と準備中/完成requestを管理し、従来`prepare_job`を子processで使用する。Qt controllerは準備とCADを順に起動し、取消helperの終了も待つ。MainWindowはclose保留と公開可否を扱い、カーネル/数値計算を追加しない。canonical snapshot hashは実ファイルと公開前にも照合する。[境界と検証](CAD_ASYNC_PREPARATION.md)。

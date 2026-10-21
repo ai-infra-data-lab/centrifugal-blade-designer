@@ -140,3 +140,45 @@ def test_disk_only_preview_keeps_current_blade_wireframe(window):
     assert {key:box.isChecked() for key,box in view.visibility_controls.items()}==before
     assert not view.cad_controls['root'].isEnabled()
     assert not view.cad_controls['blade'].isEnabled()
+
+
+@pytest.mark.parametrize('reason',[{'cancelled':True},{'failed_phase':'preparation'}])
+def test_cancel_or_numeric_failure_never_publishes_to_existing_case(window,tmp_path,monkeypatch,reason):
+    from blade_designer.gui import main_window
+    from blade_designer.cad import client
+    class FakeWorker(QObject):
+        progress=Signal(str);completed=Signal(object)
+        def __init__(self,job,parent):super().__init__(parent);self.job=job
+        def start(self):pass
+        def cancel(self):pass
+    monkeypatch.setattr(main_window,'CadExportWorker',FakeWorker)
+    def unexpected(*args,**kwargs):raise AssertionError('Cancelled/failed preparation reached publication')
+    monkeypatch.setattr(client,'publish_job',unexpected)
+    case=tmp_path/'case';case.mkdir();(case/'existing.step').write_bytes(b'keep existing verified bytes')
+    w=window;w.cad_editor.scope.setCurrentIndex(w.cad_editor.scope.findData('blade_only'))
+    before=deepcopy(w.get_parameters());w.start_cad_job('mechanical',case)
+    worker=w._cad_worker
+    worker.completed.emit({'overall':'FAIL','artifacts':{},'error':{'message':'cancel/preparation failure'},**reason})
+    assert w._cad_worker is None and w.get_parameters()==before
+    assert sorted(path.name for path in case.iterdir())==['existing.step']
+    assert (case/'existing.step').read_bytes()==b'keep existing verified bytes'
+
+
+def test_close_waits_asynchronously_for_owned_worker_completion(window):
+    from PySide6.QtCore import QTimer
+    import time
+    class PendingWorker(QObject):
+        completed=Signal(object)
+        def __init__(self,parent):super().__init__(parent);self.cancel_calls=0
+        def cancel(self):
+            self.cancel_calls+=1
+            QTimer.singleShot(50,lambda:self.completed.emit({'overall':'FAIL','cancelled':True,'artifacts':{}}))
+    w=window;worker=PendingWorker(w);w._cad_worker=worker
+    app=QApplication.instance();ticks=[];timer=QTimer();timer.timeout.connect(lambda:ticks.append(True));timer.start(10)
+    try:
+        w.close();assert w.isVisible() and w._cad_worker is worker
+        deadline=time.monotonic()+3
+        while w.isVisible() and time.monotonic()<deadline:app.processEvents();time.sleep(.005)
+        assert not w.isVisible() and w._cad_worker is None and worker.cancel_calls==1
+        assert ticks
+    finally:timer.stop()

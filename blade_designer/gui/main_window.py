@@ -67,6 +67,7 @@ class MainWindow(QMainWindow):
         self._cad_worker=None
         self._cad_reference_report=None
         self._cad_closing=False
+        self._cad_close_waiting=False
         self._sections = deepcopy(BladeParameters().sections)
         self._section_index = 0
         self._editing_target = 0
@@ -1394,7 +1395,7 @@ class MainWindow(QMainWindow):
         for preview in previews:preview.sync_cad_snapshot(digest,self._editing_target==0 and not self._editing_meridional)
 
     def start_cad_job(self,action,target=None):
-        from ..cad.client import prepare_job
+        from ..cad.pending_job import queue_job
         if self._cad_worker is not None:return
         if self._editing_meridional or self._editing_target!=0:
             self.cad_editor.status.setText("Select an Impeller blade row for CAD.");return
@@ -1406,7 +1407,7 @@ class MainWindow(QMainWindow):
         if action in ("mechanical","turbogrid","both") and target is None:
             target=QFileDialog.getExistingDirectory(self,"CAD Export Case Directory")
             if not target:return
-        try:job=prepare_job(snapshot,action)
+        try:job=queue_job(snapshot,action)
         except (ValueError,ArithmeticError,OSError) as exc:
             self.cad_editor.status.setText("CAD input error: "+str(exc));return
         worker=CadExportWorker(job,self);self._cad_worker=worker;self.cad_editor.set_busy(True)
@@ -1435,7 +1436,7 @@ class MainWindow(QMainWindow):
         import json
         from ..cad.client import publish_job
         if self._cad_closing:return
-        if target:
+        if target and not report.get('cancelled') and report.get('failed_phase')!='preparation':
             try:report=publish_job(job,Path(target),snapshot)
             except (ValueError,OSError) as exc:report={"overall":"FAIL","error":{"message":str(exc)}}
         self.cad_editor.set_busy(False)
@@ -1455,5 +1456,15 @@ class MainWindow(QMainWindow):
     def closeEvent(self,event):
         self._cad_closing=True
         if self._cad_worker is not None:
-            self._cad_worker.cancel();self._cad_worker.process.waitForFinished(3000)
+            event.ignore()
+            if not self._cad_close_waiting:
+                self._cad_close_waiting=True
+                self._cad_worker.completed.connect(self._close_after_cad)
+            self._cad_worker.cancel()
+            return
         super().closeEvent(event)
+
+    def _close_after_cad(self,report):
+        worker=self._cad_worker;self._cad_worker=None
+        if worker is not None:worker.deleteLater()
+        self.close()

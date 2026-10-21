@@ -20,6 +20,13 @@ def json_text(value):
         default=lambda v:v.value if hasattr(v,"value") else v.item())+"\n"
 
 
+def verified_snapshot_text(job,expected_hash):
+    text=(Path(job)/'geometry_snapshot.json').read_text(encoding='utf-8')
+    actual=hashlib.sha256(json_text(json.loads(text)).encode('utf-8')).hexdigest()
+    if actual!=expected_hash:raise ValueError('CAD snapshot file hash mismatch; no files published.')
+    return text
+
+
 def backend_python():
     path=ROOT/".venv-cad"/("Scripts/python.exe" if sys.platform=="win32" else "bin/python")
     if not path.is_file():raise BackendUnavailableError("CAD backend is unavailable. Create .venv-cad and install requirements-cad.txt; coordinate editing is still available.")
@@ -100,9 +107,14 @@ def publish_job(job,target,project):
     job=Path(job)
     request=json.loads((job/"request.json").read_text(encoding="utf-8"))
     report=json.loads((job/"result.json").read_text(encoding="utf-8"))
+    if (request.get('preparation_pending') is True or report.get('cancelled') or
+            report.get('failed_phase')=='preparation' or
+            report.get('error',{}).get('stage')=='NUMERIC PREPARATION'):
+        raise CadExportError('CAD numeric preparation is incomplete, failed or cancelled; no files published.')
     expected=hashlib.sha256(json_text({"schema_version":"0.4",**asdict(project)}).encode("utf-8")).hexdigest()
     if expected!=request["parameter_snapshot_hash"] or report.get("parameter_snapshot_hash",expected)!=expected:
         raise ValueError("CAD snapshot hash mismatch; no files published.")
+    verified_snapshot_text(job,expected)
     try:
         with staged_case(target) as stage:
             report=_publish_job_into_case(job,stage,project)
@@ -130,6 +142,7 @@ def _publish_job_into_case(job,target,project):
     request=json.loads((job/"request.json").read_text(encoding="utf-8"));report=json.loads((job/"result.json").read_text(encoding="utf-8"))
     expected=hashlib.sha256(json_text({"schema_version":"0.4",**asdict(project)}).encode("utf-8")).hexdigest()
     if expected!=request["parameter_snapshot_hash"] or report.get("parameter_snapshot_hash",expected)!=expected:raise ValueError("CAD snapshot hash mismatch; no files published.")
+    snapshot_text=verified_snapshot_text(job,expected)
     requested=[];action=request["action"];settings=request["settings"]
     if action in ("mechanical","both") and settings["mechanical_enabled"]:requested.append("mechanical")
     if action in ("turbogrid","both") and settings["turbogrid_enabled"]:requested.extend(("turbogrid_profile_points","turbogrid_cad"))
@@ -158,8 +171,8 @@ def _publish_job_into_case(job,target,project):
     if report.get("artifacts",{}).get("turbogrid_cad",{}).get("status")=="CONVERSION_REQUIRED":
         (turbo_directory/"cad"/"cad_import_instructions.md").write_text(TURBOGRID_CAD_INSTRUCTIONS,encoding="utf-8")
     parameters=target/"parameters";parameters.mkdir(exist_ok=True)
-    (parameters/("geometry_snapshot_"+expected[:16]+".json")).write_text((job/"geometry_snapshot.json").read_text(encoding="utf-8"),encoding="utf-8")
-    if report["overall"]!="FAIL":(parameters/"geometry_snapshot.json").write_text((job/"geometry_snapshot.json").read_text(encoding="utf-8"),encoding="utf-8")
+    (parameters/("geometry_snapshot_"+expected[:16]+".json")).write_text(snapshot_text,encoding="utf-8")
+    if report["overall"]!="FAIL":(parameters/"geometry_snapshot.json").write_text(snapshot_text,encoding="utf-8")
     validation=target/"validation";validation.mkdir(exist_ok=True)
     for name,artifact in report.get("artifacts",{}).items():
         if artifact.get("status") in ("PASS","CONVERSION_REQUIRED") and artifact.get("surface_roles"):
