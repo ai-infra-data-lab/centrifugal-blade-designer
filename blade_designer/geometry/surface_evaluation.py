@@ -7,6 +7,7 @@ Coordinates are segment-local in [0, 1], not closed-contour point indices.
 from dataclasses import dataclass
 import numpy as np
 from scipy.interpolate import BSpline, make_interp_spline
+from scipy.sparse.linalg import splu
 
 
 def _coordinates(values, label):
@@ -100,8 +101,41 @@ class SplineSurface:
         return BSpline(self.along.t, coefficients, self.along.k, axis=1)(coordinates)
 
 
+def _fixed_endpoint_interpolant(template, coordinates, samples, tangents):
+    """Eliminate endpoint constraints before solving interior interpolation.
+
+    Clamped endpoint poles are the specified data, rather than approximate
+    unknowns in a combined solve. Knot vector, degree and data stay unchanged.
+    Derivative conditions, when present, fix the neighboring poles analytically.
+    This constructs the interpolant; it does not weld two fitted surfaces.
+    """
+    degree=template.k;knots=template.t
+    if not (np.all(knots[:degree+1]==coordinates[0]) and
+            np.all(knots[-degree-1:]==coordinates[-1])):
+        raise ValueError('Endpoint-constrained interpolation requires clamped knots.')
+    values=np.moveaxis(samples,template.axis,0)
+    coefficients=np.zeros_like(template.c)
+    coefficients[0]=values[0];coefficients[-1]=values[-1]
+    start,stop=1,len(coefficients)-1
+    if tangents is not None:
+        coefficients[1]=values[0]+tangents[0]*((knots[degree+1]-knots[1])/degree)
+        coefficients[-2]=values[-1]-tangents[1]*((knots[-2]-knots[-degree-2])/degree)
+        start+=1;stop-=1
+    unknown=np.arange(start,stop)
+    if len(unknown):
+        basis=BSpline.design_matrix(coordinates[1:-1],knots,degree).tocsr()
+        fixed=np.r_[np.arange(start),np.arange(stop,len(coefficients))]
+        rhs=values[1:-1].reshape(len(coordinates)-2,-1)-basis[:,fixed]@coefficients[fixed].reshape(len(fixed),-1)
+        system=basis[:,unknown].tocsc()
+        if system.shape!=(len(unknown),len(unknown)):
+            raise ValueError('Endpoint interpolation constraints are not square.')
+        coefficients[unknown]=splu(system,permc_spec='NATURAL').solve(rhs).reshape(coefficients[unknown].shape)
+    if not np.isfinite(coefficients).all():raise ValueError('Non-finite endpoint interpolation coefficients.')
+    return BSpline.construct_fast(knots.copy(),coefficients,degree,template.extrapolate,template.axis)
+
+
 def fit_surface_spline(rows, count, parameters=None, spans=None, tangents=None):
-    """Same knot construction, sampling and coefficient order as legacy CAD."""
+    """Legacy knots/data/tangents with endpoint constraints eliminated exactly."""
     rows, parameters, spans = validate_surface_rows(rows, parameters, spans)
     if isinstance(count, bool) or not isinstance(count, (int, np.integer)) or count < 2:
         raise ValueError("Surface grid count must be an integer >= 2.")
@@ -113,6 +147,7 @@ def fit_surface_spline(rows, count, parameters=None, spans=None, tangents=None):
             raise ValueError("Surface end tangents must have shape (2, rows, 3).")
     along = make_interp_spline(xi, samples, k=min(3, count-1), axis=1,
                               bc_type=None if tangents is None else ([(1, tangents[0])], [(1, tangents[1])]))
+    along = _fixed_endpoint_interpolant(along,xi,samples,tangents)
     across = make_interp_spline(spans, along.c, k=min(3, len(rows)-1), axis=1)
     return SplineSurface(along, across)
 
