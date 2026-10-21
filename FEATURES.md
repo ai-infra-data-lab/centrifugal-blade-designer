@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+根元CADの修正：元Span面を保ったHub内部延長とcap内包検査、主翼/Splitter一括fillet、rolling/corner/支持面のrole分離、STEP前後の半径不一致拒否、別翼blend接触拒否を追加。明示R0.1 mmでの現既定Blade+Hubを実CADで検査し、全回帰2,227一意件成功（通常2,174・実CAD53、新規35、既存2,192保持、失敗/error/skip/漏れ/重複0・固定356入力不変）。R8・現既定全周/周期・全面STEP精度・ANSYS成立の保証とは区別する。[構成・検証](docs/BURIED_ROOT_CONSTRUCTION.md)。
+
 共有境界の端点補間：同じsample/次数/knot/接線条件で端点を固定したcollocation方程式を解くよう修正。既定16継ぎ目・216候補の境界が厳密一致し、入力にあるgapは維持。全2,192一意件成功（新規13、通常2,147・実CAD45、失敗/error/skip/漏れ/重複0・固定352入力不変）、関連63件/Ruff成功。設計値/JSON/Profile Pointsは保持。[契約・検証](docs/SURFACE_ENDPOINT_CONSTRAINTS.md)。ANSYS以外の継続作業は[作業記録](docs/NON_ANSYS_COMPLETION.md)で追跡。
 
 Stage 3B-3oの候補未判定理由：集約APIで既存の投影方式を明示選択可能にし、境界恒等性・gap・chart root/union/停止理由を別軸で集計。既定averageの前段reportを維持。同じ216候補でbalancedは局所条件成立86組（average38組）、係数差130組は未判定を維持。全2,179一意件成功（新規13、通常2,134・実CAD45、失敗/error/skip/漏れ/重複0・固定351入力不変）、関連87件/Ruff成功。元領域/係数/閾値/境界一致条件を変えず、自動切替や微小gapの合格化は行わない。[契約・検証](docs/SEAM_CANDIDATE_SUMMARY.md)。

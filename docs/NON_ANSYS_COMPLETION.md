@@ -9,7 +9,7 @@
 | 共有境界spline | 生成契約の修正・全回帰完了 | 異なる接線/密度でも厳密一致、実入力gap保持、旧数学的補間との差を測定。全2,192一意件成功、既存2,179保持、固定352入力不変。全面誤差/丸め保証は別課題 |
 | 元面の局所/非局所接触 | 部分対応 | 境界一致後の残候補を分類。未接続境界・周期コピー・包含を含む被覆とnegative fixture。資源上限/未判定を保持 |
 | 全面誤差・対応 | 部分対応 | 表示/基準面/CAD/trimの物理対応、位置/法線/Jの予算と丸めの保証範囲を区別 |
-| 実モデル根元fillet | 未成立を追跡 | 根元位相を修復し、形状に合う明示Rで実カーネル成功とSTEP前後の半径・干渉を確認。R8必須ではない |
+| 実モデル根元fillet | 内部構築・role/半径ガードを修正、全回帰2,227一意件成功 | 根元位相を修復し、形状に合う明示Rで実カーネル成功とSTEP前後の半径・干渉を確認。R8必須ではない |
 | 最終CAD/STEP精度 | 部分対応 | 体積/bboxだけでなく共通境界の双方向偏差・法線・role照合。局所変形negativeで検出 |
 | GUI応答/取消 | 部分対応 | native応答時間・snapshot worker・世代管理・取消と終了・部分公開防止 |
 | 履歴/別画面同期 | 部分対応 | 全設計値の確定/Undo/Redo/JSON/Editor同期、Camera保持、設計/表示設定の責務分離 |
@@ -38,3 +38,21 @@ ANSYSなしで実行できるため対象に含む。外部solver、実機寸法
 
 作業単位ごとに関連試験・必要な全回帰・Ruff・差分確認後、アプリ内の明示pathだけをcommitする。
 pushは別の明示指示があるときだけ実施する。Hypothesis/uvは追加しない。
+
+## 根元修正とnative応答の追加調査
+
+旧根元診断から製品修正へ進め、内部shellの削除は採用せず、元面の負Span多項式延長と
+cap内包検証、一体化後の単一filletを実装した。支持面をfilletとして数えていたrole履歴も修正する。
+詳細・失敗試行・検証範囲は[BURIED_ROOT_CONSTRUCTION.md](BURIED_ROOT_CONSTRUCTION.md)へ分離した。
+Blade Onlyと流体CADの同時要求時も構築用延長をMechanical Blade Onlyへ混ぜない試験を追加。
+最終ソースでの全回帰2,227一意件成功（通常2,174・実CAD53、新規35、既存2,192保持、失敗/error/skip/漏れ/重複0・固定356入力不変）であり、今回全項目完了とはしない。
+
+Windows native Qtで専用の一時ウィンドウを表示し、Impellerをプログラム選択して計測した。
+update_geometry 1.06285 s、prepare_job 0.581605 s、20 ms heartbeatの最大間隔1.07801 s。
+217回のtick中100 ms超が4回あった。原本は不変。画面画像も確認したが、人のマウス操作検証ではない。
+`artifacts/quality-root-interface/native-gui-impeller/result.json`と`window.png`に記録。
+同期処理による停止は残課題として維持し、native表示ができたことだけで応答性PASSとはしない。
+
+Stage 6の次の実装はimmutable snapshotの数値準備をGUIプロセス外へ移すこと、
+取消/終了時に所有するworker treeだけを非同期に終了すること、編集中の古い結果を採用しないこと。
+従来の同期APIと既存のUndo/JSON/Camera契約を維持する。CAD出力公開と画面更新は別状態として検査する。

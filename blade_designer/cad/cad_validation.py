@@ -5,6 +5,27 @@ import numpy as np
 from .errors import CadExportError
 
 
+def require_fillet_samples(measurement):
+    """Reject missing/failed/non-finite rolling-radius evidence before publish.
+
+    Uses the existing sampled principal-radius tolerance. Corner transition
+    curvature and a global exact-radius proof are separate reported questions.
+    """
+    from numbers import Real
+    radius=measurement.get('requested_radius_mm') if isinstance(measurement,dict) else None
+    if not isinstance(radius,Real) or isinstance(radius,bool) or not np.isfinite(radius) or radius<=0:
+        raise CadExportError('Invalid requested radius in root fillet measurements.')
+    faces=measurement.get('faces')
+    if not isinstance(faces,list) or not faces:raise CadExportError('Missing rolling fillet radius samples.')
+    tolerance=max(.01,radius*.005)
+    for face in faces:
+        values=face.get('sampled_principal_radii_mm') if isinstance(face,dict) else None
+        if (not isinstance(values,list) or not values or face.get('status')!='PASS' or
+                any(not isinstance(v,Real) or isinstance(v,bool) or not np.isfinite(v) or
+                    abs(v-radius)>tolerance for v in values)):
+            raise CadExportError('Rolling fillet radius samples failed or are incomplete; output was not accepted.')
+
+
 def step_roundtrip(backend,model,path,tolerance_mm):
     path=Path(path)
     if not path.is_file() or path.stat().st_size==0:raise CadExportError("STEP file is missing or empty.")
@@ -29,26 +50,82 @@ def step_roundtrip(backend,model,path,tolerance_mm):
         "bbox_tolerance_basis":"Measured source + imported edge tolerances, bounded by requested CAD tolerance; precision floor is max(1e-7, CAD tolerance * .01)."},imported
 
 
-def fillet_samples(model,radius_mm):
+def trimmed_face_parameters(face,fractions=(.25,.5,.75),max_points=9):
+    """Find classified points even on narrow trimmed faces; never relax trims.
+
+    Mesh fallback works on a topology copy and every UV candidate is checked
+    against the original exact trim. No accepted candidate means no evidence.
+    """
+    if type(max_points) is not int or max_points<1:raise ValueError('max_points must be positive.')
+    fractions=tuple(fractions)
+    if not fractions or not np.isfinite(fractions).all() or any(not 0<=x<=1 for x in fractions):
+        raise ValueError('Sampling fractions must be finite and within [0,1].')
     from OCP.BRep import BRep_Tool
     from OCP.BRepTools import BRepTools
-    from OCP.GeomLProp import GeomLProp_SLProps
     from OCP.BRepClass import BRepClass_FaceClassifier
     from OCP.TopAbs import TopAbs_IN,TopAbs_ON
     from OCP.TopoDS import TopoDS
     from OCP.gp import gp_Pnt2d
+    from OCP.BRepGProp import BRepGProp
+    from OCP.GProp import GProp_GProps
+    from OCP.GeomAPI import GeomAPI_ProjectPointOnSurf
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_Copy
+    from OCP.BRepMesh import BRepMesh_IncrementalMesh
+    from OCP.TopLoc import TopLoc_Location
+    face=TopoDS.Face(face);u0,u1,v0,v1=BRepTools.UVBounds_s(face);result=[]
+    def accept(u,v):
+        if (np.isfinite([u,v]).all() and
+                BRepClass_FaceClassifier(face,gp_Pnt2d(float(u),float(v)),1e-7).State() in (TopAbs_IN,TopAbs_ON)):
+            result.append((float(u),float(v)))
+    for a in fractions:
+        for b in fractions:
+            accept(u0+a*(u1-u0),v0+b*(v1-v0))
+            if len(result)>=max_points:return result
+    if result:return result
+    surface=BRep_Tool.Surface_s(face)
+    try:
+        properties=GProp_GProps();BRepGProp.SurfaceProperties_s(face,properties)
+        projection=GeomAPI_ProjectPointOnSurf(properties.CentreOfMass(),surface)
+        for index in range(1,projection.NbPoints()+1):
+            accept(*projection.Parameters(index))
+            if len(result)>=max_points:break
+    except Exception:
+        # A failed auxiliary projection is not evidence; bounded triangulation
+        # below must still produce a point accepted by the original trim.
+        pass
+    if result:return result
+    copied=TopoDS.Face(BRepBuilderAPI_Copy(face,False,False).Shape())
+    for deflection in (.01,.0001,.000001):
+        BRepTools.Clean_s(copied)
+        mesher=BRepMesh_IncrementalMesh(copied,deflection,False,.25,False)
+        if not mesher.IsDone():continue
+        mesh=BRep_Tool.Triangulation_s(copied,TopLoc_Location())
+        if mesh is None or not mesh.HasUVNodes():continue
+        stride=max(1,int(np.ceil(mesh.NbTriangles()/16384)))
+        for index in range(1,mesh.NbTriangles()+1,stride):
+            nodes=[mesh.UVNode(i) for i in mesh.Triangle(index).Get()]
+            accept(sum(p.X() for p in nodes)/3,sum(p.Y() for p in nodes)/3)
+            if len(result)>=max_points:return result
+        if result:return result
+    return result
+
+
+def fillet_samples(model,radius_mm):
+    from OCP.BRep import BRep_Tool
+    from OCP.GeomLProp import GeomLProp_SLProps
+    from OCP.TopoDS import TopoDS
     result=[]
-    for face in model.labels.get("HUB_FILLET",[]):
-        face=TopoDS.Face(face);surface=BRep_Tool.Surface_s(face);u0,u1,v0,v1=BRepTools.UVBounds_s(face)
+    for face in model.labels.get('HUB_FILLET_ROLLING',model.labels.get("HUB_FILLET",[])):
+        face=TopoDS.Face(face);surface=BRep_Tool.Surface_s(face)
         measurements=[]
-        for a in (.25,.5,.75):
-            for b in (.25,.5,.75):
-                u=u0+a*(u1-u0);v=v0+b*(v1-v0)
-                if BRepClass_FaceClassifier(face,gp_Pnt2d(u,v),1e-7).State() not in (TopAbs_IN,TopAbs_ON):continue
-                props=GeomLProp_SLProps(surface,u,v,2,1e-8)
-                if not props.IsCurvatureDefined():continue
-                values=[abs(1/k) for k in (props.MaxCurvature(),props.MinCurvature()) if abs(k)>1e-10]
-                if values:measurements.append(min(values,key=lambda value:abs(value-radius_mm)))
+        for u,v in trimmed_face_parameters(face):
+            props=GeomLProp_SLProps(surface,u,v,2,1e-8)
+            if not props.IsCurvatureDefined():continue
+            values=[abs(1/k) for k in (props.MaxCurvature(),props.MinCurvature()) if abs(k)>1e-10]
+            if values:measurements.append(min(values,key=lambda value:abs(value-radius_mm)))
         result.append({"sampled_principal_radii_mm":measurements,"status":"PASS" if measurements and all(abs(r-radius_mm)<=max(.01,radius_mm*.005) for r in measurements) else "WARNING"})
     return {"requested_radius_mm":radius_mm,"faces":result,"global_exact_radius":"NOT_TESTED",
+        "measurement_scope":"kernel edge-generated rolling faces; corner transitions have variable principal curvatures",
+        "corner_faces":len(model.labels.get('HUB_FILLET_CORNER',[])),"corner_radius_check":"NOT_APPLICABLE",
+        "corner_continuity":"NOT_TESTED",
         "note":"Principal curvature samples supplement kernel fillet success; they do not prove the radius at every point."}

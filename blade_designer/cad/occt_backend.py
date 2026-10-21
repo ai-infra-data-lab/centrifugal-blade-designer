@@ -42,11 +42,14 @@ class OcctBackend:
     name="Open CASCADE / cadquery-ocp"
     version=version("cadquery-ocp")
 
-    def create_surface(self,rows,count,parameters=None,spans=None,tangents=None):
+    def create_surface(self,rows,count,parameters=None,spans=None,tangents=None,root_span_fraction=0.):
         from ..geometry.surface_evaluation import fit_surface_spline
         from OCP.Geom import Geom_BSplineSurface
         from OCP.collections import Array1_double,Array1_int
         numeric=fit_surface_spline(rows,count,parameters or None,spans,tangents)
+        if root_span_fraction:
+            from ..geometry.spline_root_extension import extend_spline_root
+            numeric=extend_spline_root(numeric,root_span_fraction)
         along,across=numeric.along,numeric.across
         # scipy coefficients are (span pole, streamwise pole, xyz).
         poles=across.c
@@ -61,8 +64,22 @@ class OcctBackend:
         uk,um=knots(across.t);vk,vm=knots(along.t)
         return Geom_BSplineSurface(grid,uk,vk,um,vm,across.k,along.k)
 
-    def create_blade_solid(self,sections,tolerance_mm):
+    def create_blade_solid(self,sections,tolerance_mm,root_extension_mm=0.):
         surfaces={};faces={};deviations={};counts={}
+        root_fraction=0.
+        if root_extension_mm:
+            lengths=[]
+            for role in ('le','ps','te','ss'):
+                endpoints=[]
+                for section in (sections[0],sections[-1]):
+                    row=np.asarray(section[role]);xi=section.get(role+'_xi',np.linspace(0,1,len(row)))
+                    endpoints.append(np.column_stack([np.interp(np.linspace(0,1,65),xi,row[:,i]) for i in range(3)]))
+                lengths.extend(np.linalg.norm(endpoints[1]-endpoints[0],axis=1))
+            minimum=float(np.min(lengths))
+            if not np.isfinite(minimum) or minimum<=0:raise SurfaceConstructionError('Root continuation needs separated Hub/Tip curves.')
+            root_fraction=float(root_extension_mm)/minimum
+            if not np.isfinite(root_fraction) or not 0<root_fraction<=.1:
+                raise SurfaceConstructionError('Buried root continuation exceeds 10% of the reference Span.')
         tangents=self._join_tangents(sections)
         for name in ("le","ps","te","ss"):
             rows=[np.asarray(section[name],dtype=float) for section in sections]
@@ -73,7 +90,7 @@ class OcctBackend:
             # Adaptive density, checked at corresponding parameters of every master point.
             for count in (33,65,129,257,513):
                 try:
-                    surface=self.create_surface(rows,count,parameters,spans,tangents.get(name))
+                    surface=self.create_surface(rows,count,parameters,spans,tangents.get(name),root_fraction)
                     distance=0.
                     u0,u1,v0,v1=surface.Bounds()
                     for index,row in enumerate(rows):
@@ -114,7 +131,9 @@ class OcctBackend:
         if not BRep_Tool.IsClosed_s(shell):raise InvalidSolidError("Blade shell is not watertight.")
         solid=ShapeFix_Solid().SolidFromShell(shell)
         result=CadShape(solid,{"BLADE_"+name.upper():[sewing.Modified(face) if sewing.IsModified(face) else face] for name,face in faces.items()},
-            {"master_deviation_mm":deviations,"surface_grid_counts":counts,"cad_surface_tolerance_mm":tolerance_mm,"cap_methods":cap_methods})
+            {"master_deviation_mm":deviations,"surface_grid_counts":counts,"cad_surface_tolerance_mm":tolerance_mm,"cap_methods":cap_methods,
+             "root_extension_reference_mm":float(root_extension_mm),"root_extension_span_fraction":root_fraction,
+             "original_span_domain":[0.,1.],"construction_span_domain":[-root_fraction,1.]})
         result.labels["BLADE_HUB_CAP"]=[sewing.Modified(caps[0]) if sewing.IsModified(caps[0]) else caps[0]]
         result.labels["BLADE_TIP_CAP"]=[sewing.Modified(caps[1]) if sewing.IsModified(caps[1]) else caps[1]]
         metrics=self.validate_solid(result)
@@ -197,18 +216,30 @@ class OcctBackend:
 
     def boolean_union(self,blade,hub):
         try:
+            if blade.metrics.get('root_extension_span_fraction',0)>0:
+                from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
+                for cap in blade.labels.get('BLADE_HUB_CAP',[]):
+                    outside=BRepAlgoAPI_Cut(cap,hub.shape);outside.Build()
+                    if not outside.IsDone() or shapes(outside.Shape(),TopAbs_FACE):
+                        raise BooleanUnionError('Buried root construction cap is not wholly inside the Hub solid.')
             fuse=BRepAlgoAPI_Fuse(hub.shape,blade.shape);fuse.Build()
             if not fuse.IsDone():raise BooleanUnionError("OCCT fuse failed.")
             labels=self._history_labels(fuse,{key:hub.labels.get(key,[])+blade.labels.get(key,[]) for key in hub.labels.keys()|blade.labels.keys()})
             model=CadShape(fuse.Shape(),labels)
             metrics=self.validate_solid(model)
             if metrics["solid_count"]!=1:raise BooleanUnionError("Blade and disk do not form one connected solid.")
+            if blade.metrics.get('root_extension_span_fraction',0)>0:
+                model.metrics.update(root_extension_reference_mm=blade.metrics['root_extension_reference_mm'],
+                    root_extension_span_fraction=blade.metrics['root_extension_span_fraction'],root_cap_inside_hub=True)
             return model
         except BooleanUnionError:raise
         except Exception as exc:raise BooleanUnionError(str(exc)) from exc
 
     def root_edges(self,model):
-        face_edges=[(face,shapes(face,TopAbs_EDGE)) for face in shapes(model.shape,TopAbs_FACE)]
+        unique_faces=[]
+        for face in shapes(model.shape,TopAbs_FACE):
+            if not any(face.IsSame(other) for other in unique_faces):unique_faces.append(face)
+        face_edges=[(face,shapes(face,TopAbs_EDGE)) for face in unique_faces]
         tagged=lambda face,label:any(face.IsSame(other) for other in model.labels.get(label,[]))
         roots=[];roles=set();model.root_edge_tags=[]
         for edge in shapes(model.shape,TopAbs_EDGE):
@@ -218,32 +249,123 @@ class OcctBackend:
             names={name for name in ("BLADE_PS","BLADE_SS","BLADE_LE","BLADE_TE") if any(tagged(face,name) for face in adjacent)}
             if len(names)>1:raise FilletGenerationError("Ambiguous blade/root face adjacency; no arbitrary edge selection.")
             if names:
-                roots.append(edge);roles.update(names);model.root_edge_tags.append((edge,"HUB_FILLET_"+next(iter(names))[6:]))
+                if len(adjacent)!=2:
+                    raise FilletGenerationError(f'Root edge has {len(adjacent)} distinct adjacent faces; expected two.')
+                groups={name[len('BLADE_GROUP_'):] for name in model.labels if name.startswith('BLADE_GROUP_')
+                        and any(tagged(face,name) for face in adjacent)}
+                if not groups:groups={'main'}
+                if len(groups)!=1:raise FilletGenerationError('Ambiguous blade group at a root edge.')
+                roots.append(edge);roles.update(names)
+                model.root_edge_tags.append((edge,"HUB_FILLET_"+next(iter(names))[6:],next(iter(groups))))
         if roles!={"BLADE_PS","BLADE_SS","BLADE_LE","BLADE_TE"}:
             raise FilletGenerationError("Root edge identification incomplete: "+str(sorted(roles)))
         return roots
 
     def apply_fillet(self,model,root_edges,radius_mm):
         from OCP.BRepFilletAPI import BRepFilletAPI_MakeFillet
+        from OCP.TopLoc import TopLoc_Location
         if not root_edges or not np.isfinite(radius_mm) or radius_mm<=0:raise FilletGenerationError("A positive radius and unambiguous root edges are required.")
         try:
             builder=BRepFilletAPI_MakeFillet(model.shape)
             for edge in root_edges:builder.Add(float(radius_mm),TopoDS.Edge(edge))
             builder.Build()
             if not builder.IsDone():raise FilletGenerationError(f"OCCT root fillet R{radius_mm:g} failed; radius was not reduced.")
-            fillet_faces=[]
-            for edge in root_edges:
-                for face in builder.Generated(edge):
-                    if face.ShapeType()==TopAbs_FACE and not any(face.IsSame(old) for old in fillet_faces):fillet_faces.append(face)
+            labels=self._history_labels(builder,model.labels)
+            supports=[face for group in labels.values() for face in group]
+            support_bindings=[]
+            for face in shapes(model.shape,TopAbs_FACE):
+                location=TopLoc_Location();surface=BRep_Tool.Surface_s(TopoDS.Face(face),location)
+                support_bindings.append((surface,location))
+            fillet_faces=[];excluded=[]
+            for index in range(1,builder.NbSurfaces()+1):
+                for face in builder.NewFaces(index):
+                    if face.ShapeType()!=TopAbs_FACE:continue
+                    location=TopLoc_Location();surface=BRep_Tool.Surface_s(TopoDS.Face(face),location)
+                    inherited_surface=any(surface is old_surface and location.IsEqual(old_location)
+                        for old_surface,old_location in support_bindings)
+                    if inherited_surface or any(face.IsSame(old) for old in supports):
+                        if not any(face.IsSame(old) for old in excluded):excluded.append(face)
+                    elif not any(face.IsSame(old) for old in fillet_faces):fillet_faces.append(face)
             if not fillet_faces:raise FilletGenerationError("Kernel returned no generated root fillet faces.")
-            labels=self._history_labels(builder,model.labels);labels["HUB_FILLET"]=fillet_faces
-            for edge,role in model.root_edge_tags:
-                labels.setdefault(role,[]).extend(face for face in builder.Generated(edge) if face.ShapeType()==TopAbs_FACE)
-            result=CadShape(builder.Shape(),labels,{"fillet_radius_mm":float(radius_mm),"root_edge_count":len(root_edges),"fillet_face_count":len(fillet_faces)})
+            labels["HUB_FILLET"]=fillet_faces
+            rolling=[];group_faces={};group_rolling={};group_roots={}
+            # The generic CAD API also fillets primitives without blade tags.
+            # Preserve that API while keeping classified blade roots explicit.
+            tags=model.root_edge_tags or [(edge,'HUB_FILLET_GENERIC','main') for edge in root_edges]
+            for edge,role,group in tags:
+                group_faces.setdefault(group,[]);group_rolling.setdefault(group,[])
+                group_roots[group]=group_roots.get(group,0)+1
+                for face in builder.Generated(edge):
+                    if face.ShapeType()==TopAbs_FACE and any(face.IsSame(new) for new in fillet_faces):
+                        labels.setdefault(role,[]).append(face)
+                        if not any(face.IsSame(old) for old in rolling):rolling.append(face)
+                        if not any(face.IsSame(old) for old in group_faces[group]):group_faces[group].append(face)
+                        if not any(face.IsSame(old) for old in group_rolling[group]):group_rolling[group].append(face)
+                from OCP.TopAbs import TopAbs_VERTEX
+                for vertex in shapes(edge,TopAbs_VERTEX):
+                    for face in builder.Generated(vertex):
+                        if face.ShapeType()==TopAbs_FACE and any(face.IsSame(new) for new in fillet_faces):
+                            if not any(face.IsSame(old) for old in group_faces[group]):group_faces[group].append(face)
+            if not rolling:raise FilletGenerationError('No kernel edge-generated rolling fillet faces were identified.')
+            labels['HUB_FILLET_ROLLING']=rolling
+            labels['HUB_FILLET_CORNER']=[face for face in fillet_faces if not any(face.IsSame(old) for old in rolling)]
+            for face in fillet_faces:
+                owners=[group for group,items in group_faces.items() if any(face.IsSame(old) for old in items)]
+                if len(owners)!=1:raise FilletGenerationError('Root blend has ambiguous or missing blade-group provenance.')
+            groups={}
+            for group,items in group_faces.items():
+                labels['HUB_FILLET_GROUP_'+group]=items
+                labels['HUB_FILLET_ROLLING_GROUP_'+group]=group_rolling[group]
+                corners=[face for face in items if not any(face.IsSame(old) for old in group_rolling[group])]
+                labels['HUB_FILLET_CORNER_GROUP_'+group]=corners
+                groups[group]={'root_edge_count':group_roots[group],'fillet_face_count':len(items),
+                    'rolling_fillet_face_count':len(group_rolling[group]),'corner_fillet_face_count':len(corners)}
+                original_bindings=[]
+                for old in model.labels.get('BLADE_GROUP_'+group,[]):
+                    location=TopLoc_Location();surface=BRep_Tool.Surface_s(TopoDS.Face(old),location)
+                    original_bindings.append((surface,location))
+                if original_bindings:
+                    retained=[]
+                    for face in labels.get('BLADE_GROUP_'+group,[]):
+                        location=TopLoc_Location();surface=BRep_Tool.Surface_s(TopoDS.Face(face),location)
+                        if any(surface is old and location.IsEqual(old_location) for old,old_location in original_bindings):retained.append(face)
+                    if not retained:raise FilletGenerationError('No original side surface remains for blade group '+group)
+                    labels['BLADE_GROUP_'+group]=retained
+            result=CadShape(builder.Shape(),labels,{**model.metrics,"fillet_radius_mm":float(radius_mm),"root_edge_count":len(root_edges),"fillet_face_count":len(fillet_faces),
+                "fillet_role_basis":"kernel_new_surfaces_excluding_support_history_and_geometry","excluded_support_faces":len(excluded),
+                "rolling_fillet_face_count":len(rolling),"corner_fillet_face_count":len(labels['HUB_FILLET_CORNER']),
+                "fillet_groups":groups})
             self.validate_solid(result)
             return result
         except FilletGenerationError:raise
         except Exception as exc:raise FilletGenerationError(f"R{radius_mm:g}: {exc}") from exc
+
+    def check_root_group_separation(self,model,tolerance):
+        """Keep root blends clear of other rows' blends and original side faces."""
+        from OCP.BRep import BRep_Builder
+        from OCP.TopoDS import TopoDS_Compound
+        from OCP.BRepExtrema import BRepExtrema_DistShapeShape
+        groups=sorted(model.metrics.get('fillet_groups',{}));checks=[]
+        def compound(faces):
+            result=TopoDS_Compound();builder=BRep_Builder();builder.MakeCompound(result)
+            for face in faces:builder.Add(result,face)
+            return result
+        for i,first in enumerate(groups):
+            blend=model.labels.get('HUB_FILLET_GROUP_'+first,[])
+            for second in groups[i+1:]:
+                comparisons=[('blend_to_blend',blend,model.labels.get('HUB_FILLET_GROUP_'+second,[])),
+                    ('first_blend_to_second_side',blend,model.labels.get('BLADE_GROUP_'+second,[])),
+                    ('second_blend_to_first_side',model.labels.get('HUB_FILLET_GROUP_'+second,[]),model.labels.get('BLADE_GROUP_'+first,[]))]
+                for kind,a,b in comparisons:
+                    if not a or not b:raise InvalidSolidError('Missing root blend/side geometry for group separation.')
+                    distance=BRepExtrema_DistShapeShape(compound(a),compound(b))
+                    if not distance.IsDone():raise InvalidSolidError('Root group distance evaluation failed.')
+                    value=distance.Value()
+                    if not np.isfinite(value) or value<=tolerance:
+                        raise InvalidSolidError('Root blends touch another blade group; radius was not reduced.')
+                    checks.append({'pair':[first,second],'kind':kind,'surface_distance_mm':value,
+                        'required_mm':float(tolerance),'status':'PASS'})
+        return checks
 
     def rotate(self,model,angle_rad):
         transform=gp_Trsf();transform.SetRotation(gp_Ax1(gp_Pnt(0,0,0),gp_Dir(0,0,1)),float(angle_rad))
@@ -263,20 +385,32 @@ class OcctBackend:
         if not common.IsDone():raise InvalidSolidError("Blade/splitter interference calculation failed.")
         props=GProp_GProps();BRepGProp.VolumeProperties_s(common.Shape(),props,1e-9,True,False)
         overlap=props.Mass()
+        if not np.isfinite(overlap) or overlap<0:raise InvalidSolidError('Invalid blade/splitter overlap volume.')
         if overlap>max(tolerance**3,1e-8):raise InvalidSolidError(f"Blade/splitter interference: overlap {overlap:g} mm3.")
         return overlap
 
     def check_interference(self,feature,blade_count,tolerance):
         if type(blade_count) is not int or blade_count<1:raise InvalidSolidError("Invalid blade count.")
-        maximum=0.
+        maximum=0.;separated=0;exact=0
+        bounds=Bnd_Box();BRepBndLib.AddOptimal_s(feature.shape,bounds,False,True)
+        if bounds.IsVoid():raise InvalidSolidError('Cannot check interference of an empty blade feature.')
+        bounds.Enlarge(tolerance)
         for i in range(1,blade_count//2+1):
             other=self.rotate(feature,2*np.pi*i/blade_count)
+            other_bounds=Bnd_Box();BRepBndLib.AddOptimal_s(other.shape,other_bounds,False,True)
+            if other_bounds.IsVoid():raise InvalidSolidError('Empty periodic blade copy.')
+            other_bounds.Enlarge(tolerance)
+            if bounds.IsOut(other_bounds):separated+=1;continue
+            exact+=1
             common=BRepAlgoAPI_Common(feature.shape,other.shape);common.Build()
             if not common.IsDone():raise InvalidSolidError("Inter-blade interference calculation failed.")
             props=GProp_GProps();BRepGProp.VolumeProperties_s(common.Shape(),props,1e-9,True,False)
+            if not np.isfinite(props.Mass()) or props.Mass()<0:raise InvalidSolidError('Invalid inter-blade overlap volume.')
             maximum=max(maximum,props.Mass())
             if props.Mass()>max(tolerance**3,1e-8):raise InvalidSolidError(f"Inter-blade interference at pitch {i}: overlap {props.Mass():g} mm3.")
-        return {"inter_blade_interference":"PASS","max_overlap_volume_mm3":maximum,"copies_checked":blade_count//2}
+        return {"inter_blade_interference":"PASS","max_overlap_volume_mm3":maximum,"copies_checked":blade_count//2,
+                "bbox_separated_copies":separated,"exact_boolean_copies":exact,
+                "bbox_basis":"OCC optimal shape bounds including stored tolerances, enlarged by requested CAD tolerance"}
 
     def full_impeller(self,single,hub,blade_count,tolerance,check_interference=True):
         from OCP.collections import List_TopoDS_Shape

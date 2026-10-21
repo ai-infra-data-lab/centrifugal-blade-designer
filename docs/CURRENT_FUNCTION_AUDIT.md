@@ -1,5 +1,7 @@
 # 現行機能の実装監査
 
+C01の追加対応：元Spanの多項式をHub内へ延長するCAD内部構築、一括根元fillet、由来に基づくrolling/corner分類と半径失敗時の出力拒否を追加。現既定＋仮ディスク＋明示R0.1 mmのBlade+Hubは全回帰2,227一意件成功（通常2,174・実CAD53、新規35、既存2,192保持、失敗/error/skip/漏れ/重複0・固定356入力不変）。下表のR8失敗は監査時の履歴であり、小径の個別受入れと区別する。[構成](BURIED_ROOT_CONSTRUCTION.md)。
+
 CAD採用格子追記: 同一snapshotの実CAD結果からMain/Splitter別の4 role格子を照合して参照面へ適用。失敗/不足/異設計の結果を拒否する。対象は結合/fillet前の基準翼面であり、最終solid/STEP後/全面品質は未検証。[契約](CAD_ADOPTED_SURFACES.md)。
 
 Stage 3A-2c参照表示追記: CADと同じ接線・tensor splineの固定密度参照画面を追加。Impeller主翼/Splitter・格子・全周を選び、従来表示と分離して検査可能。実出力の自動密度・閉じたsolid・全面偏差・ANSYSの成立を意味しない。設計変更時は失効する。[契約](CAD_SURFACE_REFERENCE.md)。
@@ -44,7 +46,7 @@ Stage 2B-2追記: 3D生成に続き、row一覧ありのJSONを保存値の整�
 | LE/TE / Stacking / Rake | 一部対応。R/Z端点、丸・楕円・Cutoff、Impeller TE Rake目標とβ保持Mapper | `blade_section.py`, `edges.py::generate_edge`, `impeller_parameter_mapper.py::map_te_rake/measure_te_rake` | `test_edges.py`, `test_impeller_te_rake.py`, `test_impeller_te_rake_gui.py` | 独立LE Sweep/Rake目標、任意Stacking曲線、局所Span Rake一定は未対応。G0接続とG1を区別 |
 | Tip Clearance | 実装済み。固定ケーシングからHub側法線オフセット。LE/TE mm、ケーシング距離で線形補間 | `geometry/tip_clearance.py::make_tip_geometry/_frame`, `span_extension.py` | `test_tip_clearance.py`, `test_tip_clearance_gui.py`, `tests/cad/test_tip_clearance_cad.py` | Tipは実際に内側へ移動。熱／回転変形・漏れ流量・境界層は未対応。ケーシング法線とHubの対応は幾何学的 |
 | Shroud/外径派生カット | 実装済み（表示・幾何面積）。元データを保持して離散翼面を切り出す | `geometry/impeller_trim.py::apply_trim/_casing/_span_curve` | `test_impeller_trim.py`, `test_impeller_trim_gui.py` | 面積率は元平均線基準断面。CFD流量率・圧力比の保証はない。TurboGrid/CADは未対応で事前拒否 |
-| CAD / Fillet | 一部対応。別OCP環境で曲面・solid・Hub・Boolean・真の可変Rフィレット | `cad/occt_backend.py::create_surface/create_blade_solid`, `worker.py::execute` | `tests/cad/test_blade_surface.py`, `test_boolean_union.py`, `test_root_fillet.py`, `test_fillet_failure.py` | 独立fixture R8成功と、ユーザー既定形状R8成功は別。現既定＋仮ディスクでもR8失敗を再現。詳細は品質レビュー |
+| CAD / Fillet | 一部対応。別OCP環境で曲面・solid・Hub・Boolean・真の可変Rフィレット | `cad/occt_backend.py::create_surface/create_blade_solid`, `worker.py::execute` | `tests/cad/test_blade_surface.py`, `test_boolean_union.py`, `test_root_fillet.py`, `test_fillet_failure.py` | 独立fixture R8成功と、ユーザー既定形状R8成功は別。現既定＋仮ディスクは明示R0.1 mmのBlade+Hub/STEPで成功。監査時のR8失敗記録と、修正後のR8未試験を区別。全周/全面精度は継続 |
 | TurboGrid Profile Points | 一部対応。主翼＋1枚/ピッチのSplitter、選択静翼Hub/Tipと所属壁面、クリアランス、単位・軸・端部マーカー | `fileio/turbogrid_export.py::prepare_turbogrid_export/export_turbogrid/closed_profile` | `test_turbogrid_export.py`, `test_stator_turbogrid_export.py`, `test_turbogrid_clearance.py`, `test_splitter_turbogrid.py`, `test_splitter_turbogrid_gui.py` | 派生カット/複数Splitter未対応、フィレットなし。両翼の丸め後輪郭/マーカー/Span点数を検査。ANSYS Import/Mesh未検証 |
 | TurboGrid CAD | 一部対応。フィレット付き実体を差し引いた流体領域STEPと境界role | `cad/worker.py::execute`, `occt_backend.py::create_flow_passage`, `fileio/turbogrid_cad_export.py` | `tests/cad/test_turbogrid_export.py`, `test_edge_classification.py` | **CONVERSION_REQUIRED**。対応CAD形式への変換器なし。静翼・正クリアランス・派生カット未対応。ANSYS未検証 |
 | Mechanical STEP | 一部対応。Blade Only、Blade+Hub、周期／全周、再読込み、検証済みbytesの公開 | `cad/client.py::prepare_job/publish_job`, `cad_validation.py::step_roundtrip`, `fileio/mechanical_step_export.py` | `tests/cad/test_step_roundtrip.py`, `test_step_error_budget.py`, `test_mechanical_export.py`, `test_cad_regeneration.py` | Impellerのみ。Hub付きは成立するディスク／根元が必要。仮寸法はPROVISIONAL。Workbench/Mechanical Import/Mesh・強度未検証 |

@@ -303,3 +303,7 @@ MainWindowはlegacy計算失敗時にlegacy表・曲線・current sourceを解�
 ## 子午面の翼列距離表示
 
 `geometry/row_coordinates.py`が所属区間の解析長と入口順から各翼列を整数区間へ換算する。Qt/ファイル形式に依存せず、GUIだけが読取り専用のsを表示する。保存/生成/出力は既存の壁面全体0–1、角度/厚さは各翼LE–TEの0–1を維持する。所属不足や順序不一致を推測で補わない。[契約・操作](MERIDIONAL_ROW_COORDINATES.md)。
+
+## CAD根元の内部構築
+
+純数値の`geometry/spline_root_extension.py`が元Span面を保った多項式延長を担当する。OCP backendは共通負Spanで隠れたcapを作り、実Hubへの内包を検証してからBoolean結合する。workerは全翼を先に結合して単一filletを生成し、role履歴と別翼blend距離を検査する。半径標本はrolling/corner/支持面を分離し、前後のSTEP検査で不足や失敗を拒否する。設計値や元JSONへ内部構築量を保存しない。[構成と限界](BURIED_ROOT_CONSTRUCTION.md)。
