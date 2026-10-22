@@ -10,7 +10,7 @@ from .cad_validation import step_roundtrip,fillet_samples,require_fillet_samples
 
 def execute(job):
     # Avoid importing the numeric engine or Qt in this process.
-    from .occt_backend import OcctBackend,shapes
+    from .occt_backend import OcctBackend,CadShape,shapes
     from OCP.TopAbs import TopAbs_FACE
     request=json.loads((job/"request.json").read_text(encoding="utf-8"));settings=request["settings"]
     report={"geometry_type":"impeller","parameter_snapshot_hash":request["parameter_snapshot_hash"],
@@ -103,14 +103,26 @@ def execute(job):
                     pair_checks.append({"pair":[previous_name,name],"status":"PASS","overlap_volume_mm3":overlap})
                 features.append((name,feature))
                 progress('ASSEMBLY UNION / '+name)
-                single=united if len(features)==1 else backend.boolean_union(united,single)
+                # The united body has no construction cap: its cap was checked
+                # and buried above. Do not carry blade-construction metadata
+                # into a subsequent assembly-to-assembly Boolean operation.
+                single=united if len(features)==1 else backend.boolean_union(
+                    CadShape(united.shape,united.labels),single)
+            full_fillet=apply_fillet and (scope in ('full_impeller','periodic_sector') or turbo)
+            raw_feature=None
+            if full_fillet:
+                # Cutting a finished tangent blend off its support can create
+                # a self-intersecting cusp solid. Check periodic raw blades,
+                # then check all finished instance surfaces on the full wheel.
+                progress('RAW PERIODIC FEATURE VALIDATION')
+                raw_feature=backend.subtract(single,hub)
+                report['checks']['raw_periodic_feature']=backend.validate_solid(raw_feature)
             if apply_fillet:
                 progress('ROOT EDGE CLASSIFICATION / assembly')
                 roots=backend.root_edges(single);current=single
                 progress('TRUE CAD FILLET / assembly')
                 single=backend.apply_fillet(single,roots,fillet['hub_radius_mm']);current=single
                 report['checks']['root_group_surface_separation']=backend.check_root_group_separation(single,settings['surface_tolerance_mm'])
-                from .occt_backend import CadShape
                 for name,blade,_ in construction_models:
                     group_labels={'HUB_FILLET':single.labels.get('HUB_FILLET_GROUP_'+name,[]),
                         'HUB_FILLET_ROLLING':single.labels.get('HUB_FILLET_ROLLING_GROUP_'+name,[]),
@@ -124,8 +136,10 @@ def execute(job):
             report["checks"].update(root_extension_mm=extensions,fillet=fillet_data,within_passage_interference=pair_checks)
             report["boolean_status"]="PASS";report["fillet_status"]="PASS" if apply_fillet else "NOT_REQUESTED"
             progress("INTER-BLADE INTERFERENCE")
-            feature=backend.subtract(single,hub)
+            feature=raw_feature if full_fillet else backend.subtract(single,hub)
             report["checks"].update(backend.check_interference(feature,int(request["blade_count"]),settings["surface_tolerance_mm"]))
+            if full_fillet:
+                report['checks']['periodic_interference_basis']='Raw pre-fillet blades; finished instance surface clearance checked on full assembly.'
             report["checks"]["single_assembly"]=backend.validate_solid(single)
             current=single;full=None
             suffix=("R"+format(fillet["hub_radius_mm"],"g")) if apply_fillet else "NO_FILLET"
@@ -137,8 +151,12 @@ def execute(job):
                 raise InvalidSolidError("Assigned hub/shroud domain is invalid for TurboGrid: "+request["domain_error"])
             if scope in ("full_impeller","periodic_sector") or turbo:
                 progress("FULL IMPELLER")
-                full=backend.full_impeller(single,hub,int(request["blade_count"]),settings["surface_tolerance_mm"],check_interference=False)
-                report["checks"]["full_impeller"]=backend.validate_solid(full)
+                if full_fillet:
+                    full=backend.filleted_full_impeller([(name,blade) for name,blade,_ in construction_models],
+                        hub,int(request['blade_count']),fillet['hub_radius_mm'],settings['surface_tolerance_mm'])
+                else:
+                    full=backend.full_impeller(single,hub,int(request["blade_count"]),settings["surface_tolerance_mm"],check_interference=False)
+                report["checks"]["full_impeller"]={**backend.validate_solid(full),**full.metrics}
             mechanical=models[0][1] if scope=="blade_only" else full if scope=="full_impeller" else backend.sector(full,int(request["blade_count"])) if scope=="periodic_sector" else single
             current=mechanical
             suffix=("R"+format(fillet["hub_radius_mm"],"g")) if apply_fillet else "NO_FILLET"

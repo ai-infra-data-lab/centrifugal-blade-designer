@@ -1,5 +1,7 @@
 # 現行機能の実装監査
 
+2026-10-22：全周製品経路を延長翼の一体化後filletへ変更。現既定22枚・明示R0.1 mmのMechanical STEP、各配置のcap/4role根元、全924比較とSTEP前後半径標本を確認した。全2,272一意ID成功（通常2,206・実CAD66、新規5・既存2,267保持、失敗/error/skip/漏れ/重複0・固定363入力不変）。R8の自動縮小、設計値やProfile Pointsの変更は行わない。[条件・証拠](FULL_FILLET_ASSEMBLY.md)。
+
 U01のCAD開始/取消/close対応：数値準備をQProcessへ移し、完成requestを最後にpromoteする。取消helper待機も非同期化し、改変snapshot/取消/準備失敗の公開を拒否。全2,259一意件成功、既存2,227保持・新規32・固定359入力不変。一般再計算と描画は同期箇所が残り、Stage 6全体完了とはしない。[契約・native計測](CAD_ASYNC_PREPARATION.md)。
 
 C01の追加対応：元Spanの多項式をHub内へ延長するCAD内部構築、一括根元fillet、由来に基づくrolling/corner分類と半径失敗時の出力拒否を追加。現既定＋仮ディスク＋明示R0.1 mmのBlade+Hubは全回帰2,227一意件成功（通常2,174・実CAD53、新規35、既存2,192保持、失敗/error/skip/漏れ/重複0・固定356入力不変）。下表のR8失敗は監査時の履歴であり、小径の個別受入れと区別する。[構成](BURIED_ROOT_CONSTRUCTION.md)。

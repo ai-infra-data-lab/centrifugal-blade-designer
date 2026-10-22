@@ -89,7 +89,9 @@ STEP writer単体についても同じ全周形状の書出し前後でバイナ
 
 ## 残る条件
 
-製品の全周組立ては依然としてfillet済み単一passageからHubを差し引いて複製する方式。
-診断の全周一体化後fillet方式を採用するには、全instanceの根元対応・cap内包・干渉、
-STEP再読込みと半径・公差・偏差、周期sectorと流体CAD、出力保護の検証が必要。
+2026-10-22、製品の全周組立てへ全周一体化後fillet方式を追加した。
+全instanceの根元対応・cap内包・配置間距離、現既定R0.1全周STEPと半径・公差を確認し、
+既存R8周期sector・流体CADと出力保護を含むCAD全66件が成功した。
+全2,272一意IDの監査も完了した。現既定の周期sector/流体CAD、全面偏差・法線は別に追跡する。
+[製品経路と検証範囲](FULL_FILLET_ASSEMBLY.md)。
 ANSYS Import/Meshは今回対象外のまま。

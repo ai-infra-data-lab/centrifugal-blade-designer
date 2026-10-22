@@ -112,7 +112,9 @@ geometry/provisional_disk.pyはユーザー指定の仮ディスクを数値層�
 
 cad/client.pyは選択Impellerの深いコピーから既存generate_impellerを呼び、master座標・対応パラメータ・所属壁面の厳密Line/Arc・snapshot/hashを保存します。出力点数はCAD入力へ影響しません。通常のGUIプロセスにはOCPをimportせず、gui/cad_export_worker.pyが別Python環境でcad/worker.pyを起動します。B-spline曲面、閉shell/solid、明示裏面の回転Hub、Boolean、意味と履歴によるRoot Edge、真の指定半径フィレット、干渉、STEP round tripを処理します。
 
-fileio/mechanical_step_export.pyは検証済みstaged bytesとSHA256だけを受け、同一ディレクトリの一時ファイルから置換します。失敗レポートは別名で保存します。TurboGrid CADは機械用ディスクと別の流体領域を生成し、STEP中間形式・変換必要・ANSYS未検証を区別します。既存turbogrid_exportは変更せず、Profile Pointsは未フィレットです。スプリッター付きProfile Pointsの既存拒否も維持します。
+fileio/mechanical_step_export.pyは検証済みstaged bytesとSHA256だけを受け、同一ディレクトリの一時ファイルから置換します。失敗レポートは別名で保存します。TurboGrid CADは機械用ディスクと別の流体領域を生成し、STEP中間形式・変換必要・ANSYS未検証を区別します。既存turbogrid_exportは変更せず、Profile Pointsは未フィレットです。スプリッター付きProfile Pointsの既存対応も維持します。
+
+真のHub filletを伴う全周・周期sector・流体CADは`cad/full_assembly.py`で元の延長翼を全配置してHubと一括結合後、一度だけfilletを生成します。各pitchのcap内包と4role根元、完成立体の実カーネル検査、全配置間のblend/元面の分離を要求します。接線filletをHubから切り離した差分の複製を避け、単一passageプレビューとfilletなし経路は維持します。[契約・検証](FULL_FILLET_ASSEMBLY.md)。
 
 Preview3DへはBREPのtessellationと実edge座標のみを渡します。カメラは保持し、現在の全Project snapshot hashと一致する場合だけCADを表示します。途中編集が非同期ジョブへ混入しません。CAD設定は既存Undo/Redoと翼列別保存へ接続します。CAD専用の設定・GUI・実カーネルテストはtests/cad/とtest_cad_gui.pyです。詳細は[CAD操作手順](CAD_EXPORT.md)を参照してください。
 

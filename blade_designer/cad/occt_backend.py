@@ -185,7 +185,9 @@ class OcctBackend:
     def _validate_solid_uncached(self,model):
         shape=model.shape;solids=shapes(shape,TopAbs_SOLID)
         valid=BRepCheck_Analyzer(shape).IsValid()
-        intersection_check=BRepAlgoAPI_Check(shape,False,True).IsValid()
+        checker=BRepAlgoAPI_Check();checker.SetRunParallel(True)
+        checker.SetData(shape,False,True);checker.Perform()
+        intersection_check=checker.IsValid()
         props=GProp_GProps()
         volume_error=BRepGProp.VolumePropertiesGK_s(shape,props,1e-9,True,True)
         if not np.isfinite(volume_error) or volume_error<0 or volume_error>1e-5:
@@ -255,21 +257,35 @@ class OcctBackend:
                 result[name].extend(candidate for candidate in candidates if any(candidate.IsSame(present) for present in actual))
         return result
 
+    def check_buried_root_caps(self,blade,hub):
+        fraction=blade.metrics.get('root_extension_span_fraction',0)
+        if not np.isfinite(fraction) or fraction<0:raise BooleanUnionError('Invalid root continuation metadata.')
+        if fraction==0:return False
+        from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
+        from OCP.collections import List_TopoDS_Shape
+        caps=blade.labels.get('BLADE_HUB_CAP',[])
+        actual=shapes(blade.shape,TopAbs_FACE)
+        if not caps or any(not any(cap.IsSame(face) for face in actual) for cap in caps):
+            raise BooleanUnionError('Missing construction root cap in blade topology.')
+        for cap in caps:
+            arguments=List_TopoDS_Shape();arguments.Append(cap)
+            tools=List_TopoDS_Shape();tools.Append(hub.shape)
+            outside=BRepAlgoAPI_Cut();outside.SetArguments(arguments);outside.SetTools(tools)
+            outside.SetNonDestructive(True);outside.Build()
+            if not outside.IsDone() or shapes(outside.Shape(),TopAbs_FACE):
+                raise BooleanUnionError('Buried root construction cap is not wholly inside the Hub solid.')
+        return True
+
     def boolean_union(self,blade,hub):
         try:
-            if blade.metrics.get('root_extension_span_fraction',0)>0:
-                from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
-                for cap in blade.labels.get('BLADE_HUB_CAP',[]):
-                    outside=BRepAlgoAPI_Cut(cap,hub.shape);outside.Build()
-                    if not outside.IsDone() or shapes(outside.Shape(),TopAbs_FACE):
-                        raise BooleanUnionError('Buried root construction cap is not wholly inside the Hub solid.')
+            buried=self.check_buried_root_caps(blade,hub)
             fuse=BRepAlgoAPI_Fuse(hub.shape,blade.shape);fuse.Build()
             if not fuse.IsDone():raise BooleanUnionError("OCCT fuse failed.")
             labels=self._history_labels(fuse,{key:hub.labels.get(key,[])+blade.labels.get(key,[]) for key in hub.labels.keys()|blade.labels.keys()})
             model=CadShape(fuse.Shape(),labels)
             metrics=self.validate_solid(model)
             if metrics["solid_count"]!=1:raise BooleanUnionError("Blade and disk do not form one connected solid.")
-            if blade.metrics.get('root_extension_span_fraction',0)>0:
+            if buried:
                 model.metrics.update(root_extension_reference_mm=blade.metrics['root_extension_reference_mm'],
                     root_extension_span_fraction=blade.metrics['root_extension_span_fraction'],root_cap_inside_hub=True)
             return model
@@ -388,25 +404,51 @@ class OcctBackend:
         except FilletGenerationError:raise
         except Exception as exc:raise FilletGenerationError(f"R{radius_mm:g}: {exc}") from exc
 
-    def check_root_group_separation(self,model,tolerance):
+    def check_root_group_separation(self,model,tolerance,*,use_bounds=False,include_original_pairs=False):
         """Keep root blends clear of other rows' blends and original side faces."""
+        if not np.isfinite(tolerance) or tolerance<=0:
+            raise InvalidSolidError('Positive finite group separation tolerance is required.')
         from OCP.BRep import BRep_Builder
         from OCP.TopoDS import TopoDS_Compound
         from OCP.BRepExtrema import BRepExtrema_DistShapeShape
-        groups=sorted(model.metrics.get('fillet_groups',{}));checks=[]
+        groups=sorted(model.metrics.get('fillet_groups',{}));checks=[];prepared={}
         def compound(faces):
             result=TopoDS_Compound();builder=BRep_Builder();builder.MakeCompound(result)
             for face in faces:builder.Add(result,face)
             return result
+        def prepare(faces):
+            key=tuple(id(face) for face in faces)
+            if key not in prepared:
+                value=compound(faces);box=Bnd_Box();BRepBndLib.AddOptimal_s(value,box,False,True)
+                if box.IsVoid():raise InvalidSolidError('Empty root group bounds.')
+                prepared[key]=(value,box)
+            return prepared[key]
         for i,first in enumerate(groups):
             blend=model.labels.get('HUB_FILLET_GROUP_'+first,[])
             for second in groups[i+1:]:
                 comparisons=[('blend_to_blend',blend,model.labels.get('HUB_FILLET_GROUP_'+second,[])),
                     ('first_blend_to_second_side',blend,model.labels.get('BLADE_GROUP_'+second,[])),
                     ('second_blend_to_first_side',model.labels.get('HUB_FILLET_GROUP_'+second,[]),model.labels.get('BLADE_GROUP_'+first,[]))]
+                if include_original_pairs:
+                    comparisons.append(('original_to_original',model.labels.get('BLADE_GROUP_'+first,[]),model.labels.get('BLADE_GROUP_'+second,[])))
                 for kind,a,b in comparisons:
                     if not a or not b:raise InvalidSolidError('Missing root blend/side geometry for group separation.')
-                    distance=BRepExtrema_DistShapeShape(compound(a),compound(b))
+                    first_shape,first_box=prepare(a);second_shape,second_box=prepare(b)
+                    if use_bounds:
+                        def limits(box):
+                            lo,hi=box.CornerMin(),box.CornerMax()
+                            return np.asarray((lo.X(),lo.Y(),lo.Z(),hi.X(),hi.Y(),hi.Z()))
+                        aa=limits(first_box);bb=limits(second_box)
+                        with np.errstate(over='ignore',invalid='ignore'):
+                            gap=np.maximum(0,np.maximum(np.nextafter(aa[:3]-bb[3:],-np.inf),
+                                np.nextafter(bb[:3]-aa[3:],-np.inf)))
+                        lower=float(np.max(gap))
+                        if np.isfinite(lower) and lower>tolerance:
+                            checks.append({'pair':[first,second],'kind':kind,'status':'PASS',
+                                'surface_distance_lower_bound_mm':lower,'required_mm':float(tolerance),
+                                'basis':'Stored-tolerance BREP bounds, triangulation disabled'})
+                            continue
+                    distance=BRepExtrema_DistShapeShape(first_shape,second_shape)
                     if not distance.IsDone():raise InvalidSolidError('Root group distance evaluation failed.')
                     value=distance.Value()
                     if not np.isfinite(value) or value<=tolerance:
@@ -414,6 +456,10 @@ class OcctBackend:
                     checks.append({'pair':[first,second],'kind':kind,'surface_distance_mm':value,
                         'required_mm':float(tolerance),'status':'PASS'})
         return checks
+
+    def filleted_full_impeller(self,blades,hub,blade_count,radius,tolerance):
+        from .full_assembly import build_filleted_full_impeller
+        return build_filleted_full_impeller(self,blades,hub,blade_count,radius,tolerance)
 
     def rotate(self,model,angle_rad):
         transform=gp_Trsf();transform.SetRotation(gp_Ax1(gp_Pnt(0,0,0),gp_Dir(0,0,1)),float(angle_rad))
