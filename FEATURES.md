@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+CAD妥当性検査は、同一objectかつバイナリBREP不変の場合だけinstance内で再利用する。STEP読込み後の別object、形状/公差/向きの変更、失敗・指紋未取得は実検査を維持。結果のdeep copy・上限8件・weak referenceで形状を保持しない。全2,267一意ID成功（通常2,206・実CAD61、新規6・既存2,261保持、失敗/error/skip/漏れ/重複0・固定361入力不変）。[条件・検証](docs/CAD_VALIDATION_REUSE.md)。
+
 根元filletの生成履歴を完成BREPのfaceへ照合し、後続処理で置換された中間面をrole・半径測定から除外する。完成面の半径基準・公差・指定Rは維持し、完成生成面がなければ拒否する。[原因・検証範囲](docs/FINAL_FILLET_TOPOLOGY.md)。
 
 CAD開始の数値準備をQProcessへ移し、snapshot固定→numeric完成→CADの2工程に分離。取消tree helperとclose待機も非同期化し、取消/準備失敗/pending/改変snapshotの公開を拒否。既存同期APIと計算/保存/出力形式は維持。関連試験成功・native計測済み、全2,259一意件成功（通常2,206・実CAD53、新規32・既存2,227保持、失敗/error/skip/漏れ/重複0・固定359入力不変）。一般の同期再計算は残る。[契約・検証](docs/CAD_ASYNC_PREPARATION.md)。

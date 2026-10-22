@@ -42,6 +42,18 @@ class OcctBackend:
     name="Open CASCADE / cadquery-ocp"
     version=version("cadquery-ocp")
 
+    def __init__(self):
+        from collections import OrderedDict
+        self._solid_validation_cache=OrderedDict()
+
+    @staticmethod
+    def _solid_fingerprint(shape):
+        from io import BytesIO
+        from hashlib import sha256
+        from OCP.BinTools import BinTools
+        stream=BytesIO();BinTools.Write_s(shape,stream)
+        return sha256(stream.getvalue()).digest()
+
     def create_surface(self,rows,count,parameters=None,spans=None,tangents=None,root_span_fraction=0.):
         from ..geometry.surface_evaluation import fit_surface_spline
         from OCP.Geom import Geom_BSplineSurface
@@ -142,6 +154,35 @@ class OcctBackend:
         return result
 
     def validate_solid(self,model):
+        """Reuse only this object's unchanged binary BREP in this backend.
+
+        STEP imports/new wrappers always receive a native check. Fingerprinting
+        failure disables reuse; invalid checks are never cached. No BREP or
+        strong model reference is retained by the bounded cache.
+        """
+        from copy import deepcopy
+        from weakref import ref
+        try:fingerprint=self._solid_fingerprint(model.shape)
+        except Exception:fingerprint=None
+        key=(id(model),fingerprint)
+        cached=self._solid_validation_cache.get(key) if fingerprint is not None else None
+        if cached is not None and cached[0]() is model:
+            self._solid_validation_cache.move_to_end(key)
+            return deepcopy(cached[1])
+        result=self._validate_solid_uncached(model)
+        if fingerprint is not None:
+            try:
+                # Never reuse a check if the native operation changed the BREP;
+                # the next call must check that resulting representation again.
+                if self._solid_fingerprint(model.shape)!=fingerprint:return result
+                cached=(ref(model),deepcopy(result))
+            except Exception:return result
+            self._solid_validation_cache[key]=cached
+            self._solid_validation_cache.move_to_end(key)
+            while len(self._solid_validation_cache)>8:self._solid_validation_cache.popitem(last=False)
+        return result
+
+    def _validate_solid_uncached(self,model):
         shape=model.shape;solids=shapes(shape,TopAbs_SOLID)
         valid=BRepCheck_Analyzer(shape).IsValid()
         intersection_check=BRepAlgoAPI_Check(shape,False,True).IsValid()
