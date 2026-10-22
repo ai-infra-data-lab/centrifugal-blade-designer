@@ -8,6 +8,8 @@ C01/Stage 4Aの修正：Hub内多項式延長、cap内包・二面隣接検査�
 
 # 品質改善ロードマップ
 
+Stage 6AのCAD描画：大きいoverlayをQImage worker化し、全点を保つ任意の内部数値cacheを追加。全2,333一意ID成功（通常2,236・実CAD97、既存2,303保持・新規30、失敗/error/skip/漏れ/重複0・固定369入力不変）。関連52件/quick63件/Ruff成功、native製品Preview3Dで最大heartbeat94 ms・完成画像の同期描画との一致も確認。通常形状の再生成/全行生成、フィレット当たり判定、全export GUI操作は別範囲として残す。[契約](CAD_PREVIEW_RENDERING.md)。
+
 ## 形状方式についての確定方針（2026-10-22）
 
 利用者の選択により、**現行の表示XYZ直線接続・派生カットの円筒補間・CAD splineを維持する**。

@@ -1433,7 +1433,7 @@ class MainWindow(QMainWindow):
         return True
 
     def _cad_finished(self,job,snapshot,target,report):
-        import json
+        from ..cad.preview_cache import load_preview
         from ..cad.client import publish_job
         if self._cad_closing:return
         if target and not report.get('cancelled') and report.get('failed_phase')!='preparation':
@@ -1447,9 +1447,12 @@ class MainWindow(QMainWindow):
         self.messages.appendPlainText("CAD "+report['overall']+": "+error)
         preview=job/"preview.json"
         if preview.is_file() and (report["overall"]!="FAIL" or report.get("artifacts",{}).get("mechanical",{}).get("status")=="PASS"):
-            data=json.loads(preview.read_text(encoding="utf-8"))
-            for view in (self.preview_3d,self.model_preview_3d):view.set_cad_mesh(data)
-            self._sync_cad_preview()
+            try:
+                data,warning=load_preview(job)
+                if warning:self.messages.appendPlainText(warning)
+                for view in (self.preview_3d,self.model_preview_3d):view.set_cad_mesh(data)
+                self._sync_cad_preview()
+            except Exception as exc:self.messages.appendPlainText("CAD preview could not be displayed: "+str(exc))
         worker=self._cad_worker;self._cad_worker=None
         if worker is not None:worker.deleteLater()
 

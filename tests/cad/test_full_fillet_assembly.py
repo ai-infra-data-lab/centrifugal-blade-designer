@@ -181,3 +181,7 @@ def test_actual_default_full_wheel_small_radius_and_step(tmp_path):
         assert all(face['status']=='PASS' for face in artifact['roundtrip'][key]['faces'])
     assert report['mechanical_import']==report['mechanical_mesh']=='NOT_TESTED'
     assert Path(job/'outputs'/artifact['files'][0]).is_file()
+    from blade_designer.cad.preview_cache import read_preview_cache
+    cached=read_preview_cache(job)
+    assert cached['snapshot_hash']==report['parameter_snapshot_hash']
+    assert sum(len(rows) for rows in cached['triangles_full'].values())>0

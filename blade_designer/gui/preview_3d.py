@@ -6,9 +6,11 @@ from PySide6.QtWidgets import QWidget,QCheckBox,QHBoxLayout,QVBoxLayout,QToolBut
 from ..geometry.wireframe import build_spanwise_wireframe
 from ..geometry.annulus import rotate_xy
 from ..geometry.revolved_surface import revolve_wall
+from .surface_render import SurfaceFrame,SurfaceRenderQueue
 
 
 class Preview3D(QWidget):
+    _surface_async_threshold=4096
     def __init__(self):
         super().__init__();self.setMinimumSize(320,180)
         self.camera_position={"azimuth":-45.,"elevation":25.,"rotation":np.eye(3),"scale":160.,"center":np.zeros(3),"pan":np.zeros(2)}
@@ -44,6 +46,10 @@ class Preview3D(QWidget):
         views.addStretch()
         self.setToolTip("左ドラッグ: 自由回転 / 右ドラッグ: 平行移動 / ホイール: 拡大・縮小")
         self._show_fit=QTimer(self);self._show_fit.setSingleShot(True);self._show_fit.timeout.connect(self.fit_view)
+        self._surface_render=SurfaceRenderQueue();self._surface_cache=None;self._cad_mesh_generation=0
+        self._surface_poll=QTimer(self);self._surface_poll.setInterval(20)
+        self._surface_poll.timeout.connect(self._poll_surface_image)
+        self.destroyed.connect(self._surface_render.shutdown)
 
     def showEvent(self,event):
         super().showEvent(event);self._show_fit.start(0)
@@ -197,7 +203,7 @@ class Preview3D(QWidget):
             repeat=full and not self._cad_data.get("triangles_full") and self._cad_data["scope"] in ("blade_only","blade_hub")
             for name,triangles in groups.items():
                 kind="root" if "FILLET" in name else "blade" if name.startswith("BLADE_") else "disk"
-                if not self.cad_controls[kind].isChecked() or not triangles:continue
+                if not self.cad_controls[kind].isChecked() or len(triangles)==0:continue
                 xyz=np.asarray(triangles,dtype=float)[:,[0,1,2,2],:]
                 color={"root":"#e8bd42","blade":"#75c6fa","disk":"#a8abb2"}[kind]
                 if repeat and kind!="disk":
@@ -240,6 +246,7 @@ class Preview3D(QWidget):
 
 
     def set_cad_mesh(self,data):
+        self._cad_mesh_generation+=1
         self._cad_data=data;self._cad_snapshot_hash=data["snapshot_hash"];self._cad_visible=True
         if not hasattr(self,"cad_controls"):
             self._cad_source_visibility={key:self.visibility_controls[key].isChecked() for key in ("profiles","spanwise")}
@@ -251,9 +258,9 @@ class Preview3D(QWidget):
             if data['scope']!='disk_only':
                 self.visibility_controls["profiles"].setChecked(False);self.visibility_controls["spanwise"].setChecked(False)
         roles=data["triangles"]
-        has_blade=any(name.startswith('BLADE_') and rows for name,rows in roles.items())
-        has_root=any("FILLET" in name and rows for name,rows in roles.items())
-        has_disk=any(not name.startswith("BLADE_") and "FILLET" not in name and rows for name,rows in roles.items())
+        has_blade=any(name.startswith('BLADE_') and len(rows)>0 for name,rows in roles.items())
+        has_root=any("FILLET" in name and len(rows)>0 for name,rows in roles.items())
+        has_disk=any(not name.startswith("BLADE_") and "FILLET" not in name and len(rows)>0 for name,rows in roles.items())
         self.cad_controls["root"].setEnabled(has_root);self.cad_controls["root"].setText("Root Fillet" if has_root else "No Root Fillet")
         self.cad_controls['blade'].setEnabled(has_blade);self.cad_controls['blade'].setText('CAD Blade' if has_blade else 'No CAD Blade')
         self.cad_controls["disk"].setEnabled(has_disk);self.cad_controls["disk"].setText("Hub Disk" if has_disk else "No Hub Disk")
@@ -285,6 +292,59 @@ class Preview3D(QWidget):
         self.camera_position["scale"]=max(min(self.width(),self.height())/(2*factor),1e-6)
         self.camera_position["pan"]=np.array([0.,12.5/factor]);self.update()
 
+    def _poll_surface_image(self):
+        if self._surface_render.poll():self.update()
+        if not self._surface_render.busy:self._surface_poll.stop()
+
+    def _cancel_surface_image(self):
+        self._surface_render.cancel()
+        if self._surface_render.busy:self._surface_poll.start()
+
+    def _surface_scene_key(self):
+        return (self._cad_mesh_generation,id(self._cad_data),tuple((name,id(data[0]),data[1]) for name,data in self.surfaces.items()),
+            tuple(box.isChecked() for box in self.visibility_controls.values()),
+            tuple(box.isChecked() for box in self.cad_controls.values()))
+
+    def _surface_frame_key(self,scene):
+        c=self.camera_position
+        return (scene,self.width(),self.height(),self._plot_top,self.devicePixelRatioF(),
+            c['azimuth'],c['elevation'],c['scale'],*c['rotation'].ravel(),*c['center'],*c['pan'])
+
+    def _paint_surfaces(self,painter,camera,right,up,factor):
+        if not getattr(self,'_cad_visible',False):
+            self._cancel_surface_image();return self._paint_surfaces_sync(painter,camera,right,up,factor)
+        scene=self._surface_scene_key()
+        if self._surface_cache is None or self._surface_cache[0]!=scene:
+            visible=list(self.visible_surfaces())
+            if sum(len(rows) for rows,_ in visible)<=self._surface_async_threshold:
+                self._surface_cache=None;self._cancel_surface_image()
+                return self._paint_surfaces_sync(painter,camera,right,up,factor)
+            faces=np.concatenate([rows for rows,_ in visible]);faces.setflags(write=False)
+            colors=tuple(color for rows,color in visible for _ in rows)
+            self._surface_cache=(scene,faces,colors)
+        _,faces,colors=self._surface_cache;key=self._surface_frame_key(scene);renderer=self._surface_render
+        if renderer.reuse(key):
+            painter.drawImage(QPointF(0,0),renderer.image);return
+        if renderer.desired_key!=key:
+            arrays=[np.array(a,copy=True) for a in (camera['center'],camera['pan'],right,up)]
+            for array in arrays:array.setflags(write=False)
+            frame=SurfaceFrame(faces,colors,*arrays,factor,self.width(),self.height(),self._plot_top,self.devicePixelRatioF())
+            renderer.request(key,frame);self._surface_poll.start()
+        # Temporary display only; exact polygons replace this after rendering.
+        painter.setPen(QPen(QColor('#74859b'),.8))
+        for row in faces[::max(1,int(np.ceil(len(faces)/1000)))]:
+            relative=row-camera['center'];x=(relative@right+camera['pan'][0])*factor+self.width()/2
+            y=-(relative@up+camera['pan'][1])*factor+(self.height()+self._plot_top)/2
+            painter.drawPolyline(QPolygonF([QPointF(float(a),float(b)) for a,b in zip(x,y)]))
+        painter.setPen(QColor('#d1dae7'))
+        painter.drawText(12,self._plot_top+18,'CAD rendering failed' if renderer.error else 'Rendering CAD surfaces...')
+
+    def hideEvent(self,event):
+        self._cancel_surface_image();super().hideEvent(event)
+
+    def closeEvent(self,event):
+        self._cancel_surface_image();super().closeEvent(event)
+
     def paintEvent(self,event):
         painter=QPainter(self);painter.fillRect(self.rect(),QColor("#101c2b"))
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -304,7 +364,7 @@ class Preview3D(QWidget):
         painter.drawText(12,self.height()-14,caption)
         painter.end()
 
-    def _paint_surfaces(self,painter,camera,right,up,factor):
+    def _paint_surfaces_sync(self,painter,camera,right,up,factor):
         visible=list(self.visible_surfaces())
         if not visible:return
         faces=np.concatenate([data[0] for data in visible])

@@ -142,6 +142,14 @@ def test_disk_only_preview_keeps_current_blade_wireframe(window):
     assert not view.cad_controls['blade'].isEnabled()
 
 
+def test_invalid_preview_is_reported_and_worker_cleanup_preserves_design(window,tmp_path):
+    w=window;before=deepcopy(w.get_parameters());worker=QObject(w);w._cad_worker=worker
+    (tmp_path/'preview.json').write_text('{broken',encoding='utf-8')
+    w._cad_finished(tmp_path,before,None,{'overall':'WARNING','artifacts':{}})
+    assert w._cad_worker is None and w.get_parameters()==before
+    assert 'CAD preview could not be displayed' in w.messages.toPlainText()
+
+
 @pytest.mark.parametrize('reason',[{'cancelled':True},{'failed_phase':'preparation'}])
 def test_cancel_or_numeric_failure_never_publishes_to_existing_case(window,tmp_path,monkeypatch,reason):
     from blade_designer.gui import main_window

@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+大きいCAD previewは`cad/preview_cache.py`の任意NPZで数値を転送し、`gui/surface_render.py`が専用QImageへ描画する。GUIが固定した読取り専用snapshotだけをworkerへ渡し、世代/可視状態/カメラ/サイズ/DPRで完成画像を照合する。workerはwidgetを保持しない。CAD/設計の形状モデルや公開出力は変えない。[契約](CAD_PREVIEW_RENDERING.md)。
+
 `geometry/surface_evaluation.py`は沿翼方向の端点/接線を固定条件として内部collocationを解く。元端点を共有するroleの境界を生成時に一致させ、補間後のweldingはしない。数値参照とOCCT面が同じ補間実装を使用する。[契約](SURFACE_ENDPOINT_CONSTRAINTS.md)。
 
 候補集約の`projection_strategy`は既定averageを維持して既存のbalanced_transverseを明示伝達する。`diagnostic_counts`は境界同一性、数値gap、chart root/union、停止理由を独立集計する。停止理由はnode数でなく候補数、未検査は別statusで残し、既存採用条件は変更しない。[契約](SEAM_CANDIDATE_SUMMARY.md)。

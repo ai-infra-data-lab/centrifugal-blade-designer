@@ -7,6 +7,7 @@ from .client import json_text
 from .errors import CadGeometryError,InvalidSolidError,FilletGenerationError
 from .cad_validation import step_roundtrip,fillet_samples,require_fillet_samples
 from .boundary_samples import compare_boundary_samples,require_boundary_samples
+from .preview_cache import write_preview_cache
 
 
 def execute(job):
@@ -208,6 +209,8 @@ def execute(job):
                 if single is not None:preview["triangles_single"]=backend.triangulate(single)
                 if full is not None:preview["triangles_full"]=backend.triangulate(full)
                 (job/"preview.json").write_text(json_text(preview),encoding="utf-8")
+                try:write_preview_cache(preview,job)
+                except Exception as exc:report["warnings"].append("CAD preview cache unavailable: "+str(exc))
             except Exception as exc:report["warnings"].append("CAD preview failed: "+str(exc))
         (job/"result.json").write_text(json_text(report),encoding="utf-8")
     return report
