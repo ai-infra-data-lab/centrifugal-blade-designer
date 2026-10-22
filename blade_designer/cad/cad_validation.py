@@ -1,8 +1,30 @@
 """Measured CAD and STEP checks. No unexecuted check is marked PASS."""
 from pathlib import Path
+from numbers import Real,Integral
+import math
 import re
 import numpy as np
 from .errors import CadExportError
+
+
+def _finite_number(value):
+    try:return isinstance(value,Real) and not isinstance(value,bool) and math.isfinite(value)
+    except (ValueError,TypeError,OverflowError):return False
+
+
+def _require_step_metrics(metrics):
+    if not isinstance(metrics,dict):raise CadExportError('Missing STEP solid measurements.')
+    count=metrics.get('solid_count');bounds=metrics.get('bbox_mm')
+    try:bounds=list(bounds)
+    except TypeError:bounds=[]
+    if (not isinstance(count,Integral) or isinstance(count,bool) or count<1 or len(bounds)!=6 or
+            not all(_finite_number(value) for value in bounds) or
+            any(bounds[i]>=bounds[i+3] for i in range(3))):
+        raise CadExportError('Invalid STEP solid count or bounding box measurements.')
+    for name in ('volume_mm3','surface_area_mm2','max_edge_tolerance_mm'):
+        value=metrics.get(name)
+        if not _finite_number(value) or value<0 or (name!='max_edge_tolerance_mm' and value==0):
+            raise CadExportError('Invalid or non-finite STEP measurement: '+name)
 
 
 def require_fillet_samples(measurement):
@@ -27,9 +49,12 @@ def require_fillet_samples(measurement):
 
 
 def step_roundtrip(backend,model,path,tolerance_mm):
+    if not _finite_number(tolerance_mm) or tolerance_mm<=0:
+        raise CadExportError('A positive finite STEP comparison tolerance is required.')
     path=Path(path)
     if not path.is_file() or path.stat().st_size==0:raise CadExportError("STEP file is missing or empty.")
-    source=backend.validate_solid(model);imported=backend.read_step(path);actual=backend.validate_solid(imported)
+    source=backend.validate_solid(model);_require_step_metrics(source)
+    imported=backend.read_step(path);actual=backend.validate_solid(imported);_require_step_metrics(actual)
     text=path.read_text(encoding="ascii",errors="replace")
     units=bool(re.search(r"SI_UNIT\s*\(\s*\.MILLI\.\s*,\s*\.METRE\.",text))
     comparison_precision=max(1e-7,tolerance_mm*.01)
@@ -40,7 +65,10 @@ def step_roundtrip(backend,model,path,tolerance_mm):
         source["max_edge_tolerance_mm"]+actual["max_edge_tolerance_mm"]))
     volume_tolerance=max(source["volume_mm3"]*1e-7,source["surface_area_mm2"]*comparison_precision)
     difference=abs(actual["volume_mm3"]-source["volume_mm3"])
-    bbox_difference=float(np.max(np.abs(np.array(source["bbox_mm"])-actual["bbox_mm"])))
+    with np.errstate(over='ignore',invalid='ignore'):
+        bbox_difference=float(np.max(np.abs(np.asarray(source["bbox_mm"],dtype=float)-actual["bbox_mm"])))
+    if not all(_finite_number(value) for value in (dimension_tolerance,volume_tolerance,difference,bbox_difference)):
+        raise CadExportError('Non-finite derived STEP comparison measurements.')
     if max(source["max_edge_tolerance_mm"],actual["max_edge_tolerance_mm"])>tolerance_mm:raise CadExportError("STEP edge/gap tolerance exceeds the specified CAD tolerance.")
     if not units or source["solid_count"]!=actual["solid_count"] or difference>volume_tolerance or bbox_difference>dimension_tolerance:
         raise CadExportError(f"STEP round trip failed: mm={units}, volume difference={difference:g} (limit {volume_tolerance:g}), bbox difference={bbox_difference:g} (limit {dimension_tolerance:g}).")

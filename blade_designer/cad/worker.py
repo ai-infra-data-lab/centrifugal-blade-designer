@@ -6,6 +6,7 @@ import numpy as np
 from .client import json_text
 from .errors import CadGeometryError,InvalidSolidError,FilletGenerationError
 from .cad_validation import step_roundtrip,fillet_samples,require_fillet_samples
+from .boundary_samples import compare_boundary_samples,require_boundary_samples
 
 
 def execute(job):
@@ -30,6 +31,9 @@ def execute(job):
         target=output/relative;target.parent.mkdir(parents=True,exist_ok=True)
         backend.export_step(model,target)
         checked,imported=step_roundtrip(backend,model,target,settings["surface_tolerance_mm"])
+        checked['boundary_surface_samples']=compare_boundary_samples(model,imported,settings['surface_tolerance_mm'],
+            lambda direction,done,total:progress(f'STEP BOUNDARY {direction}: {done}/{total}'))
+        require_boundary_samples(checked['boundary_surface_samples'])
         if root_check:
             checked["fillet_before_step"]=fillet_samples(model,settings["fillet"]["hub_radius_mm"])
             checked["fillet_after_step"]=match_fillet_samples(model,imported,settings["fillet"]["hub_radius_mm"],settings["surface_tolerance_mm"])

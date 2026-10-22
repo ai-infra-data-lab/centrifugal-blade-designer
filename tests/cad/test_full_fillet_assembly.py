@@ -137,13 +137,13 @@ def test_actual_default_full_wheel_small_radius_and_step(tmp_path):
     params.cad_export.mechanical_scope=MechanicalExportScope.FULL_IMPELLER
     before=deepcopy(params)
     job=prepare_job(params,'mechanical',tmp_path/'job')
-    # Full native self-intersection plus an independent STEP import is costly.
+    # Full native self-intersection, STEP import and bidirectional samples are costly.
     # A longer bound changes no kernel flags, tolerance or acceptance criteria.
     with (job/'test_process.log').open('w',encoding='utf-8') as log:
         process=subprocess.Popen([str(backend_python()),'-X','utf8','-m','blade_designer.cad.worker',
             str(job.resolve())],cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,
             creationflags=subprocess.CREATE_NO_WINDOW)
-        try:code=process.wait(timeout=2700)
+        try:code=process.wait(timeout=3600)
         except subprocess.TimeoutExpired:
             subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],capture_output=True,
                 creationflags=subprocess.CREATE_NO_WINDOW,check=False)
@@ -168,6 +168,12 @@ def test_actual_default_full_wheel_small_radius_and_step(tmp_path):
         item.get('surface_distance_lower_bound_mm'))>item['required_mm'] for item in separation)
     artifact=report['artifacts']['mechanical']
     assert artifact['status']=='PASS' and artifact['roundtrip']['status']=='PASS'
+    boundary=artifact['roundtrip']['boundary_surface_samples']
+    assert boundary['status']=='PASS_SAMPLED' and boundary['global_surface_error']=='NOT_TESTED'
+    for direction in ('source_to_imported','imported_to_source'):
+        measured=boundary[direction]
+        assert measured['face_count']>=len(groups) and len(measured['faces'])==measured['face_count']
+        assert measured['sample_count']>=measured['face_count']
     for key in ('original','imported'):
         assert artifact['roundtrip'][key]['self_intersection_free']
         assert artifact['roundtrip'][key]['solid_count']==1

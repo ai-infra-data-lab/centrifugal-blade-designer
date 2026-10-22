@@ -1,5 +1,10 @@
 # 既存機能一覧
 
+形状方式は利用者方針に従い、表示XYZ直線・派生カット円筒補間・CAD splineを維持する。
+比較診断の対象と未検証範囲を明記し、同じsnapshotを持つことだけで面の一致を保証しない。
+
+STEP品質検査へ、全境界faceの双方向標本距離・向き付き法線を追加。内部面移動、計測欠落/NaN/overflow、法線反転を出力前に拒否する。成功はPASS_SAMPLEDとし、標本間の全面保証やrole対応を検証済みにしない。既存公差・STEP/設計JSONは維持。関連34＋3件・quick63件・Ruff成功、全2,303一意ID成功（通常2,206・実CAD97、新規31・既存2,272保持、最終の失敗/error/skip/漏れ/重複0・固定365入力不変）。初回のGUI待機1件は失敗記録を保持し、該当組全体の単独再実行で成功を確認。[範囲・検証](docs/STEP_BOUNDARY_SAMPLES.md)。
+
 真のHub filletを伴う全周・周期sector・流体CADは、延長翼を全配置してHubと一体化した後に一括filletを生成する。全配置のcap内包・4role根元、完成立体の自己交差・公差・配置間距離を検査。現既定の主翼11枚＋Splitter11枚、明示R0.1 mmの全周Mechanical STEP再読込みと半径標本が成立した。全2,272一意ID成功（通常2,206・実CAD66、新規5・既存2,267保持、失敗/error/skip/漏れ/重複0・固定363入力不変）。仮ディスクはPROVISIONAL、ANSYSは未検証。[構築・検証範囲](docs/FULL_FILLET_ASSEMBLY.md)。
 
 CAD妥当性検査は、同一objectかつバイナリBREP不変の場合だけinstance内で再利用する。STEP読込み後の別object、形状/公差/向きの変更、失敗・指紋未取得は実検査を維持。結果のdeep copy・上限8件・weak referenceで形状を保持しない。全2,267一意ID成功（通常2,206・実CAD61、新規6・既存2,261保持、失敗/error/skip/漏れ/重複0・固定361入力不変）。[条件・検証](docs/CAD_VALIDATION_REUSE.md)。

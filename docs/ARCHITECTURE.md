@@ -106,6 +106,8 @@ gui/passage_widget.pyはView → Passage Area / Throatで明示計算し、Threa
 
 ## CAD層（2026-10-16）
 
+`cad/boundary_samples.py`は、workerのSTEP前後の全faceを双方向に標本比較する。実trim分類・point–face距離・world配置とface向きを反映した法線を使い、欠落/非有限/公差超過/反転をartifact生成前に拒否する。数値bodyは変更せず、Qt・ファイル形式を扱わない。`cad_validation.py`は比較に使う物理量の有限性と正符号も要求する。成功は有限標本の範囲で、全面・role対応は別。[契約](STEP_BOUNDARY_SAMPLES.md)。
+
 geometry/provisional_disk.pyはユーザー指定の仮ディスクを数値層で作成します。実際のHub側根元R/Zを既存の解析的壁面投影へ渡し、構造CAD専用の前面範囲と裏面を決めます。DiskGeometryParameters.provisional/front_end_m_mmへ仮状態・範囲を保存し、非仮の旧JSONでは追加キーを省略します。clientはmechanical_hub_segmentsを従来の所属壁面と分離して渡し、workerは仮寸法をレポートへ記録します。TurboGridの所属検証は維持します。disk actionは単体の閉solid・STEP再読込を検証し、Preview3Dは元の翼ワイヤーフレームを保持してNo CAD Blade/No Root Filletを表示します。Blade Blend手順の半径もsnapshotの値から生成します。
 
 既存geometry層はCAD/Qt/ファイル形式に依存しません。models/cad.pyの設定は純粋なdataclassです。CADを使用しない既定値はJSONから省略しschema 0.3を維持し、設定変更時に0.4へ保存します。旧JSONには未設定ディスク・R8を補い、ユーザー原本を変更しません。
