@@ -57,6 +57,36 @@ rolling/corner分類、group所有者の検査は維持する。
 `full-step-final-topology/interruption.json`に未完了として記録した。
 全回帰終了後の別作業領域`full-step-final-topology-retry/`で検証を継続する。
 
+## 全周STEPの追加診断結果
+
+ソース`c61887a`で診断用全周形状をSTEPへ書き出し、再読込みを完了した。
+元形状と再読込み形状のBREP・自己交差・閉鎖・正体積・1solidが成立。
+単位mm、体積差約0.08280 mm³（既存上限11.38325 mm³）、bbox最大差約1.42e-14 mm、
+再読込み後の最大edge公差約0.0007876 mm（指定0.01 mm以内）を確認。
+STEP前後ともrolling 158面の半径標本が成立し、再読込み後の最大半径誤差は
+約0.0002487 mmだった。全体約1,381秒で、受入れ基準の変更はない。
+
+根拠は`artifacts/quality-root-interface/full-step-final-topology-retry/model/result.json`、
+`loaded-source-manifest.json`、`process.log`、`watchdog.json`。
+これは既存`step_roundtrip`の検査範囲の成功であり、全面の双方向偏差・法線一致や
+corner全面G1、ANSYS Import/Meshを検証した結果ではない。
+
+別途、単一passageとHubの実体積から求めた11回配置の期待体積との差は
+約0.05016 mm³だった（`full-volume-consistency.json`）。体積比較だけで同一形状と判定しない。
+製品の全周構築経路はまだ変更しておらず、上記の組込み条件と回帰を引き続き必要とする。
+
+STEP writer単体についても同じ全周形状の書出し前後でバイナリBREPの指紋が一致した
+（`writer-constness/result.json`）。元形状を変更せずに書き出していることの診断であり、
+新しい妥当性検査の代用ではない。
+
+さらに11配置×主翼/Splitterの全22部品に別々のgroupを付け、各capのHub内包、
+各groupのLE/TE/PS/SS根元対応を確認した。全158根元edgeの対応が揃い、fillet後も
+22 groupの所有者が一意、半径標本も成立した。後者は分類のみの診断で、妥当性検査は
+省略して`UNVALIDATED_CONSTRUCTION_DIAGNOSTIC`と記録している。
+その完成BREPとSTEPまで検証済みの完成BREPのバイナリ指紋は一致した。
+根拠は`instance-coverage/result.json`、`per-instance-fillet-roles/result.json`、
+`per-instance-binary-comparison.json`。別形状や別Rへ結果を一般化しない。
+
 ## 残る条件
 
 製品の全周組立ては依然としてfillet済み単一passageからHubを差し引いて複製する方式。

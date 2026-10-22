@@ -1,3 +1,5 @@
+2026-10-22：完成BREPにない中間fillet面の分類を修正。同一object・バイナリBREP不変時の検査再利用も追加し、全2,267一意ID成功（通常2,206・実CAD61、失敗/error/skip/漏れ/重複0・固定361入力不変）。[再利用条件](CAD_VALIDATION_REUSE.md)。全周R0.1の別構築診断はSTEP・半径まで成立し、22部品のcap/根元role/fillet所属とバイナリ一致を確認した。4Bの製品経路への組込み・全配置間干渉・回帰は未完了で、全面STEP精度や一般GUI再計算の非同期化と分けて進める。[診断範囲](FINAL_FILLET_TOPOLOGY.md)。
+
 Stage 6AのCAD開始/取消/closeを非同期化：数値準備を専用processへ、完成requestを最後にpromoteし、取消/不完全/改変snapshotの公開を拒否。関連検証とnative計測済み、全2,259一意件成功（通常2,206・実CAD53、新規32・既存2,227保持、失敗/error/skip/漏れ/重複0・固定359入力不変）。一般の再計算/全行生成/描画は残る。[契約](CAD_ASYNC_PREPARATION.md)。
 
 C01/Stage 4Aの修正：Hub内多項式延長、cap内包・二面隣接検査、Main/Splitter一括fillet、支持面を除いた半径測定とSTEP受入れガードを実装し、全回帰2,227一意件成功（通常2,174・実CAD53、新規35、既存2,192保持、失敗/error/skip/漏れ/重複0・固定356入力不変）。現既定の明示R0.1 mm Blade+Hubと、4B全周/周期・5全面精度は別条件。R8必須とはしない。[構成・検証](BURIED_ROOT_CONSTRUCTION.md)。
