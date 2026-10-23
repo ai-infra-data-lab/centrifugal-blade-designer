@@ -11,6 +11,7 @@ from .tip_clearance_editor import TipClearanceEditor
 from .impeller_trim_editor import ImpellerTrimEditor
 from .cad_editor import CadEditor
 from .cad_export_worker import CadExportWorker
+from .provisional_disk_worker import ProvisionalDiskWorker
 from .export_readiness_widget import ExportReadinessWidget
 from ..models.parameters import BladeParameters, BladeRow, RotationDirection
 from ..models.blade_rows import initial_rows, row_snapshot, row_parameters,visible_edge_rows,reconcile_visible_row_edges
@@ -1402,7 +1403,7 @@ class MainWindow(QMainWindow):
         if not self.cad_editor.apply_pending_disk():return
         disk=self.cad_editor.get_parameters().disk
         if disk.backside is None and disk.bore_radius_mm is None and (self.cad_editor.scope.currentData()!="blade_only" or action=="disk"):
-            if not self._create_provisional_disk():return
+            self._queue_provisional_disk(action,target);return
         self.commit_edit();snapshot=deepcopy(self.get_parameters())
         if action in ("mechanical","turbogrid","both") and target is None:
             target=QFileDialog.getExistingDirectory(self,"CAD Export Case Directory")
@@ -1417,6 +1418,7 @@ class MainWindow(QMainWindow):
         worker.start()
 
     def _create_provisional_disk(self,preview=False):
+        if preview:return self._queue_provisional_disk('disk')
         from ..geometry.provisional_disk import make_provisional_disk
         if self._editing_meridional or self._editing_target!=0:return False
         if not self.cad_editor.apply_pending_disk():return False
@@ -1429,8 +1431,49 @@ class MainWindow(QMainWindow):
             self.cad_editor.status.setText("仮ディスク作成エラー: "+str(exc));return False
         self.cad_editor.set_parameters(settings);self._cad_settings_changed()
         self.cad_editor.status.setText("仮寸法を設定しました。根元Rを入力し、Generate CADで形状を生成してください。")
-        if preview:self.start_cad_job("disk")
         return True
+
+    def _disk_input_state(self):
+        # Keep references on the GUI thread so pending, uncommitted text is
+        # protected too; parameter equality alone cannot see spinbox text.
+        return [(widget,widget.text() if isinstance(widget,QLineEdit) else widget.toPlainText())
+                for kind in (QLineEdit,QPlainTextEdit) for widget in self.findChildren(kind)
+                if not widget.isReadOnly()]
+
+    def _queue_provisional_disk(self,action,target=None):
+        from ..cad.provisional_disk_job import queue_disk_job
+        if self._cad_worker is not None or self._editing_meridional or self._editing_target!=0:return False
+        if not self.cad_editor.apply_pending_disk():return False
+        settings=self.cad_editor.get_parameters()
+        if not settings.disk.provisional and (settings.disk.backside is not None or settings.disk.bore_radius_mm is not None):
+            self.cad_editor.status.setText("入力済みのディスク寸法を保持しました。仮寸法で上書きしません。");return False
+        try:
+            snapshot=deepcopy(self.get_parameters());job=queue_disk_job(snapshot)
+        except (ValueError,ArithmeticError,OSError) as exc:
+            self.cad_editor.status.setText('仮ディスク準備エラー: '+str(exc));return False
+        inputs=self._disk_input_state();worker=ProvisionalDiskWorker(job,self);self._cad_worker=worker
+        self.cad_editor.set_busy(True)
+        worker.progress.connect(lambda stage:self.cad_editor.status.setText(stage))
+        worker.completed.connect(lambda report:self._provisional_disk_finished(job,snapshot,inputs,action,target,report))
+        self.cad_editor.status.setText('仮ディスクを計算中です。取消できます。')
+        worker.start();return True
+
+    def _provisional_disk_finished(self,job,snapshot,inputs,action,target,report):
+        from ..cad.provisional_disk_job import read_disk_result
+        if self._cad_closing:return
+        worker=self._cad_worker;self._cad_worker=None;self.cad_editor.set_busy(False)
+        if worker is not None:worker.deleteLater()
+        if report.get('cancelled') or report.get('overall')!='PASS':
+            self.cad_editor.status.setText('仮ディスク計算を完了できませんでした。CAD出力は開始していません。');return
+        try:
+            if self._disk_input_state()!=inputs or self.get_parameters()!=snapshot:
+                self.cad_editor.status.setText('入力が変更されたため仮ディスク結果を破棄しました。再実行してください。');return
+            disk=read_disk_result(job,snapshot)
+        except (ValueError,ArithmeticError,OSError,TypeError,KeyError,RuntimeError) as exc:
+            self.cad_editor.status.setText('仮ディスク結果を採用できません: '+str(exc));return
+        settings=self.cad_editor.get_parameters();settings.disk=disk
+        self.cad_editor.set_parameters(settings);self._cad_settings_changed()
+        self.start_cad_job(action,target)
 
     def _cad_finished(self,job,snapshot,target,report):
         from ..cad.preview_cache import load_preview
@@ -1470,4 +1513,5 @@ class MainWindow(QMainWindow):
     def _close_after_cad(self,report):
         worker=self._cad_worker;self._cad_worker=None
         if worker is not None:worker.deleteLater()
-        self.close()
+        # Cancellation may complete inside closeEvent before it returns.
+        QTimer.singleShot(0,self.close)

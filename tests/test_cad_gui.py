@@ -124,10 +124,15 @@ def test_manual_disk_is_preserved_and_missing_disk_auto_created(window,monkeypat
         def start(self):self.completed.emit({'overall':'WARNING','artifacts':{}})
     monkeypatch.setattr(main_window,'CadExportWorker',FakeWorker)
     w.start_cad_job('generate')
+    import time
+    app=QApplication.instance();deadline=time.monotonic()+30
+    while not jobs and time.monotonic()<deadline:app.processEvents();time.sleep(.01)
     assert len(jobs)==1
     request=json.loads((jobs[0]/'request.json').read_text(encoding='utf-8'))
     assert request['settings']['disk']['provisional'] and request['mechanical_hub_segments']
     w.cad_editor.provisional_disk.click()
+    deadline=time.monotonic()+30
+    while len(jobs)<2 and time.monotonic()<deadline:app.processEvents();time.sleep(.01)
     request=json.loads((jobs[-1]/'request.json').read_text(encoding='utf-8'))
     assert request['action']=='disk'
 

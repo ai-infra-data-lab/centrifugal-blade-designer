@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+仮ディスクのUI操作は`cad/provisional_disk_job.py`のQt/CAD非依存processを`gui/provisional_disk_worker.py`で起動する。既存のowned-tree取消を再利用し、MainWindowが設計とdirty textを照合して受入れ後だけ元のCAD queueへ接続する。[契約](ASYNC_PROVISIONAL_DISK.md)。
+
 大きいCAD previewは`cad/preview_cache.py`の任意NPZで数値を転送し、`gui/surface_render.py`が専用QImageへ描画する。GUIが固定した読取り専用snapshotだけをworkerへ渡し、世代/可視状態/カメラ/サイズ/DPRで完成画像を照合する。workerはwidgetを保持しない。CAD/設計の形状モデルや公開出力は変えない。[契約](CAD_PREVIEW_RENDERING.md)。
 
 `geometry/surface_evaluation.py`は沿翼方向の端点/接線を固定条件として内部collocationを解く。元端点を共有するroleの境界を生成時に一致させ、補間後のweldingはしない。数値参照とOCCT面が同じ補間実装を使用する。[契約](SURFACE_ENDPOINT_CONSTRAINTS.md)。

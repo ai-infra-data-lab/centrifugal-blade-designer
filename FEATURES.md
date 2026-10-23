@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+仮ディスクの画面操作を専用processへ移す対応を追加。算出式/標本/同期APIを保ち、設計値や未確定入力が変わった結果を破棄する。Cancel/closeの所有tree終了と、即時取消時のclose再入を扱う。全2,358一意ID成功（通常2,261・実CAD97、既存2,333保持・新規25、失敗/error/skip/漏れ/重複0・固定373入力不変）。同じ最終snapshotのnative実CAD操作で開始0.063 s/最大gap0.328 s、別のclose/取消も確認。[範囲](docs/ASYNC_PROVISIONAL_DISK.md)。
+
 大きいCADプレビューを内部数値キャッシュと非同期QImage描画へ対応。完成画像の色・順序・全polygonを維持し、待機中だけ簡略輪郭を表示する。古い画像の採用を拒否し、cache不正は旧JSONへ戻す。全2,333一意ID成功（通常2,236・実CAD97、既存2,303保持・新規30、失敗/error/skip/漏れ/重複0・固定369入力不変）。関連52件・quick63件・Ruffとnative製品viewの画像一致も確認。[範囲・検証](docs/CAD_PREVIEW_RENDERING.md)。
 
 形状方式は利用者方針に従い、表示XYZ直線・派生カット円筒補間・CAD splineを維持する。

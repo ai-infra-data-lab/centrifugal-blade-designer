@@ -1,5 +1,7 @@
 # 現行機能の実装監査
 
+U01の同期仮ディスク算出を追加対応：既存計算を専用processへ移し、設計/未確定文字/選択変更時の破棄とclose再入対策を実装。全2,358一意ID成功（通常2,261・実CAD97、既存2,333保持・新規25、失敗/error/skip/漏れ/重複0・固定373入力不変）。同じ最終snapshotのnative実CAD操作で開始0.063 s/最大gap0.328 s、別のclose/取消も確認。一般再生成等が残り、Stage 6完了にはしない。[範囲](ASYNC_PROVISIONAL_DISK.md)。
+
 U01のCAD previewを追加対応：大きいoverlayの内部数値cacheと非同期QImage描画、世代/視点/表示切替による古い画像の拒否、表示読込み失敗後のworker終了を実装。全2,333一意ID成功（通常2,236・実CAD97、既存2,303保持・新規30、失敗/error/skip/漏れ/重複0・固定369入力不変）。関連52件とnative製品viewの画像一致も確認。通常の再生成/全行生成と全export GUI操作は未完了。[契約](CAD_PREVIEW_RENDERING.md)。
 
 2026-10-22の利用者方針：表示のXYZ直線接続、派生カットの円筒補間、CAD splineを

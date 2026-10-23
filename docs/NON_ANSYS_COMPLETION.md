@@ -1,5 +1,7 @@
 # ANSYS以外の品質改善作業
 
+queue前の同期仮ディスク算出を、画面操作時だけ別processへ移す追加対応を実装。既存同期API・計算・寸法を維持し、未確定入力/設計変更の破棄、取消/closeを扱う。全2,358一意ID成功（通常2,261・実CAD97、既存2,333保持・新規25、失敗/error/skip/漏れ/重複0・固定373入力不変）。同じ最終snapshotのnative実CAD操作で開始0.063 s/最大gap0.328 s、別のclose/取消も確認。[範囲](ASYNC_PROVISIONAL_DISK.md)。
+
 Stage 6AのCAD読込み/描画へ任意の数値cacheと最新要求だけを扱うQImage workerを追加。全2,333一意ID成功（通常2,236・実CAD97、既存2,303保持・新規30、失敗/error/skip/漏れ/重複0・固定369入力不変）。関連52件/quick63件/Ruff、native製品viewでの画像一致と取消/closeも確認。通常形状の同期再生成や全export GUI操作とは区別する。[範囲](CAD_PREVIEW_RENDERING.md)。
 
 2026-10-22に利用者が形状方式を確定：現行のXYZ表示／円筒補間カット／CAD splineを
@@ -30,7 +32,7 @@ C02/Stage 5の標本検査を製品STEP出力へ追加。全faceの双方向距�
 | 全面誤差・対応 | 部分対応 | 表示/基準面/CAD/trimの物理対応、位置/法線/Jの予算と丸めの保証範囲を区別 |
 | 実モデル根元fillet | Blade+Hubと全周製品経路のR0.1を実CAD/STEP検証。既存R8周期・流体CADと全回帰の監査も成功 | 現既定の周期sector・所属範囲を満たす流体CAD、全面STEP精度は別条件。R8必須ではない |
 | 最終CAD/STEP精度 | 部分対応 | 体積/bboxだけでなく共通境界の双方向偏差・法線・role照合。局所変形negativeで検出 |
-| GUI応答/取消 | CAD準備/取消と大きいCAD面描画は非同期。旧JSON表示の1.53 s/最大gap1.77 sは改善前の履歴。新view単体は最大gap94 ms。nativeの単翼＋Hub実出力は完了したが全体gap9.859 sが残る | queue前の同期仮ディスク算出と一般再計算/全行生成を分離。全scope/長時間のGUI操作は未検証。[計測範囲](CAD_PREVIEW_RENDERING.md) |
+| GUI応答/取消 | CAD準備/取消・大きいCAD面・UI仮ディスク算出は非同期。旧JSON表示1.53 s/gap1.77 sと仮ディスク算出時gap9.859 sは改善前の履歴。新view単体gap94 ms、同じsnapshotのnative単翼＋Hub実出力gap0.328 s | 一般再計算/全行生成/Flow Area、通常描画とfillet当たり判定。全scope/長時間のGUI操作は未検証。[計測範囲](ASYNC_PROVISIONAL_DISK.md) |
 | 履歴/別画面同期 | 部分対応 | 全設計値の確定/Undo/Redo/JSON/Editor同期、Camera保持、設計/表示設定の責務分離 |
 | 出力拡張 | 一部未対応 | 個別形式/翼種の仕様、拒否条件、出力保護、ローカルCAD/形式検証。ANSYS成功とは報告しない |
 | 面積/スロート | 近似機能あり | 独立解析解、密度/Span収束、未定義の保持。真の3DスロートとCAD閉塞は別機能として検証 |
