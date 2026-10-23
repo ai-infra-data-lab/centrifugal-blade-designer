@@ -4,6 +4,10 @@ from PySide6.QtCore import QObject,QProcess,QTimer,Signal
 from ..cad.client import backend_python,ROOT,json_text,verified_snapshot_text
 
 
+PREPARATION_TIMEOUT_MS=20*60*1000
+CAD_TIMEOUT_MS=60*60*1000
+
+
 class CadExportWorker(QObject):
     progress=Signal(str)
     completed=Signal(object)
@@ -22,7 +26,7 @@ class CadExportWorker(QObject):
 
     def start(self):
         if self._started or self._completed:return
-        self._started=True;self.timer.start(1200000)
+        self._started=True;self.timer.start(PREPARATION_TIMEOUT_MS)
         try:
             request=json.loads((self.job/'request.json').read_text(encoding='utf-8'))
             if not isinstance(request,dict):raise ValueError('Invalid CAD request structure.')
@@ -34,6 +38,9 @@ class CadExportWorker(QObject):
     def _start_cad(self):
         try:python=backend_python()
         except Exception as exc:self._fail(str(exc));return
+        # The real default full-wheel case needs over 20 minutes. Preparation
+        # time must not consume the separate, bounded CAD-kernel budget.
+        self.timer.start(CAD_TIMEOUT_MS)
         self._launch(python,'blade_designer.cad.worker','cad')
 
     def _launch(self,python,module,phase):

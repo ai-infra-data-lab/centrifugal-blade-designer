@@ -1,5 +1,7 @@
 # CAD数値準備と取消の非同期化
 
+後続の期限修正では、数値準備20分とCAD本体60分を分け、CAD開始時に予算を再設定する。通常再計算/仮ディスクの20分、所有tree取消、無効な準備からCADへ進めない条件を維持する。[検証](CAD_TIME_BUDGETS.md)。
+
 GUIからCADを開始すると、まず`cad/pending_job.py::queue_job`で設計snapshotと要求を固定する。
 この時点では翼生成を行わない。専用QProcessで既存の`prepare_job`を呼び、
 私有子directoryに座標を生成する。snapshotのcanonical hash・原文・要求が不変であることを
