@@ -31,6 +31,15 @@ def window(app):
     app.processEvents()
 
 
+def wait_for_geometry(window):
+    # Numerical expectations stay unchanged; the debounce now launches a child.
+    import time
+    deadline=time.monotonic()+30
+    while (window.timer.isActive() or window._preview_pending or window._preview_controller.busy) and time.monotonic()<deadline:
+        QTest.qWait(20)
+    assert not window.timer.isActive() and not window._preview_pending and not window._preview_controller.busy
+
+
 def test_default_tabs_and_updates(window):
     assert window.geometry is not None
     assert [window.tabs.tabText(i) for i in range(window.tabs.count()) if window.tabs.isTabVisible(i)] == ["Blade Angle","Thickness","LE / TE","Splitter","CAD / Fillet","Full Annulus"]
@@ -38,17 +47,17 @@ def test_default_tabs_and_updates(window):
     assert window.central_views.currentWidget() is window.blade_plot
     assert window.blade_plot.getViewBox().state["aspectLocked"] == 1
     window.panel.controls["r_te"].setValue(170)
-    QTest.qWait(400)
+    wait_for_geometry(window)
     assert window.geometry.camber.r[-1] == 170
     old = window.impeller_geometry.sections[0].camber.y.copy()
     old_diffuser = window.geometry.camber.y.copy()
     window.angle_editor.table.cellWidget(2,1).setValue(45)
-    QTest.qWait(400)
+    wait_for_geometry(window)
     assert not np.allclose(window.impeller_geometry.sections[0].camber.y,old)
     np.testing.assert_array_equal(window.geometry.camber.y,old_diffuser)
     window.thickness_editor.table.cellWidget(1,1).setValue(6)
     window.panel.controls["vane_count"].setValue(12)
-    QTest.qWait(400)
+    wait_for_geometry(window)
     assert window.impeller_geometry.sections[0].thickness.max() == pytest.approx(6)
     assert window.geometry.thickness.max() == pytest.approx(4)
     assert window.annulus_plot.vane_count == 12

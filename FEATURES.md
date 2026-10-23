@@ -1,5 +1,9 @@
 # 既存機能一覧
 
+通常UI再計算の最終検証：全2,428一意ID成功（通常2,331・実CAD97、既存2,375保持・新規53、失敗/error/skip/漏れ/重複0・固定381入力不変）。Windows実画面の翼列切替・Camera保持、通常取消/close、仮ディスク準備との同時closeも確認。ANSYSと全操作の人手確認は未実施。 [記録](docs/ASYNC_PREVIEW_COMPUTATION.md)。
+
+通常UIの再計算を所有processへ分離。選択形状/Flow Area/全行を最新入力だけ採用し、未確定文字・取消・close・古い結果を保護する。Edit → Cancel Recalculationを追加し、通常の翼列/Span/回転/履歴操作も非同期へ接続。同期API・設計値・既存出力形式を維持する。通常の3D描画や起動/Load/Save等は別処理。[範囲・検証](docs/ASYNC_PREVIEW_COMPUTATION.md)。
+
 画面用の選択3D/参考Impeller/legacy 2D/Flow Areaと全翼列生成を、Qt/OCPに依存しない同期サービスへ分離。既存計算・設定・注入designer・既計算Impellerを維持し、所属解析壁面の失敗時は翼列も一緒に省略する。選択数値準備失敗時は中途の壁面を採用せず、current測定を無効化する。全2,375一意ID成功（通常2,278・実CAD97、既存2,358保持・新規17、失敗/error/skip/漏れ/重複0・固定375入力不変）、関連42件/quick63件/Ruff/native切替も確認。一般再計算の非同期化は別段階。[契約・検証](docs/PREVIEW_COMPUTATION_SERVICE.md)。
 
 仮ディスクの画面操作を専用processへ移す対応を追加。算出式/標本/同期APIを保ち、設計値や未確定入力が変わった結果を破棄する。Cancel/closeの所有tree終了と、即時取消時のclose再入を扱う。全2,358一意ID成功（通常2,261・実CAD97、既存2,333保持・新規25、失敗/error/skip/漏れ/重複0・固定373入力不変）。同じ最終snapshotのnative実CAD操作で開始0.063 s/最大gap0.328 s、別のclose/取消も確認。[範囲](docs/ASYNC_PROVISIONAL_DISK.md)。

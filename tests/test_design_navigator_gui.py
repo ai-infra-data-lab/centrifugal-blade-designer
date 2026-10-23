@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QDialogButtonBox
 from PySide6.QtTest import QTest
 from blade_designer.gui.main_window import MainWindow
+from test_gui import wait_for_geometry
 
 
 @pytest.fixture
@@ -29,6 +30,7 @@ def choose(window, identifier):
         if item.data(0, Qt.ItemDataRole.UserRole) == identifier:
             QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton,
                             pos=tree.visualItemRect(item).center())
+            wait_for_geometry(window)
             return
     raise AssertionError(identifier)
 
@@ -66,6 +68,7 @@ def add_via_dialog(window, kind, name):
     dialog.name_edit.setText(name)
     dialog.kind_combo.setCurrentIndex(dialog.kind_combo.findData(kind))
     dialog.buttons.button(QDialogButtonBox.StandardButton.Ok).click()
+    wait_for_geometry(window)
 
 
 @pytest.mark.parametrize("kind", ["impeller", "diffuser"])
@@ -82,6 +85,7 @@ def test_rename_updates_row_labels_preserves_data_and_undo_save(window,tmp_path,
     assert dialog.name_edit.text()=="元の翼列"
     dialog.name_edit.setText("  改名した翼列  ")
     dialog.buttons.button(QDialogButtonBox.StandardButton.Ok).click()
+    wait_for_geometry(w)
     after=deepcopy(w.get_parameters())
     expected=deepcopy(before);expected.blade_rows[-1].name="改名した翼列"
     assert after==expected

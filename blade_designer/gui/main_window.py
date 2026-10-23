@@ -12,6 +12,7 @@ from .impeller_trim_editor import ImpellerTrimEditor
 from .cad_editor import CadEditor
 from .cad_export_worker import CadExportWorker
 from .provisional_disk_worker import ProvisionalDiskWorker
+from .preview_worker import PreviewController, PreviewRequest
 from .export_readiness_widget import ExportReadinessWidget
 from ..models.parameters import BladeParameters, BladeRow, RotationDirection
 from ..models.blade_rows import initial_rows, row_snapshot, row_parameters,visible_edge_rows,reconcile_visible_row_edges
@@ -64,6 +65,16 @@ class MainWindow(QMainWindow):
         self._central_preview_state = None
         self._central_preview_errors = []
         self._displaying_geometry = False
+        self._preview_controller=PreviewController(QApplication.instance())
+        self._preview_controller.ready.connect(self._preview_ready)
+        self._preview_controller.failed.connect(self._preview_failed)
+        self._preview_controller.progress.connect(self._preview_progress)
+        self._preview_controller.idle.connect(self._preview_idle)
+        self.destroyed.connect(self._preview_controller.dispose)
+        self._preview_generation=0;self._preview_pending=False;self._preview_text=[]
+        self._preview_user_cancelled=False
+        self._interactive_preview_mode=False;self._interactive_preview_dirty=False
+        self._prepared_rows=None;self._preview_delete_requested=False
         self.project_path: Path | None = None
         self._cad_worker=None
         self._cad_reference_report=None
@@ -96,7 +107,7 @@ class MainWindow(QMainWindow):
         self.curvature_plot = CurvaturePlotWidget()
         self.metrics_widget = MetricsWidget()
         self.row_metrics_widget = RowMetricsWidget()
-        self.row_metrics_widget.refreshRequested.connect(self.update_geometry)
+        self.row_metrics_widget.refreshRequested.connect(self._queue_preview_update)
         self.geometry_sources = {}
         self._wall_geometry = None
         self.passage_widget = PassageWidget()
@@ -211,7 +222,7 @@ class MainWindow(QMainWindow):
         self.vertical_splitter.setStretchFactor(0, 3)
         self.vertical_splitter.setStretchFactor(1, 2)
         self.vertical_splitter.setSizes([660, 440])
-        self.section_selector.selected.connect(self.select_section)
+        self.section_selector.selected.connect(lambda index:self._interactive_preview(self.select_section,index))
         self.section_selector.addRequested.connect(self.add_span_section)
         self.section_selector.deleteRequested.connect(self.delete_span_section)
         # Retain analysis widgets and their programmatic API, without a bottom panel.
@@ -242,9 +253,12 @@ class MainWindow(QMainWindow):
                 ("Save Project","Ctrl+S",self.save_project_dialog)):
             action=QAction(label,self);action.setShortcut(shortcut);action.triggered.connect(callback)
             self.file_menu.addAction(action);self.project_actions[label]=action
-        self.undo_action=QAction("Undo",self);self.undo_action.setShortcut("Ctrl+Z");self.undo_action.triggered.connect(self.undo)
-        self.redo_action=QAction("Redo",self);self.redo_action.setShortcuts(["Ctrl+Y","Ctrl+Shift+Z"]);self.redo_action.triggered.connect(self.redo)
-        for action in (self.undo_action,self.redo_action):self.edit_menu.addAction(action)
+        self.undo_action=QAction("Undo",self);self.undo_action.setShortcut("Ctrl+Z");self.undo_action.triggered.connect(lambda:self._interactive_preview(self.undo))
+        self.redo_action=QAction("Redo",self);self.redo_action.setShortcuts(["Ctrl+Y","Ctrl+Shift+Z"]);self.redo_action.triggered.connect(lambda:self._interactive_preview(self.redo))
+        self.cancel_preview_action=QAction("Cancel Recalculation",self)
+        self.cancel_preview_action.setEnabled(False)
+        self.cancel_preview_action.triggered.connect(self._user_cancel_preview)
+        for action in (self.undo_action,self.redo_action,self.cancel_preview_action):self.edit_menu.addAction(action)
         self.undo_stack.canRedoChanged.connect(self.redo_action.setEnabled)
         self.redo_action.setEnabled(False)
         for label,box in (("2D Full Annulus",self.annulus_2d),("3D Full Annulus",self.annulus_3d)):
@@ -266,7 +280,7 @@ class MainWindow(QMainWindow):
         rotation_widget.hide()
         self.rotation_ccw=QRadioButton("CCW");self.rotation_cw=QRadioButton("CW");self.rotation_ccw.setChecked(True)
         for button in (self.rotation_ccw,self.rotation_cw):
-            rotation_layout.addWidget(button);button.toggled.connect(self._rotation_changed)
+            rotation_layout.addWidget(button);button.toggled.connect(lambda checked:self._interactive_preview(self._rotation_changed,checked))
         self.edit_menu.addSeparator()
         rotation_menu=self.edit_menu.addMenu("Rotation Direction (+Z)")
         rotation_group=QActionGroup(self);self.rotation_actions={}
@@ -275,7 +289,7 @@ class MainWindow(QMainWindow):
             action.setChecked(button.isChecked())
             action.triggered.connect(lambda checked=False,button=button:button.setChecked(True))
             button.toggled.connect(action.setChecked);self.rotation_actions[text]=action
-        reverse_action=self.edit_menu.addAction("Reverse Rotation");reverse_action.triggered.connect(self.reverse_rotation)
+        reverse_action=self.edit_menu.addAction("Reverse Rotation");reverse_action.triggered.connect(lambda:self._interactive_preview(self.reverse_rotation))
         self.view_mode = QComboBox()
         self.view_mode.addItems(["Impeller", "Diffuser"])
         self.view_mode.setToolTip("Select geometry and distribution editing target")
@@ -309,7 +323,7 @@ class MainWindow(QMainWindow):
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.setInterval(150)
-        self.timer.timeout.connect(self.update_geometry)
+        self.timer.timeout.connect(self._queue_preview_update)
         self.output_editor.parametersChanged.connect(self._output_changed)
         self.meridional_editor.stationsChanged.connect(self._stations_changed)
         self.meridional_editor.ownershipChanged.connect(self._ensure_blade_rows)
@@ -325,12 +339,12 @@ class MainWindow(QMainWindow):
             self.optimization_widget.captureRequested.connect(self.capture_optimization_baseline)
             self.optimization_widget.applyRequested.connect(self.apply_optimization_candidate)
         self._load_active_profile()
-        self.navigator.meridionalSelected.connect(self._select_meridional)
-        self.navigator.rowSelected.connect(self.select_blade_row)
-        self.navigator.addRequested.connect(self.add_blade_row)
-        self.navigator.renameRequested.connect(self.rename_blade_row)
-        self.navigator.deleteRequested.connect(self.delete_blade_row)
-        self.navigator.moveRequested.connect(self.move_blade_row)
+        self.navigator.meridionalSelected.connect(lambda:self._interactive_preview(self._select_meridional))
+        self.navigator.rowSelected.connect(lambda identifier:self._interactive_preview(self.select_blade_row,identifier))
+        self.navigator.addRequested.connect(lambda kind,name:self._interactive_preview(self.add_blade_row,kind,name))
+        self.navigator.renameRequested.connect(lambda identifier,name:self._interactive_preview(self.rename_blade_row,identifier,name))
+        self.navigator.deleteRequested.connect(lambda:self._interactive_preview(self.delete_blade_row))
+        self.navigator.moveRequested.connect(lambda step:self._interactive_preview(self.move_blade_row,step))
         self._refresh_navigator()
         self.tabs.currentChanged.connect(self._editor_tab_changed)
         self.tabs.tabBarClicked.connect(self._editor_tab_changed)
@@ -339,12 +353,12 @@ class MainWindow(QMainWindow):
         self._configure_editor_tabs()
         self.central_views.setCurrentWidget(self.blade_plot)
         for editor in (self.angle_editor,self.thickness_editor):
-            editor.dragStarted.connect(self._begin_drag);editor.dragFinished.connect(self._end_drag)
+            editor.dragStarted.connect(self._begin_drag);editor.dragFinished.connect(lambda:self._interactive_preview(self._end_drag))
             editor.editFinished.connect(self.commit_edit)
         self.meridional_editor.editFinished.connect(self.commit_edit)
         for context in (self.context_meridional,self.meridional_editor.context):
             context.endpointMoved.connect(self.meridional_editor.blade_edges.move_endpoint)
-            context.edgeDragStarted.connect(self._begin_drag);context.edgeDragFinished.connect(self._end_drag)
+            context.edgeDragStarted.connect(self._begin_drag);context.edgeDragFinished.connect(lambda:self._interactive_preview(self._end_drag))
         self._bind_history_inputs()
         if default_parameters is not None:
             self.set_parameters(self._default_parameters)
@@ -406,9 +420,13 @@ class MainWindow(QMainWindow):
         params=self.get_parameters()
         state=(self._editing_meridional,self._editing_target,params)
         if state==self._central_preview_state:return False
+        if self._interactive_preview_mode:
+            self._interactive_preview_dirty=True;return False
+        if self._preview_pending and not self._displaying_geometry:return False
         errors=[]
         if self._editing_meridional:
-            prepared=prepare_row_previews(params,designer=self.designer)
+            prepared=(self._prepared_rows[1] if self._prepared_rows is not None and self._prepared_rows[0]==params
+                      else prepare_row_previews(params,designer=self.designer))
             entries=prepared.entries;errors=prepared.errors
             self.model_preview_3d.update_rows(entries,self._wall_geometry,analysis_chunks=prepared.analysis_chunks)
             for context in (self.context_meridional,self.meridional_editor.context):
@@ -908,6 +926,9 @@ class MainWindow(QMainWindow):
         self.output_editor.set_parameters(p)
 
     def _schedule_update(self) -> None:
+        self._cancel_preview()
+        self.cancel_preview_action.setEnabled(True)
+        self._invalidate_preview_measurements()
         self.row_metrics_widget.invalidate()
         self._invalidate_export_readiness()
         self._bind_history_inputs()
@@ -953,6 +974,7 @@ class MainWindow(QMainWindow):
         area=prepared.area
         self.flow_area_result=area
         self.flow_area_widget.update_result(area,params.flow_path)
+        self.flow_area_widget.setEnabled(True)
         self.impeller_geometry = impeller
         source_geometry=wall_geometry.source_geometry or wall_geometry
         if impeller is not None:
@@ -1047,6 +1069,7 @@ class MainWindow(QMainWindow):
 
     def _display_legacy_geometry(self, geometry, params, legacy_error=None):
         self.geometry_sources.pop('legacy',None)
+        for widget in (self.curvature_plot,self.metrics_widget):widget.setEnabled(geometry is not None)
         if geometry is not None:
             legacy_source=geometry_source(params,'legacy_radial_2d',kind='impeller' if self._editing_target==0 else 'diffuser')
             self.geometry_sources['legacy']=legacy_source
@@ -1065,6 +1088,9 @@ class MainWindow(QMainWindow):
             self.curvature_plot.ps_curve.setData([],[]);self.curvature_plot.ss_curve.setData([],[])
 
     def update_geometry(self) -> None:
+        if self._interactive_preview_mode:
+            self._interactive_preview_dirty=True;return
+        self._cancel_preview()
         self._invalidate_export_readiness()
         self.timer.stop()
         params=geometry=None
@@ -1075,21 +1101,128 @@ class MainWindow(QMainWindow):
             geometry=prepared.legacy
             self._display_geometry(geometry,params,legacy_error=prepared.legacy_error,prepared=prepared)
         except (ValueError, ArithmeticError) as exc:
-            self.passage_widget.set_source()
-            self.row_metrics_widget.invalidate("現在の形状が無効です。最終有効表示の測定値は使用しません。")
-            self.geometry_sources={}
-            if geometry is not None and params is not None:
-                try:
-                    self._display_legacy_geometry(geometry,params)
-                    if self._editing_target==1:
-                        self.angle_editor.update_distribution(geometry.camber.m_norm,np.rad2deg(geometry.camber.beta_m_rad))
-                        self.thickness_editor.update_distribution(geometry.camber.m_norm,geometry.thickness)
-                except (ValueError,ArithmeticError) as source_error:
-                    self._display_legacy_geometry(None,params,str(source_error))
-            if self.trim_editor.isChecked():self.trim_editor.status.setText(f'計算不可: {exc}')
-            text = f"ERROR — {'Diffuser 3D: ' if self._editing_target==1 else ''}{exc}\nShowing last valid geometry."
-            self.messages.setPlainText(text)
-            self.statusBar().showMessage("ERROR — correct input values; showing last valid geometry.")
+            self._geometry_error(exc,params,geometry)
+
+    def _geometry_error(self,exc,params=None,geometry=None):
+        self.passage_widget.set_source();self.flow_area_widget.setEnabled(False)
+        self.row_metrics_widget.invalidate("現在の形状が無効です。最終有効表示の測定値は使用しません。")
+        self.geometry_sources={}
+        if geometry is not None and params is not None:
+            try:
+                self._display_legacy_geometry(geometry,params)
+                if self._editing_target==1:
+                    self.angle_editor.update_distribution(geometry.camber.m_norm,np.rad2deg(geometry.camber.beta_m_rad))
+                    self.thickness_editor.update_distribution(geometry.camber.m_norm,geometry.thickness)
+            except (ValueError,ArithmeticError) as source_error:self._display_legacy_geometry(None,params,str(source_error))
+        if self.trim_editor.isChecked():self.trim_editor.status.setText(f'計算不可: {exc}')
+        self.messages.setPlainText(f"ERROR — {'Diffuser 3D: ' if self._editing_target==1 else ''}{exc}\nShowing last valid geometry.")
+        self.statusBar().showMessage("ERROR — correct input values; showing last valid geometry.")
+
+    def _cancel_preview(self):
+        self._preview_generation+=1;self._preview_pending=False;self._prepared_rows=None
+        self._preview_user_cancelled=False
+        self._preview_controller.invalidate()
+        if hasattr(self,'cancel_preview_action'):self.cancel_preview_action.setEnabled(self._preview_controller.busy)
+
+    def _user_cancel_preview(self):
+        self.timer.stop();self._cancel_preview()
+        self.row_metrics_widget.invalidate();self.passage_widget.set_source();self._invalidate_preview_measurements()
+        self.messages.setPlainText("Recalculation cancellation requested. Showing last valid geometry.")
+        self.statusBar().showMessage("Cancellation requested; waiting for owned preview process to stop.")
+        self._preview_user_cancelled=True
+        if not self._preview_controller.busy:self._preview_idle()
+
+    def _preview_progress(self,message):
+        if not self._cad_closing:self.statusBar().showMessage(message)
+
+    def _invalidate_preview_measurements(self):
+        self.flow_area_widget.setEnabled(False)
+        for key in ('actual','legacy'):self.geometry_sources.pop(key,None)
+        for widget in (self.curvature_plot,self.metrics_widget):widget.setEnabled(False)
+
+    def _interactive_preview(self,callback,*args):
+        previous=self._interactive_preview_mode
+        if not previous:
+            pending=self._preview_pending or self._preview_controller.busy
+            self._cancel_preview();self._interactive_preview_dirty=pending
+        self._interactive_preview_mode=True
+        try:return callback(*args)
+        finally:
+            dirty=self._interactive_preview_dirty;self._interactive_preview_mode=previous
+            if dirty and not previous:self._queue_preview_update()
+
+    def _queue_preview_update(self):
+        if self._cad_closing:return
+        self._preview_user_cancelled=False
+        # Preserve custom designer injection for synchronous clients/tests.
+        if type(self.designer) is not BladeDesigner or any(name in vars(self.designer) for name in
+                ('generate_3d','generate_diffuser_3d','generate_diffuser')):
+            self.update_geometry();return
+        self.timer.stop();self._preview_generation+=1
+        self._invalidate_export_readiness();self.row_metrics_widget.invalidate();self.passage_widget.set_source()
+        self._invalidate_preview_measurements()
+        try:
+            params=deepcopy(self.get_parameters());self._preview_text=self._preview_input_state()
+            request=PreviewRequest(self._preview_generation,params,
+                'impeller' if self._editing_target==0 else 'diffuser',self._editing_meridional)
+        except (ValueError,ArithmeticError) as exc:self._geometry_error(exc);return
+        self._preview_pending=True
+        self.cancel_preview_action.setEnabled(True)
+        self.statusBar().showMessage("Recalculating selected geometry… showing last valid model.")
+        self._preview_controller.submit(request)
+
+    def _preview_input_state(self):
+        # Accepted Add/Rename dialogs are deleted after their signal returns.
+        # Their text is already committed to params, not a pending design edit.
+        return [(widget,text) for widget,text in self._disk_input_state()
+                if not (isinstance(widget.window(),QDialog) and widget.window().isModal())]
+
+    def _preview_ready(self,request,result):
+        if self._cad_closing or request.generation!=self._preview_generation:return
+        self._preview_pending=False
+        self.cancel_preview_action.setEnabled(False)
+        try:
+            from shiboken6 import isValid
+            # Profile/row tables retire old editors with deleteLater. These
+            # fields cannot contain a new user edit after they are destroyed.
+            live_text=[(widget,text) for widget,text in self._preview_text if isValid(widget)]
+            if (self.get_parameters()!=request.params or self._editing_meridional!=request.include_rows
+                    or ('impeller' if self._editing_target==0 else 'diffuser')!=request.kind
+                    or self._preview_input_state()!=live_text):
+                self.statusBar().showMessage("Input changed; outdated preview discarded. Confirm input to recalculate.")
+                return
+            prepared,rows=result
+            self._prepared_rows=(deepcopy(request.params),rows) if rows is not None else None
+            self._display_geometry(prepared.legacy,request.params,legacy_error=prepared.legacy_error,prepared=prepared)
+        except (ValueError,ArithmeticError) as exc:self._geometry_error(exc,request.params,result[0].legacy)
+
+    def _preview_failed(self,request,message):
+        if self._cad_closing or request.generation!=self._preview_generation:return
+        self._preview_pending=False
+        self.cancel_preview_action.setEnabled(False)
+        self._display_legacy_geometry(None,request.params,message)
+        self._geometry_error(ValueError(message),request.params)
+
+    def _preview_idle(self):
+        if hasattr(self,'cancel_preview_action'):
+            self.cancel_preview_action.setEnabled(self.timer.isActive() or self._preview_pending or self._preview_controller.busy)
+        if self._preview_user_cancelled and not self._preview_controller.busy:
+            self._preview_user_cancelled=False
+            report=self._preview_controller.last_report or {}
+            text=('Recalculation cancelled. Showing last valid geometry.' if report.get('termination_status')=='PROCESS_TREE_STOPPED'
+                  else 'Result discarded. Process tree termination not confirmed; see preview job log.')
+            self.messages.setPlainText(text);self.statusBar().showMessage(text)
+        if self._cad_closing:QTimer.singleShot(0,self._resume_close)
+
+    def _resume_close(self):
+        from shiboken6 import isValid
+        if not isValid(self):return
+        if self._preview_delete_requested and not self._preview_controller.busy and self._cad_worker is None:
+            # The intercepted DeferredDelete leaves Qt's deleteLater latch set.
+            # Dispose only on this later event-loop turn, after owned work stops.
+            from shiboken6 import delete
+            delete(self)
+        else:self.close()
 
     def new_project(self) -> None:
         self.set_parameters(deepcopy(self._default_parameters))
@@ -1491,8 +1624,19 @@ class MainWindow(QMainWindow):
         worker=self._cad_worker;self._cad_worker=None
         if worker is not None:worker.deleteLater()
 
+    def event(self,event):
+        if (event.type()==QEvent.Type.DeferredDelete and hasattr(self,'_preview_controller')
+                and (self._preview_controller.busy or self._cad_worker is not None)):
+            self._preview_delete_requested=True
+            self.close()
+            return True
+        return super().event(event)
+
     def closeEvent(self,event):
         self._cad_closing=True
+        self.timer.stop()
+        self._preview_pending=False;self._preview_controller.shutdown()
+        preview_busy=self._preview_controller.busy
         if self._cad_worker is not None:
             event.ignore()
             if not self._cad_close_waiting:
@@ -1500,10 +1644,12 @@ class MainWindow(QMainWindow):
                 self._cad_worker.completed.connect(self._close_after_cad)
             self._cad_worker.cancel()
             return
+        if preview_busy:
+            event.ignore();return
         super().closeEvent(event)
 
     def _close_after_cad(self,report):
         worker=self._cad_worker;self._cad_worker=None
         if worker is not None:worker.deleteLater()
         # Cancellation may complete inside closeEvent before it returns.
-        QTimer.singleShot(0,self.close)
+        QTimer.singleShot(0,self._resume_close)

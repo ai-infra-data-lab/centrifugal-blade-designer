@@ -132,7 +132,10 @@ def test_impeller_splitter_tip_selection_and_edit_refresh_change_only_result_ide
     w.update_geometry();assert widget.source.snapshot_hash!=old_hash
     w.cad_editor.radius.setValue(2.)
     assert widget.source is None
-    widget.refresh_button.click();assert widget.source is not None
+    widget.refresh_button.click()
+    from test_gui import wait_for_geometry
+    wait_for_geometry(w)
+    assert widget.source is not None
     assert widget.section_choice.currentData()=='Splitter:1'
     assert widget.source==geometry_source(w.get_parameters(),'meridional_3d')
 

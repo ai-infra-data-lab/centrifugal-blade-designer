@@ -1,5 +1,9 @@
 # 現行機能の実装監査
 
+通常UI再計算の最終検証：全2,428一意ID成功（通常2,331・実CAD97、既存2,375保持・新規53、失敗/error/skip/漏れ/重複0・固定381入力不変）。Windows実画面の翼列切替・Camera保持、通常取消/close、仮ディスク準備との同時closeも確認。ANSYSと全操作の人手確認は未実施。 [記録](ASYNC_PREVIEW_COMPUTATION.md)。
+
+Stage 6A/6B：通常UIの数値再計算を別processへ接続し、最新入力のみ採用、未確定文字保護、取消メニュー、close/DeferredDelete/直接破棄、Undo/Redo/行操作を追加検査する。同期API、通常描画、起動/保存/出力の同期検証とは区別する。[検証範囲](ASYNC_PREVIEW_COMPUTATION.md)。
+
 Stage 6Bの再生成service抽出：選択3D/legacy/参考Impeller/Flow Areaと全行生成をQt非依存の同期serviceへ移す。既存数値方式/保存形式/GUI入口を維持する。壁面準備失敗行の表示残りと、Flow Area失敗時の壁面だけの先行採用を修正。全2,375一意ID成功（通常2,278・実CAD97、既存2,358保持・新規17、失敗/error/skip/漏れ/重複0・固定375入力不変）、関連42件/quick63件/Ruff/native切替を確認。一般再計算の応答性改善やANSYS検証は未完了。[契約・検証](PREVIEW_COMPUTATION_SERVICE.md)。
 
 U01の同期仮ディスク算出を追加対応：既存計算を専用processへ移し、設計/未確定文字/選択変更時の破棄とclose再入対策を実装。全2,358一意ID成功（通常2,261・実CAD97、既存2,333保持・新規25、失敗/error/skip/漏れ/重複0・固定373入力不変）。同じ最終snapshotのnative実CAD操作で開始0.063 s/最大gap0.328 s、別のclose/取消も確認。一般再生成等が残り、Stage 6完了にはしない。[範囲](ASYNC_PROVISIONAL_DISK.md)。
