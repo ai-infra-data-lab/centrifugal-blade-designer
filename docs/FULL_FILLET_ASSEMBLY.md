@@ -1,5 +1,7 @@
 # 全周一体化後の根元フィレット
 
+既定全周STEPからの周期sector追加診断：BREPは有効だが2実体となり、単一連結条件はFAILのまま。別検査で周期面の回転対応と2実体を保持したSTEP再読込み・全56面の双方向標本を確認。設計値/公差/ガードは維持し、周期worker全経路・切断後fillet半径・ANSYSは未検証。[根拠・範囲](DEFAULT_PERIODIC_SECTOR_CHECK.md)。
+
 ## 対象と構築順
 
 `cad/worker.py`は、真のHub filletを要求し、全周・周期sectorまたはTurboGrid CADを
