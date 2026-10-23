@@ -7,7 +7,7 @@
 同梱既定モデルの主翼11枚＋Splitter11枚、明示R0.1 mm、仮ディスクのケース。
 元STEP SHA256は `6ca3d8ee3a0cb5aad7d470ae6b2631f13fc4fb0f829171958c4f9a684ea15c35`。
 設計値・既定JSON・ユーザーJSON・公差・製品コード・出力ガードは変更しない。
-全周STEPの読込みからの診断であり、設計値から周期workerを最後まで走らせた証拠ではない。
+以下の最初の3診断は全周STEPからの確認であり、後段の設計値からの実worker確認と区別する。
 
 ## 単一連結実体の条件は未達
 
@@ -54,14 +54,48 @@
 - 元STEP/request/result、診断BREP、ユーザーJSON、同梱既定JSONのhashは検査前後で不変。
   元STEPは公開済み記録のhashとも一致。出力は私有artifactsだけに保持した。
 
-## 未検証と次の確認
+## 設計値からの製品周期worker確認
 
-切断後filletのrole半径、trim境界全域、全域法線/距離、設計値からの周期worker全経路、
-実機寸法、ANSYS Import/MeshはNOT_TESTED。ディスクはPROVISIONALのまま。
-入力の全周Mechanical requestには `Select a blade row for the assigned meridional export domain.`
-というdomain_errorがあり、これをTurboGrid成立の証拠にはしない。
-次は設計値からの周期worker実経路を独立の私有jobで調べ、2solidの保持とfillet/STEPを確認する。
-固定角度で単一実体を必須にする仕様変更や境界位置の変更は、この診断から勝手に実装しない。
+`artifacts/quality-default-sector/19c819621ccd44bf9248cdfccb6639c8/` の
+`summary.json`、`job/result.json`、`report-audit.json`に記録。
+標準.venvで既定JSONを読んでパラメータをコピーし、従来の仮ディスク作成APIと
+明示R0.1 mm、periodic_sectorを設定。`prepare_job`から専用.venv-cadの
+製品workerを実行した。元の設計値や既定値を書き換えず、入力32数値配列は
+過去に検証した全周ケースと完全一致した。出力先は新規私有jobのみ。
 
-今回の差分は文書のみ。製品修正の全回帰2,472件成功は[CAD期限修正](CAD_TIME_BUDGETS.md)を参照。
-上記の実CAD診断3実行をpytest件数へ加算しない。最初のFAILと後続の限定成功を両方保持する。
+1,357.359 s（約22分37秒）でexit0、Mechanical artifact/roundtrip/fillet判定はPASS。
+総合WARNINGは仮ディスク寸法の警告1件によるもので、生産用寸法と扱わない。
+20分を超える実例であり、[CAD本体の別予算](CAD_TIME_BUDGETS.md)の必要性とも整合する。
+これは製品workerの完了確認であり、GUIのExport操作を最後まで行った確認ではない。
+
+- 全周完成形状は1solid、BREP/自己交差/閉鎖/正体積を確認。
+  main/splitter全22配置のLE/PS/SS/TE根元と埋設capを確認し、全配置間924比較が成立。
+  全周rolling filletは158面。中間体の自己交差NOT_TESTEDと完成体を混同しない。
+- 切断後とSTEP再読込み後はともに2solid。周期LOW/HIGHは各2面。
+  mm単位・Z軸、BREP/自己交差/閉鎖と、元/再読込みでの実体数維持を確認。
+- 切断後rolling filletはSTEP前後各19面・168半径標本。
+  指定0.1 mmに対する最大誤差は前0.000248670 mm、後0.000248670 mm。
+  cornerは4面で、corner全面G1と全点の厳密半径はNOT_TESTED。
+- STEP体積差0.000186226 mm³（既存予算1.864348 mm³）、bbox差3.3545e-11 mm。
+  全56面を双方向各437標本で比較し、最大距離約5.401e-10 mm、
+  最大法線角約1.207e-6 deg。有限標本の成功であり、全面保証へ昇格しない。
+- reportのsnapshot hash、入力JSON/NPZ/snapshot、生成STEPの記録hashと実fileを照合。
+  ユーザーJSONと同梱既定JSONも不変。所有launcher/workerの終了を確認。
+
+`PASS_PRODUCT_PERIODIC_WORKER`と`PASS_REPORT_AUDIT`はこの限定ケースの結果。
+単一連結セクターの条件は引き続きFAIL_TWO_SOLIDSで、4B全体を完了扱いにしない。
+小さい実体の削除・架橋・公差緩和・出力ガード変更はしていない。
+
+## 現在の未検証と制限
+
+trim境界全域、全域法線/距離、corner連続性、GUIでの一連の人手操作、実機寸法、
+ANSYS Import/MeshはNOT_TESTED。ディスクはPROVISIONALのまま。
+元の全周Mechanical requestと今回の周期requestには
+`Select a blade row for the assigned meridional export domain.`というdomain_errorがあり、
+Mechanicalの成立をTurboGrid流体CAD成立の証拠にはしない。
+切断後filletの標本と製品workerは上記で確認したが、単一連結が必須の仕様への適合や、
+固定角度の境界を変える機能は未対応。境界形状をこの診断から勝手に変更しない。
+
+追加差分は文書のみ。製品修正の全回帰2,472件成功は[CAD期限修正](CAD_TIME_BUDGETS.md)を参照。
+実CAD診断3実行と実製品worker1実行をpytest件数へ加算しない。
+最初のFAILと後続の限定成功を両方保持する。

@@ -1,6 +1,6 @@
 # 既存機能一覧
 
-既定全周STEPからの周期sector追加診断：BREPは有効だが2実体となり、単一連結条件はFAILのまま。別検査で周期面の回転対応と2実体を保持したSTEP再読込み・全56面の双方向標本を確認。設計値/公差/ガードは維持し、周期worker全経路・切断後fillet半径・ANSYSは未検証。[根拠・範囲](docs/DEFAULT_PERIODIC_SECTOR_CHECK.md)。
+既定形状の周期sectorを製品workerで追加確認。明示R0.1 mm・仮ディスクで約22分37秒、全周1実体/22配置924比較と、切断後2実体/STEP全56面・fillet19面の半径標本が成立。周期面回転対応も別診断で確認。単一連結sector条件はFAIL、仮ディスクはWARNING、全面品質/GUI人手操作/ANSYSは未検証。設計値/公差/ガードは維持。[根拠・範囲](docs/DEFAULT_PERIODIC_SECTOR_CHECK.md)。
 
 CADの準備20分と本体60分を分離。既定全周の実測が20分を超えてもGUIが途中取消しないよう、CAD開始時に期限を再設定する。計算/公差/設計値は維持。変更前の再現2失敗を解消し、関連60件・quick63件・限定Ruff・native開始/取消を確認、全回帰2,472件成功（既存2,466件＋追加6件、固定入力387件不変）。[範囲・検証](docs/CAD_TIME_BUDGETS.md)。
 

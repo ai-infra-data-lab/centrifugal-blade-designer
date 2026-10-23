@@ -48,3 +48,7 @@ Windowsの製品CadExportWorkerを実際に起動し、過去に検証したfull
 `20261023T170010Z-1332f0a6`、実CAD97件：`20261023T161017Z-e7edf8ec`。
 集計は`artifacts/quality-cad-time-budgets/final-test-coverage.json`。
 ユーザーJSONと同梱既定JSONは元々別の内容であり、両者を同一と扱わずそれぞれの不変を確認した。
+
+追加の実製品周期workerは約22分37秒でMechanical STEPと切断後fillet半径標本まで成立した。
+20分を超える別の実例である。仮ディスクWARNING・2実体であり、GUIでのExport完了や
+単一連結sectorの成功にはしない。[条件と実測](DEFAULT_PERIODIC_SECTOR_CHECK.md)。

@@ -1,6 +1,6 @@
 # 幾何・CAD・出力の品質レビュー
 
-既定全周STEPからの周期sector追加診断：BREPは有効だが2実体となり、単一連結条件はFAILのまま。別検査で周期面の回転対応と2実体を保持したSTEP再読込み・全56面の双方向標本を確認。設計値/公差/ガードは維持し、周期worker全経路・切断後fillet半径・ANSYSは未検証。[根拠・範囲](DEFAULT_PERIODIC_SECTOR_CHECK.md)。
+既定形状の周期sectorを製品workerで追加確認。明示R0.1 mm・仮ディスクで約22分37秒、全周1実体/22配置924比較と、切断後2実体/STEP全56面・fillet19面の半径標本が成立。周期面回転対応も別診断で確認。単一連結sector条件はFAIL、仮ディスクはWARNING、全面品質/GUI人手操作/ANSYSは未検証。設計値/公差/ガードは維持。[根拠・範囲](DEFAULT_PERIODIC_SECTOR_CHECK.md)。
 
 C02追記：STEP出力前に全faceの双方向標本距離と法線、計測値の欠落・有限性検査を追加。同体積/bboxの空洞移動を実STEPの故障注入で拒否し、既存出力を保護した。関連37件・quick63件・Ruff成功、全2,303一意ID成功（通常2,206・実CAD97、新規31・既存2,272保持、最終の失敗/error/skip/漏れ/重複0・固定365入力不変）。初回のGUI待機1件は失敗記録を保持し、該当組全体の単独再実行で成功を確認。全面誤差・trim境界全域・role対応は未証明のまま。[契約](STEP_BOUNDARY_SAMPLES.md)。
 
