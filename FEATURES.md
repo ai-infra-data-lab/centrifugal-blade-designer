@@ -1,5 +1,7 @@
 # 既存機能一覧
 
+通常面の非同期完成画像、filletクリックの候補絞り込み、作成済み私有preview jobの保持5件、入力取得失敗時の回復を追加。既存形状/保存/出力を維持し、関連78件・quick63件・限定Ruff・native画像一致を確認。全2,466一意ID成功（通常2,369・実CAD97、既存2,428保持・新規38、失敗/error/skip/漏れ/重複0・固定386入力不変）。Windows単独実行の完成frame/Camera/終了も確認。[範囲・検証](docs/NORMAL_PREVIEW_RESOURCES.md)。
+
 通常UI再計算の最終検証：全2,428一意ID成功（通常2,331・実CAD97、既存2,375保持・新規53、失敗/error/skip/漏れ/重複0・固定381入力不変）。Windows実画面の翼列切替・Camera保持、通常取消/close、仮ディスク準備との同時closeも確認。ANSYSと全操作の人手確認は未実施。 [記録](docs/ASYNC_PREVIEW_COMPUTATION.md)。
 
 通常UIの再計算を所有processへ分離。選択形状/Flow Area/全行を最新入力だけ採用し、未確定文字・取消・close・古い結果を保護する。Edit → Cancel Recalculationを追加し、通常の翼列/Span/回転/履歴操作も非同期へ接続。同期API・設計値・既存出力形式を維持する。通常の3D描画や起動/Load/Save等は別処理。[範囲・検証](docs/ASYNC_PREVIEW_COMPUTATION.md)。

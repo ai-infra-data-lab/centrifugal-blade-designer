@@ -7,7 +7,8 @@ import sys
 from PySide6.QtCore import QObject, QProcess, Signal
 
 from .cad_export_worker import CadExportWorker
-from ..fileio.preview_job import queue_preview, read_preview
+from ..fileio.preview_job import ROOT, queue_preview, read_preview
+from ..fileio.preview_retention import PreviewJobRetention
 
 
 class PreviewWorker(CadExportWorker):
@@ -56,10 +57,21 @@ class PreviewController(QObject):
     progress=Signal(str)
     idle=Signal()
 
-    def __init__(self,parent=None,worker_factory=PreviewWorker):
+    def __init__(self,parent=None,worker_factory=PreviewWorker,keep_jobs=False):
         super().__init__(parent)
         self.worker_factory=worker_factory;self.worker=None;self.pending=None;self.closing=False;self._disposing=False
         self.last_report=None
+        self.retention=PreviewJobRetention(ROOT/'artifacts'/'preview-runs',keep_jobs=keep_jobs)
+
+    def _retention_warning(self,previous):
+        if tuple(self.retention.warnings)!=previous and self.retention.warnings:
+            self.progress.emit('Preview temporary-file cleanup: '+self.retention.warnings[-1])
+
+    def _retire_job(self,job,report):
+        previous=tuple(self.retention.warnings)
+        self.retention.finished(job,report)
+        if self._disposing:self.retention.trim(dispose=True)
+        self._retention_warning(previous)
 
     @property
     def busy(self):return self.worker is not None
@@ -81,13 +93,19 @@ class PreviewController(QObject):
     def dispose(self,*args):
         self._disposing=True
         self.shutdown()
+        previous=tuple(self.retention.warnings);self.retention.trim(dispose=True);self._retention_warning(previous)
         if self.worker is None:self.deleteLater()
 
     def _start(self,request):
+        job=None
         try:
             job=queue_preview(request.params,request.kind,request.include_rows)
+            try:self.retention.register(job)
+            except (OSError,ValueError) as exc:
+                self.progress.emit('Preview temporary files preserved: '+str(exc))
             worker=self.worker_factory(job,self)
         except (OSError,ValueError,ArithmeticError) as exc:
+            if job is not None:self._retire_job(job,{'overall':'FAIL'})
             self.failed.emit(request,str(exc));self.idle.emit();return
         self.worker=worker
         worker.completed.connect(lambda report:self._finished(worker,job,request,report))
@@ -107,6 +125,7 @@ class PreviewController(QObject):
             except (OSError,ValueError,ArithmeticError,TypeError,KeyError,RecursionError) as exc:
                 self.failed.emit(request,str(exc))
             else:self.ready.emit(request,result)
+        self._retire_job(job,report)
         worker.deleteLater()
         # ready/failed callbacks may have queued a newer request or closed us.
         if pending is not None and not self.closing and self.worker is None:self._start(pending)

@@ -1,5 +1,7 @@
 2026-10-22：4Bの全周一体化後filletを製品経路へ追加。現既定22部品・R0.1 mmの全配置cap/4role根元、924配置対比較、全周Mechanical STEPと半径・公差が成立した。全2,272一意ID成功（通常2,206・実CAD66、新規5・既存2,267保持、失敗/error/skip/漏れ/重複0・固定363入力不変）。現既定の周期sector/流体CAD、全面STEP偏差・法線と一般GUI再計算/描画の応答性は別課題として残す。[製品経路・範囲](FULL_FILLET_ASSEMBLY.md)。
 
+通常面の非同期完成画像、filletクリックの候補絞り込み、作成済み私有preview jobの保持5件、入力取得失敗時の回復を追加。既存形状/保存/出力を維持し、関連78件・quick63件・限定Ruff・native画像一致を確認。全2,466一意ID成功（通常2,369・実CAD97、既存2,428保持・新規38、失敗/error/skip/漏れ/重複0・固定386入力不変）。Windows単独実行の完成frame/Camera/終了も確認。[範囲・検証](NORMAL_PREVIEW_RESOURCES.md)。
+
 通常UI再計算の最終検証：全2,428一意ID成功（通常2,331・実CAD97、既存2,375保持・新規53、失敗/error/skip/漏れ/重複0・固定381入力不変）。Windows実画面の翼列切替・Camera保持、通常取消/close、仮ディスク準備との同時closeも確認。ANSYSと全操作の人手確認は未実施。 [記録](ASYNC_PREVIEW_COMPUTATION.md)。
 
 完成BREPにない中間fillet面の分類と、同一object・バイナリBREP不変時の検査再利用は先行して修正し、全2,267一意ID成功（通常2,206・実CAD61、失敗/error/skip/漏れ/重複0・固定361入力不変）。[再利用条件](CAD_VALIDATION_REUSE.md)。
@@ -9,6 +11,8 @@ Stage 6AのCAD開始/取消/closeを非同期化：数値準備を専用process�
 C01/Stage 4Aの修正：Hub内多項式延長、cap内包・二面隣接検査、Main/Splitter一括fillet、支持面を除いた半径測定とSTEP受入れガードを実装し、全回帰2,227一意件成功（通常2,174・実CAD53、新規35、既存2,192保持、失敗/error/skip/漏れ/重複0・固定356入力不変）。現既定の明示R0.1 mm Blade+Hubと、4B全周/周期・5全面精度は別条件。R8必須とはしない。[構成・検証](BURIED_ROOT_CONSTRUCTION.md)。
 
 # 品質改善ロードマップ
+
+本書は段階ごとの履歴も保持する。過去の「次」「未完了」はその段階の記録であり、現在の実装は冒頭の最新記録と[作業表](NON_ANSYS_COMPLETION.md)で確認する。3Aの形状方式は下記の利用者確定方針を優先する。
 
 通常UI再計算のprocess化を実装：1実行/最新待機、世代/設計/未確定文字、取消/close、GUI履歴/行操作を扱う。次の6Aは通常3D描画とfillet当たり判定の負荷。起動/Load/Save/出力検証等の同期APIと、Stage 3/5/9の数値保証は別の完了条件を維持。[範囲・検証](ASYNC_PREVIEW_COMPUTATION.md)。
 

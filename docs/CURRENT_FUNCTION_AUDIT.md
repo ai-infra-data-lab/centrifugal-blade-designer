@@ -1,5 +1,7 @@
 # 現行機能の実装監査
 
+通常面の非同期完成画像、filletクリックの候補絞り込み、作成済み私有preview jobの保持5件、入力取得失敗時の回復を追加。既存形状/保存/出力を維持し、関連78件・quick63件・限定Ruff・native画像一致を確認。全2,466一意ID成功（通常2,369・実CAD97、既存2,428保持・新規38、失敗/error/skip/漏れ/重複0・固定386入力不変）。Windows単独実行の完成frame/Camera/終了も確認。[範囲・検証](NORMAL_PREVIEW_RESOURCES.md)。
+
 通常UI再計算の最終検証：全2,428一意ID成功（通常2,331・実CAD97、既存2,375保持・新規53、失敗/error/skip/漏れ/重複0・固定381入力不変）。Windows実画面の翼列切替・Camera保持、通常取消/close、仮ディスク準備との同時closeも確認。ANSYSと全操作の人手確認は未実施。 [記録](ASYNC_PREVIEW_COMPUTATION.md)。
 
 Stage 6A/6B：通常UIの数値再計算を別processへ接続し、最新入力のみ採用、未確定文字保護、取消メニュー、close/DeferredDelete/直接破棄、Undo/Redo/行操作を追加検査する。同期API、通常描画、起動/保存/出力の同期検証とは区別する。[検証範囲](ASYNC_PREVIEW_COMPUTATION.md)。

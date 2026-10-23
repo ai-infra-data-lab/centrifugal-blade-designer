@@ -1165,7 +1165,8 @@ class MainWindow(QMainWindow):
             params=deepcopy(self.get_parameters());self._preview_text=self._preview_input_state()
             request=PreviewRequest(self._preview_generation,params,
                 'impeller' if self._editing_target==0 else 'diffuser',self._editing_meridional)
-        except (ValueError,ArithmeticError) as exc:self._geometry_error(exc);return
+        except (ValueError,ArithmeticError) as exc:
+            self._cancel_preview();self._geometry_error(exc);return
         self._preview_pending=True
         self.cancel_preview_action.setEnabled(True)
         self.statusBar().showMessage("Recalculating selected geometry… showing last valid model.")
@@ -1202,6 +1203,8 @@ class MainWindow(QMainWindow):
         self.cancel_preview_action.setEnabled(False)
         self._display_legacy_geometry(None,request.params,message)
         self._geometry_error(ValueError(message),request.params)
+        self.messages.setPlainText('ERROR — Preview execution/result failed: '+message+'\nShowing last valid geometry.')
+        self.statusBar().showMessage('ERROR — preview execution failed; showing last valid geometry. See preview job log.')
 
     def _preview_idle(self):
         if hasattr(self,'cancel_preview_action'):

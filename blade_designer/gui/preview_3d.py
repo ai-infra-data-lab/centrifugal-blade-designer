@@ -47,6 +47,7 @@ class Preview3D(QWidget):
         self.setToolTip("左ドラッグ: 自由回転 / 右ドラッグ: 平行移動 / ホイール: 拡大・縮小")
         self._show_fit=QTimer(self);self._show_fit.setSingleShot(True);self._show_fit.timeout.connect(self.fit_view)
         self._surface_render=SurfaceRenderQueue();self._surface_cache=None;self._cad_mesh_generation=0
+        self._normal_surface_generation=0;self._fillet_hit_cache=None
         self._surface_poll=QTimer(self);self._surface_poll.setInterval(20)
         self._surface_poll.timeout.connect(self._poll_surface_image)
         self.destroyed.connect(self._surface_render.shutdown)
@@ -95,6 +96,7 @@ class Preview3D(QWidget):
 
 
     def update_geometry(self,geometry,wall_chunks=None):
+        self._invalidate_surface_scene()
         self._reference_mode = False
         self.model_label = "3D • Impeller"
         lines,spanwise=self._profile_lines(geometry)
@@ -120,6 +122,7 @@ class Preview3D(QWidget):
 
     def update_surface_reference(self,lines,label):
         """Blade patches only; no source walls, caps or solid validity implied."""
+        self._invalidate_surface_scene()
         self._reference_mode=True
         self.surfaces={};self.base_lines=dict(lines);self.spanwise_lines=[];self._line_blade_counts={}
         for key in ('hub','shroud','tip_wall','analysis_shroud'):self.visibility_controls[key].hide()
@@ -144,6 +147,7 @@ class Preview3D(QWidget):
 
     def update_rows(self,rows,walls,analysis_chunks=None):
         """Compose independent rows; each row retains its own annulus count."""
+        self._invalidate_surface_scene()
         self._reference_mode=False
         lines={};counts={};spanwise=[]
         for identifier,name,geometry,count in rows:
@@ -246,7 +250,7 @@ class Preview3D(QWidget):
 
 
     def set_cad_mesh(self,data):
-        self._cad_mesh_generation+=1
+        self._cad_mesh_generation+=1;self._fillet_hit_cache=None
         self._cad_data=data;self._cad_snapshot_hash=data["snapshot_hash"];self._cad_visible=True
         if not hasattr(self,"cad_controls"):
             self._cad_source_visibility={key:self.visibility_controls[key].isChecked() for key in ("profiles","spanwise")}
@@ -300,10 +304,14 @@ class Preview3D(QWidget):
         self._surface_render.cancel()
         if self._surface_render.busy:self._surface_poll.start()
 
+    def _invalidate_surface_scene(self):
+        self._normal_surface_generation+=1;self._surface_cache=None;self._fillet_hit_cache=None
+        self._cancel_surface_image()
+
     def _surface_scene_key(self):
-        return (self._cad_mesh_generation,id(self._cad_data),tuple((name,id(data[0]),data[1]) for name,data in self.surfaces.items()),
+        return (self._normal_surface_generation,self._cad_mesh_generation,getattr(self,'_cad_visible',False),id(getattr(self,'_cad_data',None)),tuple((name,id(data[0]),data[1]) for name,data in self.surfaces.items()),
             tuple(box.isChecked() for box in self.visibility_controls.values()),
-            tuple(box.isChecked() for box in self.cad_controls.values()))
+            tuple(box.isChecked() for box in getattr(self,'cad_controls',{}).values()))
 
     def _surface_frame_key(self,scene):
         c=self.camera_position
@@ -311,8 +319,6 @@ class Preview3D(QWidget):
             c['azimuth'],c['elevation'],c['scale'],*c['rotation'].ravel(),*c['center'],*c['pan'])
 
     def _paint_surfaces(self,painter,camera,right,up,factor):
-        if not getattr(self,'_cad_visible',False):
-            self._cancel_surface_image();return self._paint_surfaces_sync(painter,camera,right,up,factor)
         scene=self._surface_scene_key()
         if self._surface_cache is None or self._surface_cache[0]!=scene:
             visible=list(self.visible_surfaces())
@@ -337,7 +343,8 @@ class Preview3D(QWidget):
             y=-(relative@up+camera['pan'][1])*factor+(self.height()+self._plot_top)/2
             painter.drawPolyline(QPolygonF([QPointF(float(a),float(b)) for a,b in zip(x,y)]))
         painter.setPen(QColor('#d1dae7'))
-        painter.drawText(12,self._plot_top+18,'CAD rendering failed' if renderer.error else 'Rendering CAD surfaces...')
+        label=('CAD rendering failed' if renderer.error else 'Rendering CAD surfaces...') if getattr(self,'_cad_visible',False) else ('Surface rendering failed' if renderer.error else 'Rendering surfaces...')
+        painter.drawText(12,self._plot_top+18,label)
 
     def hideEvent(self,event):
         self._cancel_surface_image();super().hideEvent(event)
@@ -385,18 +392,34 @@ class Preview3D(QWidget):
             painter.drawPolygon(QPolygonF([QPointF(float(xx),float(yy)) for xx,yy in zip(x[i],y[i])]))
         painter.setBrush(Qt.BrushStyle.NoBrush)
 
+    def _fillet_hit(self,point):
+        """Screen bounds prune candidates; final Qt odd-even test is unchanged."""
+        if not getattr(self,'_cad_visible',False) or not self.cad_controls['root'].isChecked():return False
+        key=self._surface_frame_key(self._surface_scene_key())
+        cached=getattr(self,'_fillet_hit_cache',None)
+        if cached is None or cached[0]!=key:
+            if self._surface_cache is not None and self._surface_cache[0]==key[0]:
+                _,all_faces,colors=self._surface_cache
+                faces=all_faces[np.fromiter((color=='#e8bd42' for color in colors),dtype=bool,count=len(colors))]
+            else:
+                groups=[faces for faces,color in self.visible_surfaces() if color=='#e8bd42']
+                faces=np.concatenate(groups) if groups else np.empty((0,4,3))
+            right,up,_=self._view_basis();camera=self.camera_position
+            factor=min(self.width(),self.height())/(2*camera['scale']);relative=faces-camera['center']
+            x=(relative@right+camera['pan'][0])*factor+self.width()/2
+            y=-(relative@up+camera['pan'][1])*factor+(self.height()+self._plot_top)/2
+            polygons=np.stack((x,y),axis=-1)
+            lower=np.min(polygons,axis=1) if len(polygons) else np.empty((0,2))
+            upper=np.max(polygons,axis=1) if len(polygons) else np.empty((0,2))
+            cached=(key,polygons,lower,upper);self._fillet_hit_cache=cached
+        _,polygons,lower,upper=cached;position=np.array([point.x(),point.y()])
+        candidates=np.flatnonzero(np.all((lower<=position)&(position<=upper),axis=1))
+        return any(QPolygonF([QPointF(float(a),float(b)) for a,b in polygons[index]]).containsPoint(
+            point,Qt.FillRule.OddEvenFill) for index in candidates)
+
     def mousePressEvent(self,event):
-        if getattr(self,"_cad_visible",False) and self.cad_controls["root"].isChecked():
-            right,up,_=self._view_basis();camera=self.camera_position;factor=min(self.width(),self.height())/(2*camera["scale"])
-            for faces,color in self.visible_surfaces():
-                if color!="#e8bd42":continue
-                for triangle in faces:
-                    relative=np.asarray(triangle)-camera["center"]
-                    x=(relative@right+camera["pan"][0])*factor+self.width()/2
-                    y=-(relative@up+camera["pan"][1])*factor+(self.height()+self._plot_top)/2
-                    polygon=QPolygonF([QPointF(float(a),float(b)) for a,b in zip(x,y)])
-                    if polygon.containsPoint(event.position(),Qt.FillRule.OddEvenFill):
-                        QToolTip.showText(event.globalPosition().toPoint(),f"True CAD Hub Fillet R = {self._cad_data['fillet_radius_mm']:g} mm",self);break
+        if self._fillet_hit(event.position()):
+            QToolTip.showText(event.globalPosition().toPoint(),f"True CAD Hub Fillet R = {self._cad_data['fillet_radius_mm']:g} mm",self)
         self._last=(event.position() if self._plot_top<=event.position().y()<self.height()-25 else None)
         event.accept()
 

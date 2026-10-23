@@ -1,10 +1,12 @@
 # アプリ構造（2026-10-08 調査）
 
+通常面の非同期完成画像、filletクリックの候補絞り込み、作成済み私有preview jobの保持5件、入力取得失敗時の回復を追加。既存形状/保存/出力を維持し、関連78件・quick63件・限定Ruff・native画像一致を確認。全2,466一意ID成功（通常2,369・実CAD97、既存2,428保持・新規38、失敗/error/skip/漏れ/重複0・固定386入力不変）。Windows単独実行の完成frame/Camera/終了も確認。[範囲・検証](NORMAL_PREVIEW_RESOURCES.md)。
+
 通常UI再計算の最終検証：全2,428一意ID成功（通常2,331・実CAD97、既存2,375保持・新規53、失敗/error/skip/漏れ/重複0・固定381入力不変）。Windows実画面の翼列切替・Camera保持、通常取消/close、仮ディスク準備との同時closeも確認。ANSYSと全操作の人手確認は未実施。 [記録](ASYNC_PREVIEW_COMPUTATION.md)。
 
 通常UIの数値再計算は`fileio/preview_job.py`のQt/OCP非依存processで実行し、`preview_payload.py`の固定型・生配列転送で戻す。`gui/preview_worker.py`は所有treeと1実行/最新1待機を管理し、MainWindowが世代・選択・設計・保留入力を照合する。同期API、設計/表示/保存の既存契約は維持。[境界・取消](ASYNC_PREVIEW_COMPUTATION.md)。
 
-`geometry/preview_computation.py`は選択3D/参考計算/Flow Areaと全翼列の数値準備を担当する同期サービス。独立コピーと型付き結果を使い、Qt/OCP/ファイル形式を読み込まない。MainWindowは表示/履歴/currentの管理を維持し、数値準備完了後に適用する。全行では形状と解析壁面の両方が有効な行だけを返す。一般再生成workerへの移行は未実施。[境界](PREVIEW_COMPUTATION_SERVICE.md)。
+`geometry/preview_computation.py`は選択3D/参考計算/Flow Areaと全翼列の数値準備を担当する同期サービス。独立コピーと型付き結果を使い、Qt/OCP/ファイル形式を読み込まない。MainWindowは表示/履歴/currentの管理を維持し、数値準備完了後に適用する。全行では形状と解析壁面の両方が有効な行だけを返す。一般再生成workerは後続のpreview_job/preview_workerで実装。数値service自体の同期・Qt非依存契約を維持。[境界](PREVIEW_COMPUTATION_SERVICE.md)。
 
 仮ディスクのUI操作は`cad/provisional_disk_job.py`のQt/CAD非依存processを`gui/provisional_disk_worker.py`で起動する。既存のowned-tree取消を再利用し、MainWindowが設計とdirty textを照合して受入れ後だけ元のCAD queueへ接続する。[契約](ASYNC_PROVISIONAL_DISK.md)。
 
