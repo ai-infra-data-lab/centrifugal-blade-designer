@@ -8,6 +8,8 @@ C01/Stage 4Aの修正：Hub内多項式延長、cap内包・二面隣接検査�
 
 # 品質改善ロードマップ
 
+Stage 6Bの次段階として、選択3D/Flow Areaと全行生成をQt非依存の同期serviceへ抽出。既存計算を保ち、形状/解析壁面の一括採用と数値準備後の画面適用を固定する。全2,375一意ID成功（通常2,278・実CAD97、新規17、失敗/error/skip/漏れ/重複0・固定375入力不変）。native通常切替では最大gap1.922 sを観測し、同期処理が残る。一般worker/取消/最新入力照合は次の独立作業であり、この抽出だけで6A/6B完了とはしない。[契約・検証](PREVIEW_COMPUTATION_SERVICE.md)。
+
 Stage 6Aの次の独立単位として、同期仮ディスクのUI算出をprocessへ分離。数式/全標本を維持し、dirty textと設計snapshotの照合、所有tree取消、同期取消のclose再入を扱う。全2,358一意ID成功（通常2,261・実CAD97、既存2,333保持・新規25、失敗/error/skip/漏れ/重複0・固定373入力不変）。同じ最終snapshotのnative実CAD操作で開始0.063 s/最大gap0.328 s、別のclose/取消も確認。一般再生成/全行生成は別課題。[契約](ASYNC_PROVISIONAL_DISK.md)。
 
 Stage 6AのCAD描画：大きいoverlayをQImage worker化し、全点を保つ任意の内部数値cacheを追加。全2,333一意ID成功（通常2,236・実CAD97、既存2,303保持・新規30、失敗/error/skip/漏れ/重複0・固定369入力不変）。関連52件/quick63件/Ruff成功、native製品Preview3Dで最大heartbeat94 ms・完成画像の同期描画との一致も確認。通常形状の再生成/全行生成、フィレット当たり判定、全export GUI操作は別範囲として残す。[契約](CAD_PREVIEW_RENDERING.md)。

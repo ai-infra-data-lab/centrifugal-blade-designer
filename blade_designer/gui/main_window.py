@@ -26,7 +26,7 @@ from .parameter_panel import ParameterPanel
 from .meridional_editor import MeridionalEditor
 from .section_selector import SectionSelector
 from .preview_3d import Preview3D
-from ..geometry.flow_area import calculate_flow_area
+from ..geometry.preview_computation import prepare_preview, prepare_row_previews
 from ..geometry.row_domain import preview_wall_chunks
 from .flow_area_widget import FlowAreaWidget
 from .context_meridional import ContextMeridional
@@ -408,17 +408,9 @@ class MainWindow(QMainWindow):
         if state==self._central_preview_state:return False
         errors=[]
         if self._editing_meridional:
-            entries=[];analysis_chunks=[]
-            for row in params.blade_rows or initial_rows(params):
-                p=row_parameters(params,row)
-                try:
-                    g=(self.designer.generate_3d(p) if row.kind=="impeller"
-                       else self.designer.generate_diffuser_3d(p))
-                    entries.append((row.identifier,row.name,g,p.geometry.vane_count))
-                    analysis_chunks.extend(preview_wall_chunks(p,g,row.identifier).get('analysis_shroud',[]))
-                except (ValueError,ArithmeticError) as exc:
-                    errors.append(f"ERROR — 3D {row.name}: {exc} (row omitted)")
-            self.model_preview_3d.update_rows(entries,self._wall_geometry,analysis_chunks=analysis_chunks)
+            prepared=prepare_row_previews(params,designer=self.designer)
+            entries=prepared.entries;errors=prepared.errors
+            self.model_preview_3d.update_rows(entries,self._wall_geometry,analysis_chunks=prepared.analysis_chunks)
             for context in (self.context_meridional,self.meridional_editor.context):
                 context.update_tip_profiles([(f'{name} [{identifier}]',g) for identifier,name,g,_ in entries if g.tip is not None or g.trim_report is not None or g.analysis_shroud is not None])
         elif self._selected_3d_geometry is not None:
@@ -949,17 +941,16 @@ class MainWindow(QMainWindow):
         form.labelForField(self.panel.controls["theta_le_deg"]).setText(
             "Hub Theta LE [deg]" if self._editing_target==0 and self.rake_group.isChecked() else "Theta LE [deg]")
 
-    def _display_geometry(self, geometry: BladeGeometry, params: BladeParameters, impeller=None, legacy_error=None) -> None:
-        diffuser = self.designer.generate_diffuser_3d(params) if self._editing_target != 0 else None
-        reference_error = None
-        if impeller is None:
-            try:impeller = self.designer.generate_3d(params)
-            except (ValueError, ArithmeticError) as exc:
-                if self._editing_target == 0:raise
-                reference_error = str(exc)
+    def _display_geometry(self, geometry: BladeGeometry, params: BladeParameters, impeller=None, legacy_error=None, prepared=None) -> None:
+        if prepared is None:
+            prepared=prepare_preview(params,'impeller' if self._editing_target==0 else 'diffuser',
+                                     designer=self.designer,impeller=impeller)
+        if prepared.selected_error is not None:raise ValueError(prepared.selected_error)
+        impeller=prepared.impeller;diffuser=prepared.diffuser
+        reference_error=prepared.reference_error
         wall_geometry = impeller if self._editing_target == 0 else diffuser
         self._wall_geometry = wall_geometry
-        area=calculate_flow_area(wall_geometry.hub,wall_geometry.shroud,params.flow_path,points=params.resolution.area_points,strict=False,mean_points=params.resolution.mean_points)
+        area=prepared.area
         self.flow_area_result=area
         self.flow_area_widget.update_result(area,params.flow_path)
         self.impeller_geometry = impeller
@@ -1079,9 +1070,10 @@ class MainWindow(QMainWindow):
         params=geometry=None
         try:
             params = self.get_parameters()
-            try:geometry = self.designer.generate_diffuser(params);legacy_error=None
-            except (ValueError, ArithmeticError) as exc:geometry=None;legacy_error=str(exc)
-            self._display_geometry(geometry,params,legacy_error=legacy_error)
+            prepared=prepare_preview(params,'impeller' if self._editing_target==0 else 'diffuser',
+                                     include_legacy=True,designer=self.designer)
+            geometry=prepared.legacy
+            self._display_geometry(geometry,params,legacy_error=prepared.legacy_error,prepared=prepared)
         except (ValueError, ArithmeticError) as exc:
             self.passage_widget.set_source()
             self.row_metrics_widget.invalidate("現在の形状が無効です。最終有効表示の測定値は使用しません。")

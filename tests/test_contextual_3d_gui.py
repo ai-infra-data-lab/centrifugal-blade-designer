@@ -124,6 +124,22 @@ def test_partial_invalid_row_does_not_hide_valid_all_rows(window):
     assert "3D Diffuser" in w.messages.toPlainText() and "row omitted" in w.messages.toPlainText()
 
 
+def test_invalid_row_wall_is_not_displayed_as_a_valid_row(window,monkeypatch):
+    from blade_designer.geometry import preview_computation
+    original=preview_computation.preview_wall_chunks
+    def unavailable(p,g,identifier):
+        if identifier=="row-2":raise ValueError("analysis wall unavailable")
+        return original(p,g,identifier)
+    monkeypatch.setattr(preview_computation,"preview_wall_chunks",unavailable)
+    w=window;before=deepcopy(w.get_parameters());camera=deepcopy(w.model_preview_3d.camera_position)
+    w._select_meridional()
+    assert "Impeller [row-1] Hub camber" in w.model_preview_3d.base_lines
+    assert "Diffuser [row-2] Hub camber" not in w.model_preview_3d.base_lines
+    assert "analysis wall unavailable (row omitted)" in w.messages.toPlainText()
+    assert w.get_parameters()==before
+    for key,value in camera.items():np.testing.assert_array_equal(w.model_preview_3d.camera_position[key],value)
+
+
 def test_ownership_change_undo_refreshes_selected_wall_extent(window):
     w=window;before=deepcopy(w.model_preview_3d.surfaces["hub"][0])
     box=w.meridional_editor.table.cellWidget(1,5)

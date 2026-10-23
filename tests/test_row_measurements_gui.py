@@ -100,6 +100,23 @@ def test_invalid_current_shape_invalidates_measurements_and_protects_xyz_export(
     assert target.read_bytes()==before
 
 
+def test_area_preparation_failure_keeps_last_complete_frame(window,monkeypatch):
+    from blade_designer.geometry import preview_computation
+    w=window;previous=w.diffuser_geometry;wall=w._wall_geometry;area=w.flow_area_result
+    before=deepcopy(w.get_parameters());camera=deepcopy(w.model_preview_3d.camera_position)
+    curve=w.blade_plot.curves['PS'].xData.copy()
+    def unavailable(*args,**kwargs):raise ArithmeticError('area preparation failed')
+    monkeypatch.setattr(preview_computation,'calculate_flow_area',unavailable)
+    w.update_geometry()
+    assert w.diffuser_geometry is previous and w._wall_geometry is wall and w.flow_area_result is area
+    np.testing.assert_array_equal(w.blade_plot.curves['PS'].xData,curve)
+    assert w.passage_widget.source is None and w.row_metrics_widget.source is None
+    assert 'actual' not in w.geometry_sources and 'legacy' in w.geometry_sources
+    assert 'area preparation failed' in w.messages.toPlainText() and 'last valid' in w.messages.toPlainText()
+    assert w.get_parameters()==before
+    for key,value in camera.items():np.testing.assert_array_equal(w.model_preview_3d.camera_position[key],value)
+
+
 def test_impeller_splitter_tip_selection_and_edit_refresh_change_only_result_identity(window):
     w=window;w.select_blade_row('row-1');w.timer.stop();widget=w.row_metrics_widget
     before=deepcopy(w.get_parameters());history=w.undo_stack.count()

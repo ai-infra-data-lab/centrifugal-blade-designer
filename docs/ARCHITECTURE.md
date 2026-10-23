@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+`geometry/preview_computation.py`は選択3D/参考計算/Flow Areaと全翼列の数値準備を担当する同期サービス。独立コピーと型付き結果を使い、Qt/OCP/ファイル形式を読み込まない。MainWindowは表示/履歴/currentの管理を維持し、数値準備完了後に適用する。全行では形状と解析壁面の両方が有効な行だけを返す。一般再生成workerへの移行は未実施。[境界](PREVIEW_COMPUTATION_SERVICE.md)。
+
 仮ディスクのUI操作は`cad/provisional_disk_job.py`のQt/CAD非依存processを`gui/provisional_disk_worker.py`で起動する。既存のowned-tree取消を再利用し、MainWindowが設計とdirty textを照合して受入れ後だけ元のCAD queueへ接続する。[契約](ASYNC_PROVISIONAL_DISK.md)。
 
 大きいCAD previewは`cad/preview_cache.py`の任意NPZで数値を転送し、`gui/surface_render.py`が専用QImageへ描画する。GUIが固定した読取り専用snapshotだけをworkerへ渡し、世代/可視状態/カメラ/サイズ/DPRで完成画像を照合する。workerはwidgetを保持しない。CAD/設計の形状モデルや公開出力は変えない。[契約](CAD_PREVIEW_RENDERING.md)。
