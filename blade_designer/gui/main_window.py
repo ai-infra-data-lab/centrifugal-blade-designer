@@ -315,6 +315,7 @@ class MainWindow(QMainWindow):
         self.file_menu.addSeparator()
         self.file_menu.addAction("Exit").triggered.connect(self.close)
         self.tools_menu.addAction("Open Optimization Mode in Separate Window").triggered.connect(self.open_optimization_mode)
+        self.tools_menu.addAction("Coordinate Optimization / 座標最適化").triggered.connect(self.open_coordinate_study)
         self.messages = QPlainTextEdit()
         self.messages.setReadOnly(True)
         self.messages.setFixedHeight(48)
@@ -495,6 +496,36 @@ class MainWindow(QMainWindow):
                   "3D Preview": self.preview_3d, "Diffuser Curvature": self.curvature_plot,
                   "Selected Row Metrics": self.row_metrics_widget}[name]
         return self._show_tool_dialog(name, widget)
+
+    def open_coordinate_study(self):
+        from .coordinate_study_dialog import CoordinateStudyDialog
+        from shiboken6 import isValid
+        dialog = self._tool_dialogs.get('coordinate_study')
+        if dialog is not None and not isValid(dialog):
+            if dialog.busy:
+                self.statusBar().showMessage('座標出力の取消処理中です。終了を待ってから開いてください。')
+                return
+            dialog = None
+        if dialog is None:
+            def capture():
+                self.commit_edit()
+                return self.get_parameters()
+            def apply(candidate, expected_hash):
+                from ..fileio.coordinate_study import project_hash
+                self.commit_edit()
+                if project_hash(self.get_parameters()) != expected_hash:
+                    raise ValueError('通常設計が基準から変更されています。再移行するか、別の設計へ保存してください。')
+                def install():
+                    self.set_parameters(candidate)
+                    self.commit_edit()
+                    self.update_geometry()
+                self._interactive_preview(install)
+            dialog = CoordinateStudyDialog(capture, apply, self)
+            self._tool_dialogs['coordinate_study'] = dialog
+        dialog._closing = False
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
 
     def open_optimization_mode(self):
         window=MainWindow(mode="optimization", default_parameters=self._default_parameters)
@@ -1220,7 +1251,9 @@ class MainWindow(QMainWindow):
     def _resume_close(self):
         from shiboken6 import isValid
         if not isValid(self):return
-        if self._preview_delete_requested and not self._preview_controller.busy and self._cad_worker is None:
+        study = getattr(self, '_tool_dialogs', {}).get('coordinate_study')
+        if (self._preview_delete_requested and not self._preview_controller.busy and self._cad_worker is None
+                and not (study is not None and study.busy)):
             # The intercepted DeferredDelete leaves Qt's deleteLater latch set.
             # Dispose only on this later event-loop turn, after owned work stops.
             from shiboken6 import delete
@@ -1629,13 +1662,26 @@ class MainWindow(QMainWindow):
 
     def event(self,event):
         if (event.type()==QEvent.Type.DeferredDelete and hasattr(self,'_preview_controller')
-                and (self._preview_controller.busy or self._cad_worker is not None)):
+                and (self._preview_controller.busy or self._cad_worker is not None
+                     or (getattr(self, '_tool_dialogs', {}).get('coordinate_study') is not None
+                         and self._tool_dialogs['coordinate_study'].busy))):
             self._preview_delete_requested=True
             self.close()
             return True
         return super().event(event)
 
     def closeEvent(self,event):
+        study = getattr(self, '_tool_dialogs', {}).get('coordinate_study')
+        if study is not None and study.busy:
+            self._cad_closing = True
+            self.timer.stop()
+            self._preview_controller.shutdown()
+            if not getattr(self, '_coordinate_close_waiting', False):
+                self._coordinate_close_waiting = True
+                study.worker.completed.connect(lambda report: QTimer.singleShot(0, self._resume_close))
+            study.worker.cancel()
+            event.ignore()
+            return
         self._cad_closing=True
         self.timer.stop()
         self._preview_pending=False;self._preview_controller.shutdown()
