@@ -3,18 +3,19 @@ from dataclasses import replace
 from pathlib import Path
 import csv
 import uuid
+import pyqtgraph as pg
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (QApplication, QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QListWidget, QListWidgetItem, QTableWidget, QTableWidgetItem, QCheckBox,
-    QSpinBox, QLineEdit, QComboBox, QFileDialog, QAbstractItemView)
+    QSpinBox, QLineEdit, QComboBox, QFileDialog, QAbstractItemView, QTabWidget)
 
 from .control_point_editor import CompactDoubleSpinBox
 from .coordinate_export_dialog import CoordinateExportDialog
 from .coordinate_study_worker import CoordinateStudyWorker
 from ..optimization.coordinate_parameters import CoordinateStudy
 from ..fileio.coordinate_csv import CoordinateCsvOptions
-from ..fileio.coordinate_study import queue_study, read_study, import_results, rank_results, project_hash, digest, json_bytes, file_sha256
+from ..fileio.coordinate_study import queue_study, read_study, import_results, rank_results, pareto_results, project_hash, digest, json_bytes, file_sha256
 
 
 class CoordinateStudyDialog(QDialog):
@@ -112,6 +113,19 @@ class CoordinateStudyDialog(QDialog):
         for widget in (self.import_button, QLabel('目的列'), self.objective, self.direction, rank, self.apply_button):
             evaluation.addWidget(widget)
         layout.addLayout(evaluation)
+        multi = QHBoxLayout()
+        self.multiobjective = QCheckBox('多目的（2目的）')
+        self.second_objective = QLineEdit('pressure_ratio')
+        self.second_direction = QComboBox()
+        self.second_direction.addItems(['最大化', '最小化'])
+        self.second_objective.setEnabled(False)
+        self.second_direction.setEnabled(False)
+        self.multiobjective.toggled.connect(self.second_objective.setEnabled)
+        self.multiobjective.toggled.connect(self.second_direction.setEnabled)
+        self.multiobjective.toggled.connect(lambda *_: self.refresh_cases())
+        for widget in (self.multiobjective, QLabel('第2目的列'), self.second_objective, self.second_direction):
+            multi.addWidget(widget)
+        layout.addLayout(multi)
         limits = QHBoxLayout()
         for widget in (QLabel('外部評価の制約'), self.constraint_name, self.minimum, self.maximum):
             limits.addWidget(widget)
@@ -122,7 +136,14 @@ class CoordinateStudyDialog(QDialog):
         self.cases_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.cases_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.cases_table.horizontalHeader().setStretchLastSection(True)
-        layout.addWidget(self.cases_table, 1)
+        self.results_tabs = QTabWidget()
+        self.results_tabs.setMinimumHeight(210)
+        self.results_tabs.addTab(self.cases_table, '候補一覧')
+        layout.addWidget(self.results_tabs, 1)
+        self.pareto_plot = pg.PlotWidget()
+        self.pareto_plot.addLegend()
+        self.results_tabs.addTab(self.pareto_plot, 'Pareto図')
+        self.results_tabs.setTabVisible(1, False)
         self.status = QLabel()
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -135,12 +156,31 @@ class CoordinateStudyDialog(QDialog):
     def error(self, exc):
         self.status.setText(str(exc))
 
+    def objectives(self):
+        from ..optimization.pareto import objective_definitions
+        if not self.multiobjective.isChecked():
+            return None
+        return objective_definitions([
+            {'name': self.objective.text().strip(), 'maximize': self.direction.currentIndex() == 0},
+            {'name': self.second_objective.text().strip(), 'maximize': self.second_direction.currentIndex() == 0}])
+
+    def restore_objectives(self):
+        objectives = self.manifest.get('proposal', {}).get('objectives')
+        if objectives:
+            for definition, name, direction in zip(objectives,
+                    (self.objective, self.second_objective), (self.direction, self.second_direction)):
+                name.setText(definition['name'])
+                direction.setCurrentIndex(0 if definition['maximize'] else 1)
+        self.multiobjective.setChecked(bool(objectives))
+
     def capture(self):
         if self.busy:
             return
         try:
             self.study = CoordinateStudy(self.capture_design())
             self.manifest = None
+            self.pareto_plot.clear()
+            self.results_tabs.setTabVisible(1, False)
             self.results = {}
             self.source_directory = self.results_path = self.results_hash = None
             self.rows.blockSignals(True)
@@ -170,6 +210,8 @@ class CoordinateStudyDialog(QDialog):
             return
         self.study = CoordinateStudy(self.study.baseline, selected)
         self.manifest = None
+        self.pareto_plot.clear()
+        self.results_tabs.setTabVisible(1, False)
         self.results = {}
         self.source_directory = self.results_path = self.results_hash = None
         self.cases_table.setRowCount(0)
@@ -265,6 +307,9 @@ class CoordinateStudyDialog(QDialog):
                                  'results_path': str(self.results_path), 'results_hash': self.results_hash,
                                  'objective': self.objective.text().strip(),
                                  'maximize': self.direction.currentIndex() == 0, 'constraints': constraints}
+                objectives = self.objectives()
+                if objectives:
+                    specification['objectives'] = objectives
             path = QFileDialog.getSaveFileName(self, '新しいStudyフォルダ名を指定', f'coordinate-study-{uuid.uuid4().hex[:8]}')[0]
             if not path:
                 return
@@ -289,6 +334,11 @@ class CoordinateStudyDialog(QDialog):
                        self.variables_table, self.count, self.seed, self.export_button,
                        self.local_button, self.proposal_button, self.import_button, self.apply_button, self.evaluation_context):
             widget.setEnabled(not busy)
+        for widget in (self.objective, self.direction, self.multiobjective,
+                       self.constraint_name, self.minimum, self.maximum):
+            widget.setEnabled(not busy)
+        for widget in (self.second_objective, self.second_direction):
+            widget.setEnabled(not busy and self.multiobjective.isChecked())
         self.cancel_button.setEnabled(busy)
 
     def _worker_finished(self, report):
@@ -303,6 +353,8 @@ class CoordinateStudyDialog(QDialog):
                 self.results = {}
                 self.source_directory = Path(report['directory'])
                 self.results_path = self.results_hash = None
+                if self.manifest.get('proposal'):
+                    self.restore_objectives()
                 self.refresh_cases()
                 summary = self.status.text() if self.manifest.get('proposal') else ''
                 self.status.setText('出力完了：' + report['directory'] + '\n外部解析を行い、結果CSVを取り込んでください。'
@@ -338,6 +390,7 @@ class CoordinateStudyDialog(QDialog):
             self.fill_variables([CoordinateVariable(**v) for v in manifest['variables']])
             self.options = CoordinateCsvOptions(**{**manifest['options'], 'columns': tuple(manifest['options']['columns'])})
             self.evaluation_context.setText(manifest.get('evaluation_context', ''))
+            self.restore_objectives()
             self.refresh_cases()
             summary = self.status.text() if self.manifest.get('proposal') else ''
             self.status.setText('Studyを再開しました。外部結果CSVを取り込めます。' + ('\n' + summary if summary else ''))
@@ -372,36 +425,82 @@ class CoordinateStudyDialog(QDialog):
             if name:
                 constraints[name] = tuple(float(edit.text()) if edit.text().strip() else None
                                           for edit in (self.minimum, self.maximum))
-            ranked = rank_results(self.results, self.objective.text().strip(), self.direction.currentIndex() == 0, constraints)
+            objectives = self.objectives()
+            fronts = {}
+            if objectives:
+                ranked, fronts = pareto_results(self.results, objectives, constraints)
+            else:
+                ranked = rank_results(self.results, self.objective.text().strip(), self.direction.currentIndex() == 0, constraints)
             cases = {case['candidate_id']: case for case in self.manifest['cases']}
             order = ranked + [key for key in cases if key not in ranked]
+            self.cases_table.setColumnCount(7 if objectives else 5)
+            headers = ['候補ID', '座標出力', '外部評価', self.objective.text().strip(), '予測値（未評価）']
+            if objectives:
+                headers += [objectives[1]['name'], '実評価Pareto層']
+            self.cases_table.setHorizontalHeaderLabels(headers)
             self.cases_table.setRowCount(len(order))
             prediction_objective = (self.manifest['proposal']['objective']
                                     if self.manifest.get('sampling') == 'rbf_external' else None)
             self.cases_table.horizontalHeaderItem(4).setText(
+                '予測2目的（未評価）' if self.manifest.get('proposal', {}).get('objectives') else
                 f'予測 {prediction_objective}（未評価）' if prediction_objective else '予測値（未評価）')
             for row, key in enumerate(order):
                 result = self.results.get(key, {'status': 'pending', 'metrics': {}})
                 metric = result['metrics'].get(self.objective.text().strip())
                 coordinate_status = '座標出力済み' if cases[key]['status'] == 'READY_FOR_EXTERNAL' else '座標生成エラー'
                 external_status = {'pending': '未評価', 'success': '成功', 'failed': '解析失敗'}[result['status']]
-                predicted = (cases[key].get('prediction', {}).get('metrics', {}).get(prediction_objective)
-                             if prediction_objective else None)
-                for column, value in enumerate((key, coordinate_status, external_status, '' if metric is None else f'{metric:.12g}',
-                                                '' if predicted is None else f'{predicted:.12g}')):
+                predicted_names = ([o['name'] for o in self.manifest['proposal'].get('objectives', [])]
+                                   or [prediction_objective]) if prediction_objective else []
+                predicted_metrics = cases[key].get('prediction', {}).get('metrics', {})
+                predicted = ', '.join(f'{name}={predicted_metrics[name]:.12g}' for name in predicted_names if name in predicted_metrics)
+                values = [key, coordinate_status, external_status, '' if metric is None else f'{metric:.12g}', predicted]
+                if objectives:
+                    second = result['metrics'].get(objectives[1]['name'])
+                    values += ['' if second is None else f'{second:.12g}', str(fronts.get(key, ''))]
+                for column, value in enumerate(values):
                     item = QTableWidgetItem(value)
-                    item.setToolTip(cases[key].get('error', ''))
+                    item.setToolTip(predicted if column == 4 and predicted else cases[key].get('error', ''))
                     self.cases_table.setItem(row, column, item)
             self.status.setText(f'外部評価・制約による採用可能候補：{len(ranked)} / {len(cases)}。'
                                 '未取得／失敗は順位に含めません。近傍LHSは局所候補生成です。')
             if prediction_objective:
                 proposal = self.manifest['proposal']
-                error = proposal['validation_metrics'][prediction_objective]['cv_rmse']
+                validated_names = [o['name'] for o in proposal.get('objectives', [])] or [prediction_objective]
+                errors = ', '.join(f'{name}: {proposal["validation_metrics"][name]["cv_rmse"]:.6g}' for name in validated_names)
                 self.status.setText(self.status.text() + f'\nRBF：実評価{proposal["training_count"]}点、'
-                                    f'独立{proposal["independent_dimensions"]}変数、4分割検証RMSE {error:.6g} '
-                                    f'（{prediction_objective}の単位）。予測は実解析値・成立保証ではありません。')
+                                    f'独立{proposal["independent_dimensions"]}変数、4分割検証RMSE [{errors}] '
+                                    '（各目的の単位）。予測は実解析値・成立保証ではありません。')
+            if objectives:
+                self.status.setText(self.status.text() + f'\n実評価Pareto第1層：{sum(v == 1 for v in fronts.values())}件。'
+                                    '層内は混雑距離順であり、唯一の最良解ではありません。')
+            self.draw_pareto(objectives, ranked, fronts, cases)
         except ValueError as exc:
+            self.pareto_plot.clear()
+            self.results_tabs.setTabVisible(1, False)
             self.error(exc)
+
+    def draw_pareto(self, objectives, ranked, fronts, cases):
+        self.pareto_plot.clear()
+        self.results_tabs.setTabVisible(1, bool(objectives))
+        if not objectives:
+            return
+        names = [o['name'] for o in objectives]
+        for axis, definition in zip(('bottom', 'left'), objectives):
+            self.pareto_plot.setLabel(axis, definition['name'] + (' ↑最大化' if definition['maximize'] else ' ↓最小化'))
+        groups = [([key for key in ranked if fronts[key] != 1], '実評価：他の層', '#aaaaaa', 'o'),
+                  ([key for key in ranked if fronts[key] == 1], '実評価：Pareto第1層', '#56ddeb', 'o')]
+        for keys, label, color, symbol in groups:
+            metrics = [self.results[key]['metrics'] for key in keys]
+            self.pareto_plot.plot([m[names[0]] for m in metrics], [m[names[1]] for m in metrics],
+                                 pen=None, symbol=symbol, symbolBrush=color, symbolPen=color, name=label)
+        stored = self.manifest.get('proposal', {}).get('objectives')
+        if stored == objectives:
+            metrics = [case['prediction']['metrics'] for case in cases.values()
+                       if case['status'] == 'READY_FOR_EXTERNAL' and 'prediction' in case]
+            self.pareto_plot.plot([m[names[0]] for m in metrics], [m[names[1]] for m in metrics],
+                                 pen=None, symbol='x', symbolPen='#ffad55', name='予測（未検証）')
+        self.pareto_plot.enableAutoRange()
+        self.pareto_plot.autoRange()
 
     def apply_selected(self):
         try:

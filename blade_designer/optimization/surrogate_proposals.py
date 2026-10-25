@@ -3,10 +3,11 @@ import numpy as np
 from scipy.interpolate import RBFInterpolator
 from scipy.spatial.distance import cdist
 from scipy.stats import qmc
+from .pareto import objective_definitions, pareto_order
 
 
 def propose_candidates(study, variables, observations, seen, count, seed,
-                       objective, maximize=True, constraints=None):
+                       objective, maximize=True, constraints=None, objectives=None):
     """Fit normalized thin-plate splines, validate out of sample, propose a batch.
 
     Predictions are estimates, never external results or feasibility guarantees.
@@ -18,6 +19,10 @@ def propose_candidates(study, variables, observations, seen, count, seed,
             or not isinstance(objective, str) or not objective.strip()):
         raise ValueError('Use 1..50 proposals, a 32-bit seed and a named objective/direction.')
     constraints = {} if constraints is None else constraints
+    multi = objective_definitions(objectives) if objectives is not None else None
+    if multi and (objective != multi[0]['name'] or maximize != multi[0]['maximize']):
+        raise ValueError('The primary objective must match the multiobjective definitions.')
+    objective_names = [o['name'] for o in multi] if multi else [objective]
     for name, bounds in constraints.items():
         if (not isinstance(name, str) or not name.strip() or len(bounds) != 2
                 or any(v is not None and (isinstance(v, bool) or not np.isfinite(v)) for v in bounds)
@@ -47,7 +52,7 @@ def propose_candidates(study, variables, observations, seen, count, seed,
     minimum = max(8, 2 * dimension + 4)
     if not minimum <= len(observations) <= 250:
         raise ValueError(f'RBF needs {minimum}..250 complete successful observations for {dimension} independent variables; add evaluations or reduce/link variables.')
-    names = list(dict.fromkeys([objective, *constraints]))
+    names = list(dict.fromkeys([*objective_names, *constraints]))
     identifiers = [o['id'] for o in observations]
     if len(set(identifiers)) != len(identifiers):
         raise ValueError('Duplicate observation IDs.')
@@ -76,7 +81,7 @@ def propose_candidates(study, variables, observations, seen, count, seed,
         scaled = y / magnitude
         offset = float(np.mean(scaled)); scale = float(np.std(scaled))
         if scale <= 64 * np.finfo(float).eps:
-            if name == objective:
+            if name in objective_names:
                 raise ValueError('The objective has no resolvable observed variation.')
             predictions[name] = np.full(len(pool), float(y[0]))
             diagnostics[name] = {'constant_observed': True, 'cv_rmse': 0., 'mean_predictor_rmse': 0.}
@@ -109,6 +114,12 @@ def propose_candidates(study, variables, observations, seen, count, seed,
     previous = np.array([coordinates(values) for values in seen]) if seen else x
     separation = np.min(cdist(pool, previous), axis=1) / np.sqrt(dimension)
     eligible &= separation > 1e-5
+    pareto_priority = None
+    if multi:
+        available = np.flatnonzero(eligible)
+        order, _ = pareto_order(np.column_stack([predictions[name][available] for name in objective_names]),
+                                [o['maximize'] for o in multi])
+        pareto_priority = available[order]
     selected = []; strategies = []
     exploit_count = count - count // 4
     for index in range(count):
@@ -116,9 +127,13 @@ def propose_candidates(study, variables, observations, seen, count, seed,
         if not len(candidates):
             raise ValueError('Not enough distinct predicted-feasible candidates in the bounded pool.')
         if index < exploit_count:
-            score = predictions[objective][candidates]
-            chosen = candidates[np.argmax(score) if maximize else np.argmin(score)]
-            strategies.append('predicted_objective')
+            if multi:
+                chosen = next(i for i in pareto_priority if eligible[i])
+                strategies.append('predicted_pareto')
+            else:
+                score = predictions[objective][candidates]
+                chosen = candidates[np.argmax(score) if maximize else np.argmin(score)]
+                strategies.append('predicted_objective')
         else:
             chosen = candidates[np.argmax(separation[candidates])]
             strategies.append('space_filling')

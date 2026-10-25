@@ -6,6 +6,7 @@ from math import isfinite
 from .coordinate_study import digest, json_bytes, project_hash, read_study, import_results
 from ..geometry.edge_positioning import COORDINATE_GEOMETRY_VERSION
 from ..optimization.surrogate_proposals import propose_candidates
+from ..optimization.pareto import objective_definitions
 
 
 def validate_proposal_manifest(manifest):
@@ -27,11 +28,18 @@ def validate_proposal_manifest(manifest):
         raise ValueError('Malformed RBF prediction metadata.')
     if proposal['training_count'] < max(8, 2*proposal['independent_dimensions']+4):
         raise ValueError('RBF metadata has insufficient observations for its dimensions.')
-    validation = proposal['validation_metrics'].get(proposal['objective'])
-    if (not isinstance(validation, dict) or not finite(validation.get('cv_rmse'))
-            or not finite(validation.get('mean_predictor_rmse'))
-            or not 0 <= validation['cv_rmse'] < validation['mean_predictor_rmse']):
-        raise ValueError('Malformed RBF validation diagnostics.')
+    objectives = objective_definitions(proposal['objectives']) if 'objectives' in proposal else None
+    names = [o['name'] for o in objectives] if objectives else [proposal['objective']]
+    if objectives and (proposal['objective'] != objectives[0]['name']
+                       or proposal.get('maximize') != objectives[0]['maximize']
+                       or proposal.get('selection') != 'nondominated_fronts_crowding'):
+        raise ValueError('Inconsistent multiobjective metadata.')
+    for name in names:
+        validation = proposal['validation_metrics'].get(name)
+        if (not isinstance(validation, dict) or not finite(validation.get('cv_rmse'))
+                or not finite(validation.get('mean_predictor_rmse'))
+                or not 0 <= validation['cv_rmse'] < validation['mean_predictor_rmse']):
+            raise ValueError('Malformed RBF validation diagnostics.')
     if not 2 <= len(manifest['cases']) <= 51:
         raise ValueError('Invalid RBF case count.')
     if 'prediction' in manifest['cases'][0]:
@@ -39,9 +47,10 @@ def validate_proposal_manifest(manifest):
     for case in manifest['cases'][1:]:
         prediction = case.get('prediction')
         if (not isinstance(prediction, dict) or prediction.get('status') != 'PREDICTED_NOT_EVALUATED'
-                or prediction.get('strategy') not in ('predicted_objective', 'space_filling')
+                or prediction.get('strategy') not in (('predicted_pareto', 'space_filling') if objectives
+                                                     else ('predicted_objective', 'space_filling'))
                 or not isinstance(prediction.get('metrics'), dict)
-                or proposal['objective'] not in prediction['metrics']
+                or any(name not in prediction['metrics'] for name in names)
                 or any(not finite(value) for value in prediction['metrics'].values())):
             raise ValueError('Malformed unevaluated RBF prediction.')
 
@@ -49,9 +58,14 @@ def validate_proposal_manifest(manifest):
 def freeze_proposal(specification, count):
     if type(count) is not int or not 1 <= count <= 50:
         raise ValueError('Use 1..50 RBF proposals per batch.')
-    if not isinstance(specification, dict) or set(specification) != {
-            'source_directory', 'manifest_hash', 'results_path', 'results_hash', 'objective', 'maximize', 'constraints'}:
+    required = {'source_directory', 'manifest_hash', 'results_path', 'results_hash', 'objective', 'maximize', 'constraints'}
+    if not isinstance(specification, dict) or set(specification) not in (required, required | {'objectives'}):
         raise ValueError('Malformed RBF source specification.')
+    if 'objectives' in specification:
+        objectives = objective_definitions(specification['objectives'])
+        if (specification['objective'] != objectives[0]['name']
+                or specification['maximize'] != objectives[0]['maximize']):
+            raise ValueError('The primary objective must match the multiobjective definitions.')
     with Path(specification['results_path']).open('rb') as stream:
         data = stream.read(4 * 1024 * 1024 + 1)
     if len(data) > 4 * 1024 * 1024:
@@ -84,7 +98,8 @@ def derive_proposals(job, request, study, variables):
     if digest(results_path.read_bytes()) != spec['results_sha256']:
         raise ValueError('Frozen external results were changed.')
     results = import_results(results_path, source)
-    names = {spec['objective'], *spec['constraints']}
+    objectives = objective_definitions(spec['objectives']) if 'objectives' in spec else None
+    names = {*(o['name'] for o in objectives), *spec['constraints']} if objectives else {spec['objective'], *spec['constraints']}
     configuration = digest(json_bytes({'baseline': source['baseline_hash'], 'rows': source['row_ids'],
         'variables': active(source['variables']), 'geometry': COORDINATE_GEOMETRY_VERSION, 'context': context}))
     history = source.get('proposal', {})
@@ -138,7 +153,7 @@ def derive_proposals(job, request, study, variables):
     observations = list(observations.values());seen = list(seen.values())
     print('BLADE_CAD:{"stage":"RBF MODEL / FOUR-FOLD VALIDATION"}', flush=True)
     batch = propose_candidates(study, variables, observations, seen, spec['count'],
-                               request['seed'], spec['objective'], spec['maximize'], spec['constraints'])
+                               request['seed'], spec['objective'], spec['maximize'], spec['constraints'], objectives)
     metadata = {'source_run_id': source['run_id'], 'source_manifest_sha256': spec['manifest_hash'],
                 'source_results_sha256': spec['results_sha256'], 'objective': spec['objective'],
                 'maximize': spec['maximize'], 'constraints': spec['constraints'],
@@ -146,4 +161,6 @@ def derive_proposals(job, request, study, variables):
                 'history_configuration_sha256': configuration, 'seen_vectors': seen,
                 'replaced_observations': replaced, 'invalidated_observations': invalidated,
                 'observations': observations, **batch['diagnostics']}
+    if objectives:
+        metadata.update(objectives=objectives, selection='nondominated_fronts_crowding')
     return batch, metadata

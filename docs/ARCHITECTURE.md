@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+2目的の非劣層/混雑距離はQt/IO非依存の`optimization/pareto.py`へ分離する。既存RBFを各目的へ適用し、`coordinate_proposal`が目的名/方向と検証結果を保存/照合する。実評価のPareto抽出は`coordinate_study.pareto_results`、GUIは2目的設定・層表・実評価/予測の別記号散布図を担当する。形状計算・外部解析起動は変更しない。[仕様](COORDINATE_OPTIMIZATION.md)。
+
 座標StudyのRBF提案は`optimization/surrogate_proposals.py`のQt/ファイル/geometry非依存計算と、`fileio/coordinate_proposal.py`の外部CSV凍結・履歴/出所検証を分離する。`coordinate_study`の既存所有processで学習/座標生成し、予測を実結果へ流用しない。GUIは予測専用列と必要評価数を表示する。[範囲](COORDINATE_OPTIMIZATION.md)。
 
 座標最適化を追加：Tools → Coordinate Optimization。基準を保持する角度/厚さ/共有子午面の差分移行、翼列間の連動、複数翼列の座標一括出力、外部評価CSVの照合・順位付け・候補適用/Undo、LHS/近傍LHSに対応。3D面・CAD・CFD評価は組み込まない。[操作・制限・検証](COORDINATE_OPTIMIZATION.md)。

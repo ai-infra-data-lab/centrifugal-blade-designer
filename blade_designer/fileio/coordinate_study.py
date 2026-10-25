@@ -321,6 +321,19 @@ def rank_results(results, objective, maximize=True, constraints=None):
                   key=lambda key: results[key]['metrics'][objective], reverse=maximize)
 
 
+def pareto_results(results, objectives, constraints=None):
+    """Rank only complete, successful, feasible external observations."""
+    from ..optimization.pareto import objective_definitions, pareto_order
+    objectives = objective_definitions(objectives)
+    accepted = [set(rank_results(results, o['name'], o['maximize'], constraints)) for o in objectives]
+    keys = sorted(set.intersection(*accepted))
+    if not keys:
+        return [], {}
+    values = [[results[key]['metrics'][o['name']] for o in objectives] for key in keys]
+    order, ranks = pareto_order(values, [o['maximize'] for o in objectives])
+    return [keys[i] for i in order], dict(zip(keys, ranks))
+
+
 def main():
     import sys
     job = Path(sys.argv[1])
