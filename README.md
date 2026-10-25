@@ -1,5 +1,7 @@
 # Centrifugal Compressor Blade Designer v0.3
 
+**初めて使う方へ：[日本語利用者マニュアル](docs/USER_MANUAL.md)**。画面例付きで、起動・保存、子午面と翼列、Splitter、クリアランス、派生カット、座標/TurboGrid/CAD出力、2目的最適化まで説明しています。
+
 座標最適化を追加：Tools → Coordinate Optimization。基準を保持する角度/厚さ/共有子午面の差分移行、翼列間の連動、複数翼列の座標一括出力、外部評価CSVの照合・順位付け・候補適用/Undo、LHS/近傍LHSに対応。3D面・CAD・CFD評価は組み込まない。[操作・制限・検証](docs/COORDINATE_OPTIMIZATION.md)。
 
 Impellerの`LE / TE → Tip Clearance → 解析用Shroudを別作成（翼Tip固定）`で、図面用の翼Tipを保ちながら解析用ケーシングのLE/TEクリアランスを指定できます。CSV/TXTで図面用・解析用・両方を選択し、TurboGrid ASCIIは解析用ラインへ接続します。Mechanical CADは図面用を維持します。[定義・対応範囲](docs/ANALYSIS_SHROUD.md)。
