@@ -4,6 +4,10 @@
 Impeller、Diffuser、Return Channel（RC）の子午面・翼断面を設計し、形状を確認・保存・出力するための手順です。
 画面の機能名は英語／日本語の実際の表記に合わせています。
 
+画面例はWindows版アプリから取得した実画面です。全体図に加え、設定欄やダイアログを拡大して掲載しています。
+画像をクリックすると元の解像度で確認できます。数値は操作場所を示す現在モデルの例で、推奨設計値ではありません。
+クリアランスや派生カットの未使用状態、最適化の未評価状態も、そのまま示しています。
+
 ## 目次
 
 - [1. 最初の操作](#quickstart)
@@ -141,6 +145,11 @@ JSONの入力値が同じでも、古い版から円／楕円端部の生成方�
 <a id="rows"></a>
 ## 5. 翼列の追加・名前・順番・枚数
 
+![翼列の追加ダイアログ](images/user-manual/add-row.png)
+
+図：左下の`追加 / Add Row`で開く画面。名前と種類を指定してから追加します。
+RCも種類は`静翼 / Diffuser`を選び、子午面の所属区間とLE／TEを別途設定します。この撮影では追加を確定せず取り消しています。
+
 1. 左下の`追加 / Add Row`を押します。
 2. ダイアログで名前と`インペラ / Impeller`または`静翼 / Diffuser`を指定して追加します。
 3. 追加した翼列を選び、子午面の所属区間と専用LE／TE位置を設定します。
@@ -194,6 +203,11 @@ Impellerの枚数Nは主翼枚数です。Splitterを有効にすると原則N�
 
 ### 7.1 Hub／ShroudのLine・Arc
 
+![子午面の区間選択と円弧の座標](images/user-manual/segment-coordinates.png)
+
+図：`Shroud`の2番目のArc行を選択した設定欄。下の読取り専用表に、始点・中心・終点のR/Zが表示されます。
+長さ・半径・Sweepなどが右に隠れている場合は、区間表の横スクロールで確認します。
+
 1. 左の`子午面 / Meridional`を選びます。
 2. 右上のHub／Shroudを選択します。
 3. `Start Z`、`Start R`、`Start angle [deg]`を設定します。
@@ -228,6 +242,12 @@ sは読取り専用です。未所属・不連続・順序不一致なら「未�
 <a id="edge-position"></a>
 ## 8. LE／TE位置
 
+![翼列ごとのLEとTEのR/Z入力](images/user-manual/edge-positions.png)
+
+図：子午面設定欄を下へスクロールした状態。`Row`と`Wall / Edge`を確認してR/Zを入力し、下の`Apply R/Z`で適用します。
+翼列距離sは読取り専用です。図の赤い値は所属区間から外れた位置を示しており、正常値の推奨例ではありません。
+下に隠れたRCの行は表内を縦スクロールして表示します。
+
 1. 子午面を選び、右側を`Blade Edges — R / Z [mm]`までスクロールします。
 2. 対象翼列のHub LE、Shroud LE、Hub TE、Shroud TEへR/Zを入力します。
 3. `R/Zを適用 / Apply R/Z`を押します。
@@ -249,6 +269,11 @@ RCでも外径から内径へ進む「流れ方向」で始端・終端を扱い
 ## 9. 翼角度・厚さ
 
 ### 9.1 編集する
+
+![主翼とスプリッターの厚さ編集画面](images/user-manual/thickness.png)
+
+図：右の`Thickness`。上の共通グラフでMain Hub／TipとSplitter Hub／Tipを比較し、下の`主翼 / Main`または`スプリッター / Splitter`で編集対象を切り替えます。
+表や操作ボタンが隠れている場合は、右側編集欄のスクロールを使います。
 
 1. 左で翼列を選び、`Blade Angle`または`Thickness`を開きます。
 2. Impellerでは必要なSpanを選びます。Hub／Tipのほか、中間Spanを追加・削除できます。
@@ -273,10 +298,25 @@ Splitterの横軸も主翼LE=0、TE=1のままです。
 2点だけなら直線補間になります。
 詳細：[共有グラフ](SHARED_GRAPHS.md)、[Splitterの補間](SPLITTER_INTERPOLATION.md)。
 
+### 9.3 Diffuser／RCの角度編集
+
+![Diffuserの翼角度編集画面](images/user-manual/diffuser.png)
+
+図：左の`Diffuser`を選択した画面。中央の形状と右の角度編集が選択翼列に切り替わります。
+
+![RCの翼角度編集画面](images/user-manual/rc.png)
+
+図：左の`RC`を選択した画面。外径側から内径側へ流れるReturn Channelも、静翼として固有の角度・厚さ・LE／TEを持ちます。
+
 <a id="edge-shape"></a>
 ## 10. LE／TE形状・Rake・配置
 
 ### 10.1 端部形状
+
+![LEとTEの形状およびRake設定](images/user-manual/edge-shape.png)
+
+図：Impellerの`LE / TE`上部。`Leading Edge`と`Trailing Edge`のTypeを別々に指定します。
+このモデルはLEが`Circular (G1)`、TEが`Cutoff`です。TE Rakeはチェックを入れてから目標角を指定します。
 
 右の`LE / TE`で前縁・後縁のTypeや楕円の軸比などを指定します。
 
@@ -312,6 +352,11 @@ LE SweepとTE Rakeを、それぞれ任意の独立目標として同時入力�
 <a id="splitter"></a>
 ## 11. スプリッター
 
+![スプリッターの設定欄](images/user-manual/splitter-settings.png)
+
+図：`Splitter`タブ。Hub／Tipの開始位置、主翼間の周方向位置、厚さ倍率、主翼からの独立編集を設定します。
+角度・厚さのボタンは、主翼と比較できる共通グラフへ移動するためのものです。
+
 1. Impellerを選び、`Splitter`を開きます。
 2. `スプリッターを追加 / Enable Splitter`を有効にします。
 3. `Hub開始位置 [%]`、`Tip開始位置 [%]`を指定します。主翼LE=0%、TE=100%です。
@@ -336,6 +381,11 @@ TE位置・端部設定・TE Rakeは主翼に追従します。
 
 ### 12.1 図面形状のクリアランス
 
+![図面用と解析用のクリアランス設定](images/user-manual/clearance.png)
+
+図：`LE / TE`内を下へスクロールして表示する設定欄。上段が図面用、内側のグループが解析用です。
+撮影モデルでは未使用のため入力欄が無効です。上段を有効にしてLE／TEの隙間を指定し、解析用も分ける場合は内側を有効にします。
+
 1. Impellerの`LE / TE → オープンインペラ / Tip Clearance`を有効にします。
 2. LE／TEの隙間[mm]を指定し、Enterまたはフォーカス移動で確定します。
 3. 子午面と3Dで、物理的な翼Tipとケーシングが分かれていることを確認します。
@@ -358,6 +408,11 @@ Mechanical CADは図面形状側を維持します。
 <a id="trim"></a>
 ## 13. 容量調整の派生カット
 
+![容量調整の派生カット設定](images/user-manual/trim.png)
+
+図：`LE / TE`内の派生カット設定。Shroudの面積カット、外径の径／割合指定、後流側の扱いを選びます。
+撮影モデルではカットは未使用です。表示の0を設計の推奨値として扱わないでください。
+
 1. Impellerの`LE / TE → 派生設計 / Shroud・外径カット`を有効にします。
 2. `基準Gross面積の削減率 [%]`でShroudカットを指定します。
 3. 外径は「なし」「指定外径[mm]」「元外径からの切削率[%]」から選択します。
@@ -379,6 +434,10 @@ Mechanical CADは図面形状側を維持します。
 
 <a id="display"></a>
 ## 14. 2D／3D表示
+
+![全周表示の切替と3Dの視点ボタン](images/user-manual/display-settings.png)
+
+図：`Full Annulus`の2つのチェックは2Dと3Dで独立しています。中央下の`正面`・`上面`・`側面`・`等角`・`全体`・`リセット`で視点を操作します。
 
 | 操作 | 方法 |
 |---|---|
@@ -405,6 +464,19 @@ Impellerの2Dは選択断面・投影面を確認し、必要なら`View → Pro
 
 <a id="passage"></a>
 ## 15. 流路面積・スロート・指標
+
+![流路面積とスロートの表示画面](images/user-manual/passage.png)
+
+図：`View`から開く`Passage Area / Throat`。主翼間と、Splitterを含む隣接流路の結果を区別して確認します。
+
+![計算したスロートと断面面積の表](images/user-manual/passage-details.png)
+
+図：`Calculate`で同梱モデルを計算し、下へスクロールした結果表。Main–MainはSplitterを無視した参考値で、両側の通路とは区別します。
+これはアプリの幾何計算結果であり、実験やCFDで検証した性能値ではありません。
+
+![選択翼列の指標画面](images/user-manual/row-metrics.png)
+
+図：`Selected Row Metrics`。画面の翼列名・形状の状態を確認してから数値を読みます。これらは幾何指標であり、CFDの性能結果ではありません。
 
 1. 左で解析する翼列を選びます。
 2. `View → Passage Area / Throat`を開きます。
@@ -435,6 +507,11 @@ N/Aや未判定を0と解釈しないでください。
 ## 16. 座標CSV／TXT出力
 
 ### 16.1 推奨する汎用出力
+
+![円筒座標とTXTの出力設定ダイアログ](images/user-manual/coordinate-export.png)
+
+図：`Selected Row Coordinate CSV / TXT`で開く設定例。ここでは翼・Hub・Shroud、壁面別、TXT、R／θ[deg]／Z、Span別を選択しています。
+この段階ではまだファイルは作成されません。設定を確認してOKを押し、次に新しい保存先を指定します。
 
 1. 左で翼列を選びます。
 2. `File → Export → Selected Row Coordinate CSV / TXT`を開きます。
@@ -507,6 +584,16 @@ Profile Pointsの出力成功だけでCAD連携も成功したとは扱いませ
 
 ### 18.1 基本手順
 
+![CADと根元フィレットの設定欄](images/user-manual/cad-settings.png)
+
+図：`CAD / Fillet`の上部。根元R、Fillet Mode、Mechanical Model Scope、出力対象を指定します。
+表示されているR8は現在モデルの設定値であり、生成成功を示す値ではありません。生成・検査・出力のボタンはさらに下へスクロールして表示します。
+
+![CADの検査と生成および出力ボタン](images/user-manual/cad-actions.png)
+
+図：同じ`CAD / Fillet`欄を下へスクロールした状態。`Validate CAD`、`Generate CAD`、Mechanical／TurboGridの出力、`Cancel CAD`を確認できます。
+この撮影ではボタンは実行していません。CAD成功の判断には、生成後のレポートを確認してください。
+
 1. 別のCAD環境`.venv-cad`を準備します。通常アプリ用環境へOCPを混在させません。
 2. Impellerを選び、`CAD / Fillet`タブを開きます。
 3. 最初は`Blade Only`で翼単体を確認し、必要なScopeへ進めます。
@@ -554,6 +641,11 @@ CFD、mesh、CAD、3D面そのものの最適化をアプリ内で実行する�
 
 ### 19.1 最初のStudyを作る
 
+![現在の設計を最適化パラメータへ移行した画面](images/user-manual/optimization-baseline.png)
+
+図：`Tools → Coordinate Optimization / 座標最適化`を開き、`Capture Baseline`を押した直後。
+上で対象翼列、中央で変数・上下限・連動グループを設定します。画面例は移行のみで、候補出力・外部解析は未実行です。
+
 1. 通常Editorで設計値を確定し、Project JSONを保存します。
 2. `Tools → Coordinate Optimization / 座標最適化`を開きます。
 3. `現在の設計を移行 / Capture Baseline`で基準を取得します。通常設計へはまだ変更を適用しません。
@@ -594,6 +686,11 @@ run ID、candidate ID、candidate hash、解析条件IDは元の値を使いま�
 LHSは実験計画、Local LHSは選択候補の近傍候補生成であり、RBF提案とは別の方法です。
 
 ### 19.4 2目的のトレードオフを見る
+
+![2目的最適化の目的列と方向の設定](images/user-manual/optimization-objectives.png)
+
+図：`多目的（2目的）`を有効にした初期設定。目的列と第2目的列、それぞれの最大化／最小化を選びます。
+まだ外部結果を取り込んでいないため、候補一覧は空です。Pareto図は実評価を取り込んでから確認します。架空の解析点は掲載していません。
 
 1. 第1目的の列・方向を指定します。
 2. `多目的（2目的）`を有効にし、第2目的の列・方向を指定します。
