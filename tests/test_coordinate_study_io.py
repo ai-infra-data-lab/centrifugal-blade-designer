@@ -70,6 +70,25 @@ def test_changed_output_rejected_on_resume(tmp_path, study):
         read_study(tmp_path / 'run')
 
 
+@pytest.mark.parametrize('version',[None,'older-geometry'])
+def test_previous_geometry_study_cannot_reuse_external_evaluation(tmp_path,study,version):
+    _,manifest,_=make_run(tmp_path,study)
+    payloads={name:(tmp_path/'run'/name).read_bytes() for name in manifest['cases'][0]['sha256']}
+    if version is None:manifest.pop('coordinate_geometry_version')
+    else:manifest['coordinate_geometry_version']=version
+    path=tmp_path/'run/manifest.json';path.write_text(json.dumps(manifest),encoding='utf-8')
+    with pytest.raises(ValueError,match='geometry version'):read_study(tmp_path/'run')
+    assert all((tmp_path/'run'/name).read_bytes()==data for name,data in payloads.items())
+
+
+def test_queued_previous_geometry_job_is_rejected_before_publication(tmp_path,study):
+    job=queue_study(study,[],0,1,CoordinateCsvOptions(),tmp_path/'run',job_directory=tmp_path/'job')
+    path=job/'request.json';request=json.loads(path.read_text(encoding='utf-8'))
+    request.pop('coordinate_geometry_version');path.write_text(json.dumps(request),encoding='utf-8')
+    with pytest.raises(ValueError,match='geometry version'):export_study(job)
+    assert not (tmp_path/'run').exists()
+
+
 def write_results(path, manifest, rows):
     with path.open('w', encoding='utf-8-sig', newline='') as stream:
         writer = csv.writer(stream)

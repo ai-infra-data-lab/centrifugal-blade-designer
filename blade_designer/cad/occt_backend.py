@@ -258,6 +258,7 @@ class OcctBackend:
         return result
 
     def check_buried_root_caps(self,blade,hub):
+        from .root_construction import ROOT_CAP_NOT_BURIED
         fraction=blade.metrics.get('root_extension_span_fraction',0)
         if not np.isfinite(fraction) or fraction<0:raise BooleanUnionError('Invalid root continuation metadata.')
         if fraction==0:return False
@@ -273,7 +274,7 @@ class OcctBackend:
             outside=BRepAlgoAPI_Cut();outside.SetArguments(arguments);outside.SetTools(tools)
             outside.SetNonDestructive(True);outside.Build()
             if not outside.IsDone() or shapes(outside.Shape(),TopAbs_FACE):
-                raise BooleanUnionError('Buried root construction cap is not wholly inside the Hub solid.')
+                raise BooleanUnionError(ROOT_CAP_NOT_BURIED)
         return True
 
     def boolean_union(self,blade,hub):

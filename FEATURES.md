@@ -1,5 +1,8 @@
 # 既存機能一覧
 
+丸めたLE/TEの先端を子午面の指定位置へ合わせる。円/楕円とPS/SSの接線条件を同時に解き、平均線・β/厚さ・Rake基準は保持。表示/座標出力/TurboGridマーカーに先端を含め、Cutoff・clearance・派生切削の既存基準は維持する。[定義・制限・検証](docs/EDGE_END_POSITION.md)。
+最終固定ソースで全2,569一意件成功（既存2,521＋追加48、通常2,472・実CAD97）。失敗/error/skip/漏れ/重複0、398入力不変。限定Ruff21 PythonとWindows実画面の3翼列/Undoも確認。Cutoff末尾の実パラメータを保持し、仮ディスクだけ構築capの有界延長を追加。既定全周22配置・明示R0.1・STEP再読込みは成功し、仮ディスクWARNING/全面品質・ANSYS・人手確認の未検証を維持する。
+
 座標最適化を追加：Tools → Coordinate Optimization。基準を保持する角度/厚さ/共有子午面の差分移行、翼列間の連動、複数翼列の座標一括出力、外部評価CSVの照合・順位付け・候補適用/Undo、LHS/近傍LHSに対応。3D面・CAD・CFD評価は組み込まない。[操作・制限・検証](docs/COORDINATE_OPTIMIZATION.md)。
 
 既定形状の周期sectorを製品workerで追加確認。明示R0.1 mm・仮ディスクで約22分37秒、全周1実体/22配置924比較と、切断後2実体/STEP全56面・fillet19面の半径標本が成立。周期面回転対応も別診断で確認。単一連結sector条件はFAIL、仮ディスクはWARNING、全面品質/GUI人手操作/ANSYSは未検証。設計値/公差/ガードは維持。[根拠・範囲](docs/DEFAULT_PERIODIC_SECTOR_CHECK.md)。

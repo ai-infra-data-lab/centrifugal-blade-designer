@@ -12,6 +12,7 @@ from .project_io import _decode_v03
 from .coordinate_csv import CoordinateCsvOptions, prepare_coordinate_csv
 from .case_publish import staged_case, _write_case_files
 from ..optimization.coordinate_parameters import CoordinateStudy, CoordinateVariable, sample_candidates
+from ..geometry.edge_positioning import COORDINATE_GEOMETRY_VERSION
 
 
 def digest(data):
@@ -37,6 +38,7 @@ def queue_study(study, variables, count, seed, options, output, center=None, job
     job.mkdir(parents=True, exist_ok=False)
     data = snapshot_text(study.baseline).encode('utf-8')
     request = {'snapshot_hash': digest(data), 'row_ids': study.row_ids,
+               'coordinate_geometry_version': COORDINATE_GEOMETRY_VERSION,
                'variables': [asdict(v) for v in variables], 'vectors': vectors,
                'options': asdict(options), 'output': str(Path(output).resolve()),
                'run_id': uuid.uuid4().hex, 'seed': seed,
@@ -57,6 +59,8 @@ def read_study(directory):
             or not isinstance(manifest.get('variables'), list)
             or not isinstance(manifest.get('row_ids'), list) or not isinstance(manifest.get('options'), dict)):
         raise ValueError('Unsupported coordinate-study manifest.')
+    if manifest.get('coordinate_geometry_version') != COORDINATE_GEOMETRY_VERSION:
+        raise ValueError('Study geometry version differs. Regenerate coordinates and reevaluate external results.')
     if (directory / 'baseline.json').stat().st_size > 4 * 1024 * 1024:
         raise ValueError('Baseline snapshot size limit exceeded.')
     data = (directory / 'baseline.json').read_bytes()
@@ -113,6 +117,8 @@ def export_study(job):
     from ..models.geometry_source import GeometrySource
     job = Path(job)
     request = json.loads((job / 'request.json').read_text(encoding='utf-8'))
+    if request.get('coordinate_geometry_version') != COORDINATE_GEOMETRY_VERSION:
+        raise ValueError('Study geometry version differs. Create a new coordinate study.')
     data = (job / 'snapshot.json').read_bytes()
     if len(data) > 4 * 1024 * 1024 or digest(data) != request['snapshot_hash']:
         raise ValueError('Coordinate-study snapshot mismatch or size limit exceeded.')
@@ -131,6 +137,7 @@ def export_study(job):
     if target.exists():
         raise FileExistsError('Choose a new study directory; existing outputs are protected.')
     manifest = {'schema': 'coordinate-study-1', 'run_id': request['run_id'],
+                'coordinate_geometry_version': COORDINATE_GEOMETRY_VERSION,
                 'baseline_hash': request['snapshot_hash'], 'row_ids': list(study.row_ids),
                 'rows': [{'row_id': row.identifier, 'name': row.name, 'kind': row.kind,
                           'directory': f'row_{i + 1:03d}'} for i, row in enumerate(baseline.blade_rows)

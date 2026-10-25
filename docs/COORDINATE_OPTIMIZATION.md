@@ -1,5 +1,7 @@
 # 座標最適化：基準設計の移行と外部評価
 
+2026-10-24：LE/TE先端の位置拘束へ形状生成を変更したため、Studyと準備jobに形状版`rounded-nose-1`を記録する。旧版/版なしの再開や出力は拒否し、旧外部結果を新端部へ誤適用しない。旧fileは保持し、新規Studyの出力・外部再評価が必要。[端部位置の定義・検証](EDGE_END_POSITION.md)。
+
 ## 対象と入口
 
 `Tools → Coordinate Optimization / 座標最適化`を開く。

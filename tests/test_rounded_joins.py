@@ -92,7 +92,7 @@ def test_ellipse_failure_preserves_existing_export(tmp_path,monkeypatch):
     p=radial_parameters();p.sections[0].edge_parameters.le_type=EdgeType.ELLIPTICAL
     files=export_turbogrid(tmp_path/'case',p);before={f.name:f.read_bytes() for f in files}
     def failed(*a,**k):raise ValueError('Injected ellipse tangent failure')
-    monkeypatch.setattr(blade_section,'fit_elliptical_cap',failed)
+    monkeypatch.setattr(blade_section,'fit_positioned_cap',failed)
     with pytest.raises(ValueError,match='ellipse tangent'):export_turbogrid(tmp_path/'case',p)
     assert {f.name:f.read_bytes() for f in files}==before
     with pytest.raises(ValueError,match='ellipse tangent'):export_turbogrid(tmp_path/'new',p)

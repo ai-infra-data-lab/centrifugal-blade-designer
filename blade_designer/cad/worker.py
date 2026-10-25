@@ -96,6 +96,10 @@ def execute(job):
                 if not blade.metrics.get('root_extension_span_fraction',0):
                     blade=backend.create_blade_solid(sections,settings['surface_tolerance_mm'],
                         max(.1,20*settings['surface_tolerance_mm']))
+                from .root_construction import refine_provisional_root
+                blade,attempts=refine_provisional_root(backend,sections,blade,hub,
+                    settings['surface_tolerance_mm'],enabled=provisional)
+                if attempts:report['checks'].setdefault('root_construction_attempts',{})[name]=attempts
                 construction_models.append((name,blade,sections))
                 progress("BOOLEAN UNION / "+name)
                 blade.labels['BLADE_GROUP_'+name]=[face for role in ('LE','PS','TE','SS')

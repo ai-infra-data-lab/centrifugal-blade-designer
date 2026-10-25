@@ -202,7 +202,7 @@ def test_solver_failure_protects_existing_exports_and_job(tmp_path,monkeypatch):
     p=radial_parameters();files=export_turbogrid(tmp_path/'case',p);original={f.name:f.read_bytes() for f in files}
     select_arcs(p)
     def failed(*args,**kwargs):raise ValueError('Injected tangent constraint failure')
-    monkeypatch.setattr(blade_section,'fit_circular_cap',failed)
+    monkeypatch.setattr(blade_section,'fit_positioned_cap',failed)
     with pytest.raises(ValueError,match='tangent constraint'):export_turbogrid(tmp_path/'case',p)
     assert {f.name:f.read_bytes() for f in files}==original
     with pytest.raises(ValueError,match='tangent constraint'):export_turbogrid(tmp_path/'new',p)

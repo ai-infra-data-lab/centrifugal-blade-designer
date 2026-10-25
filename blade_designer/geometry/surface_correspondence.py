@@ -27,19 +27,26 @@ def display_master_coordinates(master, display):
     This mapping assumes the display curve is the current master's resample;
     reject stale/unrelated display data rather than invent correspondence.
     """
-    from .blade_section import resample_curve
+    from .blade_section import resample_curve,curve_sampling
     expected = resample_curve(master, len(display.r))
     # Rake rotates master and display independently after resampling. Repeating
     # XYZ arclength sampling after that rigid rotation differs at roundoff.
     # This scale-bound identity check is not a CAD/geometry acceptance tolerance.
     roundoff = 64*np.finfo(float).eps*max(1., float(np.max(np.abs(master.xyz))))
+    keep_extrema=False
+    if (expected.xyz.shape==display.xyz.shape and np.isfinite(display.xyz).all()
+            and np.max(np.abs(expected.xyz-display.xyz))>roundoff
+            and master.meridional_distance is not None):
+        for mode in ('le','te'):
+            expected=resample_curve(master,len(display.r),keep_extrema=mode)
+            keep_extrema=mode
+            if np.max(np.abs(expected.xyz-display.xyz))<=roundoff:break
     if expected.xyz.shape != display.xyz.shape or not np.isfinite(display.xyz).all() or np.max(np.abs(expected.xyz-display.xyz)) > roundoff:
         raise ValueError("Display curve is not the current master resample.")
     xi = cad_curve_coordinates(master)
-    arc = np.r_[0, np.cumsum(np.linalg.norm(np.diff(master.xyz, axis=0), axis=1))]
+    arc,keep,target=curve_sampling(master,len(display.r),keep_extrema=keep_extrema)
     if arc[-1] == 0:raise ValueError("Collapsed curve has no display correspondence.")
-    keep = np.r_[True, np.diff(arc) > 1e-14]
-    return np.interp(np.linspace(0, arc[-1], len(display.r)), arc[keep], xi[keep])
+    return np.interp(target, arc[keep], xi[keep])
 
 
 @dataclass

@@ -60,6 +60,9 @@ def surface_jacobian_envelope(surface, *, singular_mm2, refinements=0, max_cells
     if type(max_cells) is not int or max_cells < 1:
         raise ValueError('max_cells must be a positive integer.')
     knots, degrees, coefficients = _control_net(surface)
+    # Translation does not change derivatives. Remove the large absolute
+    # origin before repeated knot insertion and small-cell differencing.
+    coefficients=coefficients-coefficients[0,0]
     targets = []
     for t, degree in zip(knots,degrees):
         if any(count > degree-1 for knot,count in Counter(t).items() if 0 < knot < 1):

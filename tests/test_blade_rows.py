@@ -17,6 +17,11 @@ def test_row_roundtrip_and_shared_walls(tmp_path):
     params = project()
     params.blade_rows[1].parameters.geometry.vane_count = 13
     params.blade_rows[1].parameters.diffuser_profile.thickness.points[1].value = 6
+    # Keep the independent 6 mm design value, with room for positioned caps.
+    # The old very short .90-.96 row is not guaranteed to fit a single cap.
+    static_edges=params.blade_rows[1].parameters.diffuser_edges
+    static_edges.leading_edge.hub_m_flow_norm=static_edges.leading_edge.shroud_m_flow_norm=.86
+    static_edges.trailing_edge.hub_m_flow_norm=static_edges.trailing_edge.shroud_m_flow_norm=.99
     params.hub.start_z += 2
     materialized = row_parameters(params, params.blade_rows[1])
     assert materialized.hub == params.hub

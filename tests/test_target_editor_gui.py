@@ -66,7 +66,14 @@ def test_projection_uses_true_section_coordinates(window,plane):
     assert w.projection.isEnabled() and w.projection.currentText()==plane
 
 def test_target_switch_save_load_undo_and_preserved_view(window,tmp_path):
-    w=window;view=w.blade_plot.getViewBox()
+    w=window
+    # Keep the independent 8 mm thickness and history assertions, providing
+    # enough chord for the new single cap with its nose fixed at LE/TE.
+    prepared=w.get_parameters()
+    prepared.diffuser_edges.leading_edge.hub_m_flow_norm=prepared.diffuser_edges.leading_edge.shroud_m_flow_norm=.86
+    prepared.diffuser_edges.trailing_edge.hub_m_flow_norm=prepared.diffuser_edges.trailing_edge.shroud_m_flow_norm=.99
+    w.set_parameters(prepared);w.commit_edit();w.update_geometry()
+    view=w.blade_plot.getViewBox()
     view.setRange(xRange=(10,40),yRange=(20,50),padding=0)
     ranges=np.array(view.viewRange());camera=deepcopy(w.preview_3d.camera_position)
     w.angle_editor.table.cellWidget(1,1).setValue(46)

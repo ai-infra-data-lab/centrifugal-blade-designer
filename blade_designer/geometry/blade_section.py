@@ -9,10 +9,13 @@ from .distributions import interpolate_beta_m_deg
 from .thickness import generate_thickness
 from .meridional import calculate_meridional
 from .edges import generate_edge
-from .tangent_arcs import fit_circular_cap, fit_elliptical_cap, contact_intervals
+from .tangent_arcs import contact_intervals
 from .checks import has_self_intersection
 from .cylindrical_cutoff import cylinder_distance, cut_surface
 from .curve_source import resample_source_map
+from .edge_positioning import (fit_positioned_cap, cap_extrema_parameters,
+                               sample_positioned_cap, side_distance_extrema, CutoffSideSpline,
+                               MAX_POSITIONED_CONTACT_FRACTION)
 
 
 
@@ -27,13 +30,36 @@ def validate_section(section):
         raise ValueError("Section ellipse ratios must be finite and > 0.")
 
 
-def resample_curve(curve,n_points):
-    # Export density never controls the master geometry.
+def curve_sampling(curve,n_points,*,keep_extrema=False):
+    """Shared display/export sampling coordinates, including retained noses."""
     arc=np.r_[0,np.cumsum(np.linalg.norm(np.diff(curve.xyz,axis=0),axis=1))]
-    if arc[-1]==0:
-        return Curve3D(*(np.full(n_points,v[0]) for v in (curve.r,curve.theta_rad,curve.z)))
     keep=np.r_[True,np.diff(arc)>1e-14]
     target=np.linspace(0,arc[-1],n_points)
+    if keep_extrema:
+        used=set()
+        if keep_extrema in ('le','te'):
+            source_index=(np.argmin if keep_extrema=='le' else np.argmax)(curve.meridional_distance)
+            if source_index not in (0,len(arc)-1):
+                if n_points<3:raise ValueError('A finite rounded edge needs at least three output points to retain both joins and its LE/TE nose.')
+                nose=arc[source_index];middle=n_points//2
+                target=np.r_[np.linspace(0.,nose,middle+1),np.linspace(nose,arc[-1],n_points-middle)[1:]]
+                return arc,keep,target
+        for source_index in (np.argmin(curve.meridional_distance),np.argmax(curve.meridional_distance)):
+            if source_index in (0,len(arc)-1):continue
+            if any(target[i]==arc[source_index] for i in used):continue
+            available=[i for i in range(1,n_points-1) if i not in used]
+            if not available:raise ValueError('Too few edge output points to retain the LE/TE position.')
+            index=min(available,key=lambda i:abs(target[i]-arc[source_index]))
+            target[index]=arc[source_index];used.add(index)
+        target.sort()
+    return arc,keep,target
+
+
+def resample_curve(curve,n_points,*,keep_extrema=False):
+    # Export density never controls the master geometry.
+    arc,keep,target=curve_sampling(curve,n_points,keep_extrema=keep_extrema)
+    if arc[-1]==0:
+        return Curve3D(*(np.full(n_points,v[0]) for v in (curve.r,curve.theta_rad,curve.z)))
     arrays=[np.interp(target,arc[keep],v[keep]) for v in (curve.r,curve.theta_rad,curve.z)]
     m_blade_norm=None if curve.m_blade_norm is None else np.interp(target,arc[keep],curve.m_blade_norm[keep])
     meridional_distance=None if curve.meridional_distance is None else np.interp(target,arc[keep],curve.meridional_distance[keep])
@@ -62,9 +88,16 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
     source_norm=m_blade_norm if distributions_from_le else start_fraction+(1-start_fraction)*m_blade_norm
     def wall_at(distance):
         distance=np.asarray(distance)
-        if np.any(distance<-1e-9) or np.any(distance>wall_m[-1]+1e-9):
-            raise ValueError("Blade edges/surfaces exceed flow path; extend upstream/downstream or move LE/TE.")
-        return np.column_stack([np.interp(distance,wall_m,wall_zr[:,i]) for i in (0,1)])
+        construction_limit=MAX_POSITIONED_CONTACT_FRACTION*(te_m-le_m)
+        if np.any(distance<-construction_limit) or np.any(distance>wall_m[-1]+construction_limit):
+            raise ValueError('Blade construction exceeds the bounded local LE/TE region of the flow path.')
+        result=np.column_stack([np.interp(distance,wall_m,wall_zr[:,i]) for i in (0,1)])
+        # Extend only construction sides; the retained finished contour is
+        # checked against the original finite wall below, never published here.
+        for end,neighbor,mask in ((0,1,distance<0),(-1,-2,distance>wall_m[-1])):
+            slope=(wall_zr[neighbor]-wall_zr[end])/(wall_m[neighbor]-wall_m[end])
+            result[mask]=wall_zr[end]+(distance[mask]-wall_m[end])[:,None]*slope
+        return result
     zr=wall_at(m);r=zr[:,1]
     if np.any(r<=0): raise ValueError("Blade flow path radius must be > 0.")
     beta_m_deg=interpolate_beta_m_deg(source_norm,section.blade_angle.points)
@@ -97,8 +130,14 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
     if any(kind!=EdgeType.CUTOFF for kind in kinds):
         from scipy.interpolate import make_interp_spline
         originals=(ps,ss)
-        coordinates=[np.linspace(0,1,len(c.r)) for c in originals]
-        splines=[make_interp_spline(u,np.column_stack((c.meridional_distance,c.theta_rad)),k=3) for u,c in zip(coordinates,originals)]
+        # Cylinder clipping/extension leaves a nonuniform terminal step. Keep
+        # the source streamwise parameter instead of pretending all indices
+        # have the same spacing (which creates an artificial TE bend).
+        coordinates=[(c.m_blade_norm-c.m_blade_norm[0])/(c.m_blade_norm[-1]-c.m_blade_norm[0])
+                     for c in originals]
+        splines=[(CutoffSideSpline(u,np.column_stack((c.meridional_distance,c.theta_rad))) if cutoff_radius is not None
+                  else make_interp_spline(u,np.column_stack((c.meridional_distance,c.theta_rad)),k=3))
+                 for u,c in zip(coordinates,originals)]
         derivatives=[s.derivative() for s in splines]
         class LocalSide:
             def __init__(self,spline,derivative,theta_reference):
@@ -117,10 +156,16 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
                 sides=[LocalSide(s,d,theta_rad[index]) for s,d in zip(splines,derivatives)]
                 direction=np.array([np.cos(beta_m_rad[index]),np.sin(beta_m_rad[index])])
                 ratio=section.edge_parameters.le_ellipse_ratio if leading else section.edge_parameters.te_ellipse_ratio
-                caps[leading]=(fit_elliptical_cap(*sides,leading,direction,ratio)
-                               if kind==EdgeType.ELLIPTICAL else fit_circular_cap(*sides,leading,direction))
+                caps[leading]=fit_positioned_cap(*sides,leading,direction,m[index],
+                                                ratio if kind==EdgeType.ELLIPTICAL else 1.)
+        intervals=contact_intervals(caps)
+        distances=[side_distance_extrema(spline,interval) for spline,interval in zip(splines,intervals)]
+        distances.extend(cap.evaluate(cap_extrema_parameters(cap))[:,0] for cap in caps.values())
+        if (True in caps and min(np.min(d) for d in distances)<le_m-2e-9
+                or False in caps and max(np.max(d) for d in distances)>te_m+2e-9):
+            raise ValueError('PS/SS exceeds the specified LE/TE interval after tangent positioning.')
         trimmed=[]
-        for spline,source,u,interval in zip(splines,originals,coordinates,contact_intervals(caps)):
+        for spline,source,u,interval in zip(splines,originals,coordinates,intervals):
             q=np.linspace(*interval,len(source.r));distance,theta=spline(q).T
             norm=np.interp(q,u,source.m_blade_norm)
             curve=mapped(distance,theta,np.zeros(len(q)),norm)
@@ -132,7 +177,7 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
                                    (-1,False,kinds[1],section.edge_parameters.te_ellipse_ratio)):
         beta=beta_m_rad[index];center=np.array([m[index],0.])
         if leading in caps:
-            xy=caps[leading].sample(resolution.edge_points)
+            xy=sample_positioned_cap(caps[leading],resolution.edge_points,leading)
             edges.append(mapped(xy[:,0],np.full(len(xy),theta_rad[index]),xy[:,1]))
             continue
         if not leading and cutoff_radius is not None:
@@ -151,6 +196,8 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
         for name in ("r","theta_rad","z"):
             getattr(edge,name)[0]=getattr(first,name)[index];getattr(edge,name)[-1]=getattr(last,name)[index]
     for curve in (camber,ps,ss,le,te):
+        if np.any(curve.meridional_distance<-2e-9) or np.any(curve.meridional_distance>wall_m[-1]+2e-9):
+            raise ValueError('Blade edges/surfaces exceed flow path; extend upstream/downstream or move LE/TE.')
         if not np.all(np.isfinite(curve.xyz)): raise ValueError("Non-finite blade coordinates.")
         if cutoff_radius is not None and np.any(curve.r > cutoff_radius+1e-9):
             raise ValueError("TE Cutoff: blade profile extends outside the Hub TE cylinder.")
@@ -164,4 +211,5 @@ def generate_section(section,wall_zr,le_fraction,te_fraction,theta_le_rad,counts
     if has_self_intersection(chart):raise ValueError(f"Span {section.span}: blade profile self intersection or zero interior thickness.")
     if np.any(np.abs(dy/r)>=np.pi):raise ValueError("Thickness wraps the profile around the rotation axis.")
     return SectionGeometry3D(section.span,camber,resample_curve(ps,counts.ps_points),resample_curve(ss,counts.ss_points),
-        resample_curve(le,counts.le_points),resample_curve(te,counts.te_points),ps,ss,le,te,m,beta_m_deg,thickness)
+        resample_curve(le,counts.le_points,keep_extrema='le' if True in caps else False),
+        resample_curve(te,counts.te_points,keep_extrema='te' if False in caps else False),ps,ss,le,te,m,beta_m_deg,thickness)

@@ -58,6 +58,20 @@ def test_cubic_surface_cell_envelopes_contain_independent_dense_jacobian():
     assert result['unresolved_cells']==0
 
 
+def test_jacobian_bounds_are_translation_invariant_for_exact_dyadic_poles():
+    surface=patch(lambda s,t:np.column_stack((t,np.full(len(t),s),t*s+s*s)),4)
+    # Both the poles and the power-of-two translation are exactly representable.
+    # Center before knot insertion so the arithmetic sees the same small net.
+    surface.across.c[:]=np.round(surface.across.c*16)/16
+    moved=deepcopy(surface);moved.across.c+=np.array([2.**20,-2.**21,2.**19])
+    before=deepcopy((surface.across.c,moved.across.c))
+    results=[surface_jacobian_envelope(s,singular_mm2=1e-12,refinements=2) for s in (surface,moved)]
+    bounds=[np.array([[cell['lower_mm2'],cell['upper_mm2']] for cell in result['cells']]) for result in results]
+    np.testing.assert_array_equal(bounds[0],bounds[1])
+    np.testing.assert_array_equal(surface.across.c,before[0]);np.testing.assert_array_equal(moved.across.c,before[1])
+    assert all(result['roundoff_certified'] is False for result in results)
+
+
 def test_nonzero_jacobian_does_not_prove_global_nonintersection():
     # Two distinct interior parameters cross transversely. The two curve
     # derivatives never vanish together, including at s=.5.

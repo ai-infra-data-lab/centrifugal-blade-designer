@@ -119,6 +119,7 @@ def test_invalid_splitter_cannot_replace_existing_output(tmp_path,monkeypatch,in
 
 
 def test_main_only_bytes_match_pre_splitter_exporter(tmp_path):
+    from test_stator_turbogrid_export import profiles
     from blade_designer.models.parameters import BladeParameters,BladeSection
     from test_tip_clearance import axial_parameters
     references=json.loads((Path(__file__).parent/'fixtures/turbogrid_main_only_sha256.json').read_text())
@@ -128,4 +129,21 @@ def test_main_only_bytes_match_pre_splitter_exporter(tmp_path):
         elif name=='cw_x_cm':p.rotation_direction=RotationDirection.CW;p.turbogrid.rotation_axis='X';p.turbogrid.geometry_unit='CM'
         elif name=='clearance':p=axial_parameters();p.tip_clearance=TipClearanceParameters(.5,1.)
         actual={f.name:hashlib.sha256(f.read_bytes().replace(b'\r\n',b'\n')).hexdigest() for f in tg.export_turbogrid(tmp_path/name,p)}
-        assert actual==references['cases'][name]
+        archived=references['cases'][name]
+        # Nose positioning intentionally changes profiles, not the archived
+        # wall/initialization formats. Keep the historical hashes unchanged.
+        for filename in actual:
+            if filename!=p.turbogrid.profile_curve_filename:
+                assert actual[filename]==archived[filename]
+        assert actual[p.turbogrid.profile_curve_filename]!=archived[p.turbogrid.profile_curve_filename]
+        geometry=generate_impeller(p)
+        sections=geometry.sections
+        if geometry.tip is not None:sections=[*sections,extend_tip_to_shroud(geometry)]
+        parsed=profiles(tmp_path/name/p.turbogrid.profile_curve_filename)
+        assert len(parsed)==len(sections)
+        for (_,xyz,markers),section in zip(parsed,sections):
+            expected,expected_markers=tg.closed_profile(section)
+            expected=tg._external_xyz(expected,p.turbogrid)
+            rounded=np.array([[float(f'{v:.{p.export.significant_digits}g}') for v in row] for row in expected])
+            np.testing.assert_array_equal(xyz,rounded)
+            assert markers==expected_markers

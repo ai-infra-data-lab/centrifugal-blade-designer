@@ -120,7 +120,7 @@ def test_diffuser_3d_gui_preview_tracks_profile_undo_and_json(tmp_path):
     finally:w.timer.stop();w.close();w.deleteLater();app.processEvents()
 
 
-def test_invalid_diffuser_3d_keeps_last_preview_but_updates_valid_2d():
+def test_invalid_diffuser_3d_keeps_last_preview_but_updates_valid_2d(monkeypatch):
     app=QApplication.instance() or QApplication([])
     w=MainWindow();w.show();app.processEvents()
     try:
@@ -128,6 +128,15 @@ def test_invalid_diffuser_3d_keeps_last_preview_but_updates_valid_2d():
         previous=w.diffuser_geometry
         lines=w.model_preview_3d.base_lines
         label=w.model_preview_3d.model_label
+        original_angle=w.angle_editor.table.cellWidget(1,1).value()
+        # Thickness 7 fits after nose positioning. Inject a generation failure
+        # to retain this test's last-valid-preview contract independently.
+        generate=w.designer.generate_diffuser_3d
+        def fail_thick_profile(params):
+            if max(point.value for point in params.diffuser_profile.thickness.points)>6:
+                raise ValueError('Injected invalid Diffuser 3D geometry')
+            return generate(params)
+        monkeypatch.setattr(w.designer,'generate_diffuser_3d',fail_thick_profile)
         w.angle_editor.table.cellWidget(1,1).setValue(29)
         w.thickness_editor.table.cellWidget(1,1).setValue(7)
         w.update_geometry()
@@ -136,7 +145,8 @@ def test_invalid_diffuser_3d_keeps_last_preview_but_updates_valid_2d():
         assert "ERROR — Diffuser 3D" in w.messages.toPlainText()
         assert "last valid geometry" in w.messages.toPlainText()
         w.update_geometry();assert w.model_preview_3d.model_label==label
-        w.thickness_editor.table.cellWidget(1,1).setValue(4);w.update_geometry()
+        w.thickness_editor.table.cellWidget(1,1).setValue(4)
+        w.angle_editor.table.cellWidget(1,1).setValue(original_angle);w.update_geometry()
         assert w.diffuser_geometry is not previous
         assert "ERROR — Diffuser 3D" not in w.messages.toPlainText()
     finally:w.timer.stop();w.close();w.deleteLater();app.processEvents()

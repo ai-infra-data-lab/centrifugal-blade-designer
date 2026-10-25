@@ -74,14 +74,32 @@ def test_invalid_domains_do_not_create_or_overwrite_files(tmp_path, invalid):
     elif invalid == "outside_blade":
         p.shroud.segments[1].blade_row = "row-2"
     elif invalid == "outside_profile":
+        from blade_designer.models.parameters import EdgeType
+        # Rounded TE now fits exactly at the owned end. A straight LE Cutoff
+        # still has normal-offset corners: place its reference at the owned
+        # start so actual geometry, rather than the reference, lies outside.
+        for curve in (p.hub,p.shroud):
+            for index,segment in enumerate(curve.segments):
+                segment.blade_row='row-1' if index==1 else 'row-2'
         g = generate_impeller(p)
-        p.impeller_edges.trailing_edge.shroud_m_flow_norm = wall_interval(p.shroud,g.shroud,"row-1")[1] / g.shroud.length
+        for wall,geometry in (('hub',g.hub),('shroud',g.shroud)):
+            setattr(p.impeller_edges.leading_edge,wall+'_m_flow_norm',wall_interval(getattr(p,wall),geometry,'row-1')[0]/geometry.length)
+        for section in p.sections:section.edge_parameters.le_type=EdgeType.CUTOFF
     elif invalid == "unknown_row": p.hub.segments[0].blade_row = "missing"
     else: p.active_blade_row = None
     with pytest.raises(ValueError): export_turbogrid(case, p)
     assert {file.name: file.read_bytes() for file in files} == before
     with pytest.raises(ValueError): export_turbogrid(tmp_path / "new", p)
     assert not (tmp_path / "new").exists()
+
+
+def test_positioned_rounded_te_may_end_exactly_at_owned_wall_boundary(tmp_path):
+    p=assigned_project();geometry=generate_impeller(p)
+    p.impeller_edges.trailing_edge.shroud_m_flow_norm=wall_interval(p.shroud,geometry.shroud,'row-1')[1]/geometry.shroud.length
+    before=deepcopy(p)
+    files=export_turbogrid(tmp_path/'exact-boundary',p)
+    assert len(files)==4 and all(file.exists() for file in files)
+    assert p==before
 
 
 def test_unassigned_legacy_json_does_not_gain_segment_keys(tmp_path):

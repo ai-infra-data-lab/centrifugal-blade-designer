@@ -71,10 +71,11 @@ def test_hub_tip_independent_edges_on_axial_wall():
  p.sections[1].edge_parameters.le_type=EdgeType.ELLIPTICAL
  p.sections[1].edge_parameters.le_ellipse_ratio=2
  hub,tip=generate_impeller(p).sections
- assert hub.master_le.z.min()==pytest.approx(13)
- assert tip.master_le.z.min()==pytest.approx(11)
- assert hub.master_te.z.max()==pytest.approx(87)
- assert tip.master_te.z.max()==pytest.approx(87)
+ # Rounded noses now own the specified LE/TE; the camber reference is kept.
+ assert hub.master_le.z.min()==pytest.approx(100*p.impeller_edges.leading_edge.hub_m_flow_norm)
+ assert tip.master_le.z.min()==pytest.approx(100*p.impeller_edges.leading_edge.shroud_m_flow_norm)
+ assert hub.master_te.z.max()==pytest.approx(100*p.impeller_edges.trailing_edge.hub_m_flow_norm)
+ assert tip.master_te.z.max()==pytest.approx(100*p.impeller_edges.trailing_edge.shroud_m_flow_norm)
 
 
 def test_axial_tip_cutoff_rejects_unreachable_hub_radius():

@@ -133,7 +133,11 @@ def test_static_invalid_input_preserves_existing_output(tmp_path,invalid):
     elif invalid=='disconnected':
         p.hub.segments[2].blade_row='row-1';p.hub.segments[3].blade_row='row-2'
     elif invalid=='outside_le':q.diffuser_edges.leading_edge.hub_m_flow_norm=.2
-    elif invalid=='outside_profile':q.diffuser_edges.leading_edge.hub_m_flow_norm=.25
+    elif invalid=='outside_profile':
+        # A rounded nose fits this boundary now. A straight normal-offset LE
+        # still extends outside and must protect existing output.
+        q.diffuser_edges.leading_edge.hub_m_flow_norm=.25
+        q.diffuser_profile.edge_parameters.le_type=EdgeType.CUTOFF
     elif invalid=='edges':q.diffuser_edges.trailing_edge.hub_m_flow_norm=.1
     elif invalid=='wall':p.hub.segments[0].length=-1
     elif invalid=='nan':q.diffuser_profile.thickness.points[0].value=float('nan')
@@ -146,6 +150,14 @@ def test_static_invalid_input_preserves_existing_output(tmp_path,invalid):
     assert sorted(f.name for f in case.iterdir())==sorted(before)
     with pytest.raises(ValueError):export_turbogrid(tmp_path/'new',p)
     assert not (tmp_path/'new').exists()
+
+
+def test_positioned_static_le_can_start_exactly_at_owned_boundary(tmp_path):
+    p=stator_project();p.blade_rows[1].parameters.diffuser_edges.leading_edge.hub_m_flow_norm=.25
+    before=deepcopy(p)
+    files=export_turbogrid(tmp_path/'exact-boundary',p)
+    assert len(files)==4 and all(file.exists() for file in files)
+    assert p==before
 
 
 @pytest.mark.parametrize('case',['legacy','middle_span','cutoff_x_cm'])
