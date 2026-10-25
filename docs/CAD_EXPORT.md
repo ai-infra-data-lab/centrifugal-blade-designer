@@ -59,6 +59,11 @@ ScopeはBlade Only、単翼＋Hub、周期セクタ、全周インペラです�
 
 ## CAD表示
 
+Mechanicalの周期セクターには[翼追従曲面](BLADE_FOLLOWING_SECTOR.md)を追加した。
+`Mechanical Model Scope = periodic_sector`で`Sector boundary = blade_following`を選ぶ。
+旧方式は`fixed`のまま維持。主翼3枚以上、Mechanical専用。翼・フィレット保持と周期対応の
+検査に通らない場合は出力しない。TurboGrid CADへの新境界の適用は未対応。
+
 生成したBREPを三角形化し、既存の3D画面へ渡します。設計曲線を太く描いた擬似フィレットではありません。CAD Blade、Hub Disk、Root Fillet、Full、Surface Edgesを切り替えられ、根元は別色です。根元の面をクリックすると指定半径を表示します。表示用メッシュはSTEPの代用ではありません。既存の自由回転・平行移動・ズーム・視点ボタンとカメラを維持します。
 
 ## 生成・検証

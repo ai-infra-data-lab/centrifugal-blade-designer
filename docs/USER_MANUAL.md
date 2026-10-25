@@ -609,6 +609,16 @@ Profile Pointsの出力成功だけでCAD連携も成功したとは扱いませ
 | 周期セクタ | 全周実体を1ピッチで切断した形状 |
 | 全周インペラ | 全配置を含む実体 |
 
+1セクターで翼を切りたくない場合は、Scopeを`periodic_sector`にし、
+`周期境界 / Sector boundary`を`翼追従曲面 / Blade-following`へ変更します。
+主翼3枚以上・`Hub Fillet`有効／`true_cad`・Mechanical専用です。翼・Splitter・根元フィレットを避ける周期面を検査し、
+成立しないときはエラーにします。`Export Mechanical`を使い、TurboGridや`Export Both`とは分けます。
+従来の`固定平面 / Fixed planes`は残ります。[方式・制限・検証](BLADE_FOLLOWING_SECTOR.md)。
+
+![翼追従曲面による周期セクターの設定](images/user-manual/following-sector-settings.png)
+
+図：新しい境界選択欄。表示中のR8は操作例であり、この半径での生成成功を示しません。
+
 仮ディスクは`PROVISIONAL`です。実機のディスク寸法や構造強度の保証ではありません。
 ディスク単体の表示成功を、翼との結合・フィレット成功と混同しないでください。
 

@@ -5,7 +5,7 @@ import json
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QWidget,QVBoxLayout,QFormLayout,QLabel,QComboBox,QCheckBox,QPushButton,QPlainTextEdit,QHBoxLayout
 from .control_point_editor import CompactDoubleSpinBox
-from ..models.cad import CadExportParameters,MechanicalExportScope,FilletMode,validate_cad_parameters
+from ..models.cad import CadExportParameters,MechanicalExportScope,FilletMode,SectorBoundaryMode,validate_cad_parameters
 from ..fileio.project_io import _curve
 from ..cad.client import backend_python
 
@@ -33,6 +33,11 @@ class CadEditor(QWidget):
         self.scope=QComboBox()
         for v in MechanicalExportScope:self.scope.addItem(v.value,v.value)
         form.addRow("Mechanical Model Scope",self.scope)
+        self.sector_boundary=QComboBox()
+        self.sector_boundary.addItem('固定平面 / Fixed planes','fixed')
+        self.sector_boundary.addItem('翼追従曲面 / Blade-following','blade_following')
+        self.sector_boundary.setToolTip('Mechanicalのperiodic_sectorに適用。翼とフィレットを切らない周期面を検査します。TurboGrid CADは別経路です。')
+        form.addRow('周期境界 / Sector boundary',self.sector_boundary)
         self.mechanical=QCheckBox("Enabled");self.turbogrid=QCheckBox("Enabled");self.step=QCheckBox("STEP (mm / Z)")
         form.addRow("Mechanical Export",self.mechanical);form.addRow("TurboGrid Export",self.turbogrid);form.addRow("Export Format",self.step);form.addRow("Surface tolerance [mm]",self.tolerance)
         self.bore_known=QCheckBox("Bore radius is specified");self.bore=self.spin(0,100000,6)
@@ -57,13 +62,14 @@ class CadEditor(QWidget):
         self.set_parameters(CadExportParameters())
         for box in (self.hub_enabled,self.mechanical,self.turbogrid,self.step,self.bore_known):box.toggled.connect(self._changed)
         for box in (self.radius,self.tolerance,self.bore):box.valueChanged.connect(self._changed)
-        for box in (self.mode,self.scope):box.currentIndexChanged.connect(self._changed)
+        for box in (self.mode,self.scope,self.sector_boundary):box.currentIndexChanged.connect(self._changed)
 
     @staticmethod
     def spin(lo,hi,digits):
         box=CompactDoubleSpinBox();box.setDecimals(digits);box.setRange(lo,hi);box.setKeyboardTracking(False);return box
 
     def _changed(self,*args):
+        self.sector_boundary.setEnabled(self.scope.currentData()=='periodic_sector')
         self.bore.setEnabled(self.bore_known.isChecked());self._update_disk_kind(self.get_parameters().disk);self.parametersChanged.emit()
 
     def set_parameters(self,settings):
@@ -74,11 +80,12 @@ class CadEditor(QWidget):
         for name,box,value in (("radius",self.radius,settings.fillet.hub_radius_mm),("tolerance",self.tolerance,settings.surface_tolerance_mm),("bore",self.bore,settings.disk.bore_radius_mm or 0.)):
             box.blockSignals(True);box.setValue(value);self._display[name]=box.value();box.blockSignals(False)
         self.bore.setEnabled(self.bore_known.isChecked())
-        for box,value in ((self.mode,settings.fillet.mode.value),(self.scope,settings.mechanical_scope.value)):
+        for box,value in ((self.mode,settings.fillet.mode.value),(self.scope,settings.mechanical_scope.value),(self.sector_boundary,settings.sector_boundary.value)):
             box.blockSignals(True);box.setCurrentIndex(box.findData(value));box.blockSignals(False)
         self._backside_text="" if self._backside is None else json.dumps(asdict(self._backside),ensure_ascii=False,indent=2)
         self.backside.setPlainText(self._backside_text);self.blockSignals(False)
         self._update_disk_kind(settings.disk)
+        self.sector_boundary.setEnabled(settings.mechanical_scope is MechanicalExportScope.PERIODIC_SECTOR)
 
     def _update_disk_kind(self,disk):
         if disk.provisional and (disk.backside is None or disk.bore_radius_mm is None):
@@ -91,6 +98,7 @@ class CadEditor(QWidget):
         p=deepcopy(self._source);p.fillet.hub_enabled=self.hub_enabled.isChecked();p.fillet.shroud_enabled=False
         p.mechanical_enabled=self.mechanical.isChecked();p.turbogrid_enabled=self.turbogrid.isChecked();p.step_enabled=self.step.isChecked()
         p.fillet.mode=FilletMode(self.mode.currentData());p.mechanical_scope=MechanicalExportScope(self.scope.currentData())
+        p.sector_boundary=SectorBoundaryMode(self.sector_boundary.currentData())
         if self.radius.value()!=self._display["radius"]:p.fillet.hub_radius_mm=self.radius.value()
         if self.tolerance.value()!=self._display["tolerance"]:p.surface_tolerance_mm=self.tolerance.value()
         if not self.bore_known.isChecked():p.disk.bore_radius_mm=None

@@ -9,6 +9,7 @@ import traceback
 import uuid
 
 from . import preview_payload
+from .snapshot_compat import canonical_sector_defaults
 from ..geometry.preview_computation import prepare_preview, prepare_row_previews, PreviewComputation, RowPreviews
 from ..models.geometry import BladeGeometry
 from ..models.geometry_3d import ImpellerGeometry
@@ -18,7 +19,8 @@ ROOT=Path(__file__).resolve().parents[2]
 
 
 def snapshot_text(params):
-    return json.dumps({"schema_version":"0.4",**asdict(params)},allow_nan=False,sort_keys=True,
+    payload=canonical_sector_defaults({"schema_version":"0.4",**asdict(params)})
+    return json.dumps(payload,allow_nan=False,sort_keys=True,
                       default=lambda v:v.value if hasattr(v,"value") else v.item())
 
 

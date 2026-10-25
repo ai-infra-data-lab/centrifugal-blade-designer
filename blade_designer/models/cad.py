@@ -15,6 +15,10 @@ class MechanicalExportScope(str,Enum):
     PERIODIC_SECTOR="periodic_sector"
     FULL_IMPELLER="full_impeller"
 
+class SectorBoundaryMode(str,Enum):
+    FIXED="fixed"
+    BLADE_FOLLOWING="blade_following"
+
 @dataclass
 class FilletParameters:
     hub_enabled:bool=True
@@ -40,6 +44,7 @@ class CadExportParameters:
     disk:DiskGeometryParameters=field(default_factory=DiskGeometryParameters)
     mechanical_scope:MechanicalExportScope=MechanicalExportScope.BLADE_HUB
     surface_tolerance_mm:float=0.01
+    sector_boundary:SectorBoundaryMode=SectorBoundaryMode.FIXED
 
 
 def validate_cad_parameters(settings):
@@ -49,6 +54,7 @@ def validate_cad_parameters(settings):
         if type(value) is not bool:raise ValueError("CAD enable flags must be boolean.")
     if settings.length_unit!="mm" or settings.rotation_axis!="Z":raise ValueError("CAD currently requires mm and rotation axis Z.")
     if not isinstance(settings.mechanical_scope,MechanicalExportScope) or not isinstance(settings.fillet.mode,FilletMode):raise ValueError("Unknown CAD scope or fillet mode.")
+    if not isinstance(settings.sector_boundary,SectorBoundaryMode):raise ValueError("Unknown sector boundary mode.")
     if settings.fillet.shroud_enabled:raise ValueError("Shroud CAD fillet is not supported for the open impeller.")
     for value in (settings.surface_tolerance_mm,settings.fillet.hub_radius_mm):
         if not isinstance(value,Real) or isinstance(value,bool) or not math.isfinite(value) or value<=0:raise ValueError("CAD tolerance and fillet radius must be finite and positive.")

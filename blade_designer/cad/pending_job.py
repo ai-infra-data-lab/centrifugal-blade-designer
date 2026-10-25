@@ -3,7 +3,7 @@ from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
 import hashlib,json,os,sys,traceback,uuid
-from .client import ROOT,json_text,prepare_job,segment_points
+from .client import ROOT,json_text,prepare_job,segment_points,guard_following_export
 from ..models.blade_rows import validate_rows,row_parameters
 from ..models.cad import validate_cad_parameters
 from ..geometry.meridional_segments import generate_meridional
@@ -20,6 +20,7 @@ def queue_job(project,action="generate",job_directory=None):
         params=row_parameters(project,row)
     from ..fileio.trim_export_guard import guard_trim_export
     guard_trim_export(params);validate_cad_parameters(params.cad_export)
+    guard_following_export(params,action)
     text=json_text({'schema_version':'0.4',**asdict(project)})
     disk=params.cad_export.disk
     mechanical=None

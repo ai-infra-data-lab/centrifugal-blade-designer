@@ -11,12 +11,13 @@ from ..geometry.meridional_segments import generate_meridional,sample_meridional
 from ..geometry.row_domain import export_wall_intervals
 from ..models.meridional import ArcSegmentGeometry
 from .errors import BackendUnavailableError
+from ..fileio.snapshot_compat import canonical_sector_defaults
 
 ROOT=Path(__file__).resolve().parents[2]
 
 
 def json_text(value):
-    return json.dumps(value,ensure_ascii=False,allow_nan=False,sort_keys=True,indent=2,
+    return json.dumps(canonical_sector_defaults(value),ensure_ascii=False,allow_nan=False,sort_keys=True,indent=2,
         default=lambda v:v.value if hasattr(v,"value") else v.item())+"\n"
 
 
@@ -44,6 +45,16 @@ def segment_points(curve,start=0.,end=None):
     return result
 
 
+def guard_following_export(params,action):
+    settings=params.cad_export
+    if action=='disk':return
+    if settings.mechanical_scope.value!='periodic_sector' or settings.sector_boundary.value!='blade_following':return
+    if action in ('turbogrid','both'):
+        raise ValueError('Blade-following sector is Mechanical-only; use Export Mechanical. No output was written.')
+    if params.geometry.vane_count<3:
+        raise ValueError('Blade-following sectors require at least three main blades. No output was written.')
+
+
 def prepare_job(project,action="generate",job_directory=None):
     project=deepcopy(project);validate_rows(project);params=project
     if project.blade_rows is not None:
@@ -53,6 +64,7 @@ def prepare_job(project,action="generate",job_directory=None):
     from ..fileio.trim_export_guard import guard_trim_export
     guard_trim_export(params)
     validate_cad_parameters(params.cad_export)
+    guard_following_export(params,action)
     from ..geometry.tip_clearance import has_tip_clearance
     analysis=params.tip_clearance is not None and params.tip_clearance.analysis_le_mm is not None
     if (has_tip_clearance(params) or analysis) and action in ('turbogrid','both') and params.cad_export.turbogrid_enabled:

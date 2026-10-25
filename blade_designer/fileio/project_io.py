@@ -124,6 +124,7 @@ def save_project(path: str | Path, params: BladeParameters) -> None:
             for key in ('analysis_le_mm','analysis_te_mm'):
                 if value.get(key,False) is None:value.pop(key)
             if value.get("cad_export") == default_cad:value.pop("cad_export")
+            if value.get('sector_boundary')=='fixed':value.pop('sector_boundary')
             if value.get("provisional") is False:value.pop("provisional")
             if value.get("front_end_m_mm",False) is None:value.pop("front_end_m_mm")
             if value.get("splitter", False) is None:
@@ -209,7 +210,7 @@ def _decode_v03(data, row_snapshot=False):
             surface_mapping=SurfaceMapping(data["surface_mapping"]),
             rotation_direction=RotationDirection(data.get("rotation_direction","ccw")))
         if "cad_export" in data:
-            from ..models.cad import CadExportParameters,FilletParameters,DiskGeometryParameters,FilletMode,MechanicalExportScope
+            from ..models.cad import CadExportParameters,FilletParameters,DiskGeometryParameters,FilletMode,MechanicalExportScope,SectorBoundaryMode
             values=data["cad_export"]
             if not isinstance(values,dict) or set(values)-{f.name for f in fields(CadExportParameters)}:raise ValueError("Invalid CAD settings fields.")
             values=dict(values)
@@ -217,6 +218,7 @@ def _decode_v03(data, row_snapshot=False):
             disk=dict(values.pop("disk",{}))
             if disk.get("backside") is not None:disk["backside"]=_curve(disk["backside"])
             values["mechanical_scope"]=MechanicalExportScope(values.get("mechanical_scope","blade_hub"))
+            values["sector_boundary"]=SectorBoundaryMode(values.get("sector_boundary","fixed"))
             params.cad_export=CadExportParameters(**values,fillet=FilletParameters(**fillet),disk=DiskGeometryParameters(**disk))
         params.impeller_te_rake_deg=data.get("impeller_te_rake_deg")
         if data.get('impeller_trim') is not None:

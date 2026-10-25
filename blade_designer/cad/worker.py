@@ -166,7 +166,15 @@ def execute(job):
                 else:
                     full=backend.full_impeller(single,hub,int(request["blade_count"]),settings["surface_tolerance_mm"],check_interference=False)
                 report["checks"]["full_impeller"]={**backend.validate_solid(full),**full.metrics}
-            mechanical=models[0][1] if scope=="blade_only" else full if scope=="full_impeller" else backend.sector(full,int(request["blade_count"])) if scope=="periodic_sector" else single
+            if scope=='periodic_sector' and settings.get('sector_boundary','fixed')=='blade_following':
+                progress('BLADE-FOLLOWING PERIODIC CUT')
+                from .following_sector import cut_following_sector
+                mechanical=cut_following_sector(backend,full,[(name,sections) for name,_,sections in models],
+                    int(request['blade_count']),settings['surface_tolerance_mm'],progress=progress)
+                report['checks']['following_sector']=mechanical.metrics['following_sector']
+                report['warnings'].append('Following-sector reconstruction passed native validity, volume and bidirectional boundary samples. Global material coverage is NOT_CONFIRMED; nearly coincident full-body Boolean differences are not used as an output gate.')
+            else:
+                mechanical=models[0][1] if scope=="blade_only" else full if scope=="full_impeller" else backend.sector(full,int(request["blade_count"])) if scope=="periodic_sector" else single
             current=mechanical
             suffix=("R"+format(fillet["hub_radius_mm"],"g")) if apply_fillet else "NO_FILLET"
             if mech and scope not in ("blade_only","blade_hub"):
