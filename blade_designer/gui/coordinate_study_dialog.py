@@ -14,7 +14,7 @@ from .coordinate_export_dialog import CoordinateExportDialog
 from .coordinate_study_worker import CoordinateStudyWorker
 from ..optimization.coordinate_parameters import CoordinateStudy
 from ..fileio.coordinate_csv import CoordinateCsvOptions
-from ..fileio.coordinate_study import queue_study, read_study, import_results, rank_results, project_hash
+from ..fileio.coordinate_study import queue_study, read_study, import_results, rank_results, project_hash, digest, json_bytes, file_sha256
 
 
 class CoordinateStudyDialog(QDialog):
@@ -29,6 +29,9 @@ class CoordinateStudyDialog(QDialog):
         self.study = None
         self.manifest = None
         self.results = {}
+        self.source_directory = None
+        self.results_path = None
+        self.results_hash = None
         self.options = CoordinateCsvOptions(include_hub=True, include_shroud=True, wall_layout='separate')
         layout = QVBoxLayout(self)
         self.note = QLabel('基準設計＋差分パラメータ → 複数翼列の断面／壁面座標 → 外部解析結果。\n'
@@ -74,6 +77,15 @@ class CoordinateStudyDialog(QDialog):
         for button in (self.export_button, self.local_button, self.cancel_button):
             actions.addWidget(button)
         layout.addLayout(actions)
+        proposals = QHBoxLayout()
+        self.proposal_button = QPushButton('外部結果から次候補を出力 / RBF')
+        self.proposal_button.setToolTip('1〜50候補。解析条件IDと十分な成功データが必要。予測は外部解析値ではありません。')
+        self.proposal_button.clicked.connect(lambda: self.export(proposal=True))
+        proposals.addWidget(self.proposal_button)
+        self.proposal_note = QLabel()
+        self.proposal_note.setWordWrap(True)
+        proposals.addWidget(self.proposal_note)
+        layout.addLayout(proposals)
         context = QHBoxLayout()
         self.evaluation_context = QLineEdit()
         self.evaluation_context.setMaxLength(512)
@@ -104,8 +116,8 @@ class CoordinateStudyDialog(QDialog):
         for widget in (QLabel('外部評価の制約'), self.constraint_name, self.minimum, self.maximum):
             limits.addWidget(widget)
         layout.addLayout(limits)
-        self.cases_table = QTableWidget(0, 4)
-        self.cases_table.setHorizontalHeaderLabels(['候補ID', '座標出力', '外部評価', '目的値'])
+        self.cases_table = QTableWidget(0, 5)
+        self.cases_table.setHorizontalHeaderLabels(['候補ID', '座標出力', '外部評価', '目的値', '予測値（未評価）'])
         self.cases_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.cases_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.cases_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -130,6 +142,7 @@ class CoordinateStudyDialog(QDialog):
             self.study = CoordinateStudy(self.capture_design())
             self.manifest = None
             self.results = {}
+            self.source_directory = self.results_path = self.results_hash = None
             self.rows.blockSignals(True)
             self.rows.clear()
             for row in self.study.baseline.blade_rows:
@@ -158,6 +171,7 @@ class CoordinateStudyDialog(QDialog):
         self.study = CoordinateStudy(self.study.baseline, selected)
         self.manifest = None
         self.results = {}
+        self.source_directory = self.results_path = self.results_hash = None
         self.cases_table.setRowCount(0)
         self.fill_variables()
 
@@ -185,6 +199,19 @@ class CoordinateStudyDialog(QDialog):
             link.setPlaceholderText('同じ名前で同じ差分を連動')
             self.variables_table.setCellWidget(index, 4, link)
             self.parameter_rows.append((variable, use, *boxes, link))
+            use.toggled.connect(self.update_proposal_hint)
+            for box in boxes:box.valueChanged.connect(self.update_proposal_hint)
+            link.textChanged.connect(self.update_proposal_hint)
+        self.update_proposal_hint()
+
+    def update_proposal_hint(self, *_):
+        try:
+            active = self.study.validate_variables(self.variables())
+            dimensions = len({('link', v.link) if v.link else ('key', v.key) for v in active})
+            self.proposal_note.setText(f'独立{dimensions}変数：成功評価が{max(8, 2*dimensions+4)}点以上必要。予測は未評価。'
+                                      if dimensions else '使用する変数を選択してください。予測は未評価。')
+        except ValueError:
+            self.proposal_note.setText('変数設定を確認してください。予測は未評価です。')
 
     def variables(self):
         return [replace(v, enabled=use.isChecked(), lower=low.value(), upper=high.value(), link=link.text().strip())
@@ -215,7 +242,7 @@ class CoordinateStudyDialog(QDialog):
         key = self.cases_table.item(self.cases_table.currentRow(), 0).text()
         return next(case for case in self.manifest['cases'] if case['candidate_id'] == key)
 
-    def export(self, local=False):
+    def export(self, local=False, proposal=False):
         try:
             if self.busy or self.study is None:
                 return
@@ -226,13 +253,26 @@ class CoordinateStudyDialog(QDialog):
             center = self.selected_case()['values'] if local else None
             if local and self.selected_case()['status'] != 'READY_FOR_EXTERNAL':
                 raise ValueError('座標が成立した候補だけを近傍探索に使用できます。')
+            specification = None
+            if proposal:
+                if self.manifest is None or self.results_path is None or not self.results:
+                    raise ValueError('先にStudyを開き、外部評価CSVを取り込んでください。')
+                name = self.constraint_name.text().strip()
+                constraints = ({name: tuple(float(edit.text()) if edit.text().strip() else None
+                                           for edit in (self.minimum, self.maximum))} if name else {})
+                specification = {'source_directory': str(self.source_directory),
+                                 'manifest_hash': digest(json_bytes(self.manifest)),
+                                 'results_path': str(self.results_path), 'results_hash': self.results_hash,
+                                 'objective': self.objective.text().strip(),
+                                 'maximize': self.direction.currentIndex() == 0, 'constraints': constraints}
             path = QFileDialog.getSaveFileName(self, '新しいStudyフォルダ名を指定', f'coordinate-study-{uuid.uuid4().hex[:8]}')[0]
             if not path:
                 return
             if Path(path).exists():
                 raise FileExistsError('既存フォルダは上書きしません。新しい名前を指定してください。')
             job = queue_study(self.study, self.variables(), self.count.value(), self.seed.value(),
-                              self.options, path, center, evaluation_context=self.evaluation_context.text().strip())
+                              self.options, path, center, evaluation_context=self.evaluation_context.text().strip(),
+                              proposal=specification)
             worker = CoordinateStudyWorker(job, QApplication.instance())
             self.worker = worker
             worker.progress.connect(self.status.setText)
@@ -247,7 +287,7 @@ class CoordinateStudyDialog(QDialog):
     def set_busy(self, busy):
         for widget in (self.capture_button, self.settings_button, self.open_button, self.rows,
                        self.variables_table, self.count, self.seed, self.export_button,
-                       self.local_button, self.import_button, self.apply_button, self.evaluation_context):
+                       self.local_button, self.proposal_button, self.import_button, self.apply_button, self.evaluation_context):
             widget.setEnabled(not busy)
         self.cancel_button.setEnabled(busy)
 
@@ -261,8 +301,12 @@ class CoordinateStudyDialog(QDialog):
             try:
                 self.study, self.manifest = read_study(report['directory'])
                 self.results = {}
+                self.source_directory = Path(report['directory'])
+                self.results_path = self.results_hash = None
                 self.refresh_cases()
-                self.status.setText('出力完了：' + report['directory'] + '\n外部解析を行い、結果CSVを取り込んでください。')
+                summary = self.status.text() if self.manifest.get('proposal') else ''
+                self.status.setText('出力完了：' + report['directory'] + '\n外部解析を行い、結果CSVを取り込んでください。'
+                                    + ('\n' + summary if summary else ''))
             except (OSError, ValueError, KeyError) as exc:
                 self.error(exc)
         else:
@@ -280,6 +324,8 @@ class CoordinateStudyDialog(QDialog):
             self.study = study
             self.manifest = manifest
             self.results = {}
+            self.source_directory = Path(directory)
+            self.results_path = self.results_hash = None
             self.rows.blockSignals(True)
             self.rows.clear()
             for row in study.baseline.blade_rows:
@@ -293,7 +339,8 @@ class CoordinateStudyDialog(QDialog):
             self.options = CoordinateCsvOptions(**{**manifest['options'], 'columns': tuple(manifest['options']['columns'])})
             self.evaluation_context.setText(manifest.get('evaluation_context', ''))
             self.refresh_cases()
-            self.status.setText('Studyを再開しました。外部結果CSVを取り込めます。')
+            summary = self.status.text() if self.manifest.get('proposal') else ''
+            self.status.setText('Studyを再開しました。外部結果CSVを取り込めます。' + ('\n' + summary if summary else ''))
         except (OSError, ValueError, KeyError, TypeError) as exc:
             self.error(exc)
 
@@ -304,7 +351,14 @@ class CoordinateStudyDialog(QDialog):
         path = QFileDialog.getOpenFileName(self, '外部結果CSV', '', 'CSV (*.csv)')[0]
         if path:
             try:
-                self.results = import_results(path, self.manifest)
+                before_hash = file_sha256(path)
+                imported = import_results(path, self.manifest)
+                after_hash = file_sha256(path)
+                if before_hash != after_hash:
+                    raise ValueError('外部CSVが取込中に変更されました。再度取り込んでください。')
+                self.results = imported
+                self.results_path = Path(path)
+                self.results_hash = after_hash
                 self.refresh_cases()
             except (OSError, ValueError, csv.Error) as exc:
                 self.error(exc)
@@ -322,17 +376,30 @@ class CoordinateStudyDialog(QDialog):
             cases = {case['candidate_id']: case for case in self.manifest['cases']}
             order = ranked + [key for key in cases if key not in ranked]
             self.cases_table.setRowCount(len(order))
+            prediction_objective = (self.manifest['proposal']['objective']
+                                    if self.manifest.get('sampling') == 'rbf_external' else None)
+            self.cases_table.horizontalHeaderItem(4).setText(
+                f'予測 {prediction_objective}（未評価）' if prediction_objective else '予測値（未評価）')
             for row, key in enumerate(order):
                 result = self.results.get(key, {'status': 'pending', 'metrics': {}})
                 metric = result['metrics'].get(self.objective.text().strip())
                 coordinate_status = '座標出力済み' if cases[key]['status'] == 'READY_FOR_EXTERNAL' else '座標生成エラー'
                 external_status = {'pending': '未評価', 'success': '成功', 'failed': '解析失敗'}[result['status']]
-                for column, value in enumerate((key, coordinate_status, external_status, '' if metric is None else f'{metric:.12g}')):
+                predicted = (cases[key].get('prediction', {}).get('metrics', {}).get(prediction_objective)
+                             if prediction_objective else None)
+                for column, value in enumerate((key, coordinate_status, external_status, '' if metric is None else f'{metric:.12g}',
+                                                '' if predicted is None else f'{predicted:.12g}')):
                     item = QTableWidgetItem(value)
                     item.setToolTip(cases[key].get('error', ''))
                     self.cases_table.setItem(row, column, item)
             self.status.setText(f'外部評価・制約による採用可能候補：{len(ranked)} / {len(cases)}。'
                                 '未取得／失敗は順位に含めません。近傍LHSは局所候補生成です。')
+            if prediction_objective:
+                proposal = self.manifest['proposal']
+                error = proposal['validation_metrics'][prediction_objective]['cv_rmse']
+                self.status.setText(self.status.text() + f'\nRBF：実評価{proposal["training_count"]}点、'
+                                    f'独立{proposal["independent_dimensions"]}変数、4分割検証RMSE {error:.6g} '
+                                    f'（{prediction_objective}の単位）。予測は実解析値・成立保証ではありません。')
         except ValueError as exc:
             self.error(exc)
 

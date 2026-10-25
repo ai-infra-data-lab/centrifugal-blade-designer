@@ -1,5 +1,7 @@
 # アプリ構造（2026-10-08 調査）
 
+座標StudyのRBF提案は`optimization/surrogate_proposals.py`のQt/ファイル/geometry非依存計算と、`fileio/coordinate_proposal.py`の外部CSV凍結・履歴/出所検証を分離する。`coordinate_study`の既存所有processで学習/座標生成し、予測を実結果へ流用しない。GUIは予測専用列と必要評価数を表示する。[範囲](COORDINATE_OPTIMIZATION.md)。
+
 座標最適化を追加：Tools → Coordinate Optimization。基準を保持する角度/厚さ/共有子午面の差分移行、翼列間の連動、複数翼列の座標一括出力、外部評価CSVの照合・順位付け・候補適用/Undo、LHS/近傍LHSに対応。3D面・CAD・CFD評価は組み込まない。[操作・制限・検証](COORDINATE_OPTIMIZATION.md)。
 
 CADの準備20分と本体60分を分離。既定全周の実測が20分を超えてもGUIが途中取消しないよう、CAD開始時に期限を再設定する。計算/公差/設計値は維持。変更前の再現2失敗を解消し、関連60件・quick63件・限定Ruff・native開始/取消を確認、全回帰2,472件成功（既存2,466件＋追加6件、固定入力387件不変）。[範囲・検証](CAD_TIME_BUDGETS.md)。

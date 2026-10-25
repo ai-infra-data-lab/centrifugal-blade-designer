@@ -19,6 +19,15 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def file_sha256(path):
+    """Hash imported results with bounded memory, including large legacy CSVs."""
+    checksum = hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            checksum.update(chunk)
+    return checksum.hexdigest()
+
+
 def json_bytes(value):
     return (json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True, indent=2) + '\n').encode('utf-8')
 
@@ -28,12 +37,18 @@ def project_hash(project):
 
 
 def queue_study(study, variables, count, seed, options, output, center=None, job_directory=None,
-                evaluation_context=''):
+                evaluation_context='', proposal=None):
     study.validate_variables(variables)
     options.validate()
     if not isinstance(evaluation_context, str) or len(evaluation_context) > 512:
         raise ValueError('Use a textual external analysis-condition ID of at most 512 characters.')
-    vectors = sample_candidates(study, variables, count, seed, center)
+    frozen = None
+    if proposal is not None:
+        if center is not None:
+            raise ValueError('RBF proposals and Local LHS are separate sampling methods.')
+        from .coordinate_proposal import freeze_proposal
+        frozen = freeze_proposal(proposal, count)
+    vectors = sample_candidates(study, variables, 0 if frozen else count, seed, center)
     job = Path(job_directory) if job_directory else ROOT / 'artifacts' / 'coordinate-studies' / uuid.uuid4().hex
     job.mkdir(parents=True, exist_ok=False)
     data = snapshot_text(study.baseline).encode('utf-8')
@@ -45,6 +60,10 @@ def queue_study(study, variables, count, seed, options, output, center=None, job
                'evaluation_context': evaluation_context,
                'sampling': 'local_lhs' if center is not None else 'lhs'}
     (job / 'snapshot.json').write_bytes(data)
+    if frozen:
+        request['proposal'] = frozen[0]
+        request['sampling'] = 'rbf_external'
+        (job / 'external-results.csv').write_bytes(frozen[1])
     (job / 'request.json').write_bytes(json_bytes(request))
     return job
 
@@ -105,6 +124,9 @@ def read_study(directory):
             target = directory / relative
             if not target.resolve().is_relative_to(directory.resolve()) or digest(target.read_bytes()) != expected:
                 raise ValueError('Coordinate-study output was changed: ' + name)
+    if manifest.get('sampling') == 'rbf_external':
+        from .coordinate_proposal import validate_proposal_manifest
+        validate_proposal_manifest(manifest)
     return study, manifest
 
 
@@ -136,6 +158,11 @@ def export_study(job):
     target = Path(request['output'])
     if target.exists():
         raise FileExistsError('Choose a new study directory; existing outputs are protected.')
+    proposal_batch = None
+    if request['sampling'] == 'rbf_external':
+        from .coordinate_proposal import derive_proposals
+        proposal_batch, proposal_metadata = derive_proposals(job, request, study, variables)
+        vectors = [{}, *proposal_batch['vectors']]
     manifest = {'schema': 'coordinate-study-1', 'run_id': request['run_id'],
                 'coordinate_geometry_version': COORDINATE_GEOMETRY_VERSION,
                 'baseline_hash': request['snapshot_hash'], 'row_ids': list(study.row_ids),
@@ -148,6 +175,8 @@ def export_study(job):
                 'unit': 'mm', 'rotation_axis': 'Z', 'theta_positive': 'CCW seen from +Z',
                 'evaluation': 'EXTERNAL_RESULTS_REQUIRED', 'surface_quality': 'NOT_EVALUATED',
                 'cad': 'NOT_EVALUATED', 'cfd': 'NOT_EXECUTED', 'cases': []}
+    if proposal_batch is not None:
+        manifest['proposal'] = proposal_metadata
     with staged_case(target) as stage:
         if target.exists():
             raise FileExistsError('Study directory was created by another operation.')
@@ -158,6 +187,8 @@ def export_study(job):
                 study.check_vector(values, variables)
             case = {'candidate_id': f'case_{ordinal:04d}', 'values': values,
                     'status': 'FAILED', 'sha256': {}, 'rows': []}
+            if proposal_batch is not None and ordinal:
+                case['prediction'] = proposal_batch['predictions'][ordinal - 1]
             payloads = {}
             try:
                 candidate = study.candidate(values)
@@ -213,7 +244,10 @@ def export_study(job):
             if case['status'] == 'READY_FOR_EXTERNAL':
                 writer.writerow([manifest['run_id'], case['candidate_id'], case['candidate_hash'],
                                  manifest['evaluation_context'], 'pending', ''])
-        _write_case_files(stage, {'manifest.json': json_bytes(manifest),
+        manifest_data = json_bytes(manifest)
+        if proposal_batch is not None and len(manifest_data) > 16 * 1024 * 1024:
+            raise ValueError('RBF history exceeds the manifest size limit; start a new evaluated Study.')
+        _write_case_files(stage, {'manifest.json': manifest_data,
                                  'external_results_template.csv': stream.getvalue().encode('utf-8-sig')})
         if target.exists():
             raise FileExistsError('Study destination appeared during generation; no existing directory replaced.')
