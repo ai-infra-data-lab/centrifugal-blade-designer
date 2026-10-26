@@ -216,3 +216,5 @@ class BladeRow:
     parameters: BladeParameters
     independent_meridional: bool = False
     upstream_row: str | None = None
+    hub_inlet_turn_deg: float | None = None
+    shroud_inlet_turn_deg: float | None = None

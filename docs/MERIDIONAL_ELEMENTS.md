@@ -1,5 +1,8 @@
 # 翼なし子午面要素と上流へのG1接続
 
+正接以外の接続も選べるようになった。現在の入力欄と指定角の定義は[子午面の接続角](MERIDIONAL_CORNERS.md)を参照。
+以下のG1の説明と画像は既定の正接モードを扱う。
+
 Windowsプログラム操作で同梱モデルへ追加した画面。数値は操作確認例で、設計推奨値ではない。
 
 [![翼なし要素を選択](images/meridional-element-selected.png)](images/meridional-element-selected.png)

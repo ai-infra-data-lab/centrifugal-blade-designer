@@ -83,7 +83,8 @@ def test_existing_study_hash_is_preserved_but_following_setting_is_hashed():
     from dataclasses import asdict
     from blade_designer.fileio.preview_job import snapshot_text
     p=BladeParameters()
-    old=asdict(p);old['cad_export'].pop('sector_boundary')
+    from tests.legacy_corner_schema import pre_corner_schema
+    old=pre_corner_schema(asdict(p));old['cad_export'].pop('sector_boundary')
     expected=json.dumps({'schema_version':'0.4',**old},allow_nan=False,sort_keys=True,
                         default=lambda v:v.value if hasattr(v,'value') else v.item())
     assert snapshot_text(p)==expected
@@ -96,7 +97,8 @@ def test_existing_cad_snapshot_bytes_and_caller_dictionary_are_preserved():
     from dataclasses import asdict
     from blade_designer.cad.client import json_text
     p=BladeParameters();current={'schema_version':'0.4',**asdict(p)}
-    before=deepcopy(current);old=deepcopy(current);old['cad_export'].pop('sector_boundary')
+    from tests.legacy_corner_schema import pre_corner_schema
+    before=deepcopy(current);old=pre_corner_schema(current);old['cad_export'].pop('sector_boundary')
     expected=json.dumps(old,ensure_ascii=False,allow_nan=False,sort_keys=True,indent=2,
                         default=lambda v:v.value if hasattr(v,'value') else v.item())+'\n'
     assert json_text(current)==expected and current==before

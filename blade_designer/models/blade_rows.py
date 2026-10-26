@@ -55,7 +55,8 @@ def row_parameters(project, row, _trail=()):
         if parent is None:raise ValueError('Upstream element is missing.')
         upstream=row_parameters(project,parent,_trail+ (row.identifier,))
         from ..geometry.element_walls import connect_curves
-        result.hub,result.shroud=connect_curves(result,row.identifier,upstream,parent.identifier)
+        result.hub,result.shroud=connect_curves(result,row.identifier,upstream,parent.identifier,
+            row.hub_inlet_turn_deg,row.shroud_inlet_turn_deg)
     return result
 
 
@@ -73,6 +74,10 @@ def validate_rows(project):
             raise ValueError("Unknown blade row type.")
         if type(row.independent_meridional) is not bool:
             raise ValueError('Independent meridional flag must be boolean.')
+        from ..geometry.meridional_segments import join_turn_radians
+        for value in (row.hub_inlet_turn_deg,row.shroud_inlet_turn_deg):join_turn_radians(value)
+        if not row.independent_meridional and any(value is not None for value in (row.hub_inlet_turn_deg,row.shroud_inlet_turn_deg)):
+            raise ValueError('Element inlet angles require independent walls.')
         if row.kind=='meridional' and not row.independent_meridional:
             raise ValueError('A meridional-only element requires independent Hub/Shroud.')
         if row.upstream_row is not None and (not isinstance(row.upstream_row,str) or not row.independent_meridional):

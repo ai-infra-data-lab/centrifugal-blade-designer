@@ -1,7 +1,7 @@
-"""Independent element walls and directed G1 connections; no Qt or file I/O."""
+"""Independent walls and directed endpoint/direction constraints; no Qt/I/O."""
 from copy import deepcopy
 import numpy as np
-from .meridional_segments import generate_meridional,validate_flow_path
+from .meridional_segments import generate_meridional,validate_flow_path,join_turn_radians,_rotate
 from ..models.geometry_3d import ImpellerGeometry
 
 
@@ -14,7 +14,7 @@ def wall_domain_indices(curve, identifier):
     return indices[0],indices[-1]
 
 
-def connect_curves(parameters, identifier, upstream, upstream_id):
+def connect_curves(parameters, identifier, upstream, upstream_id, hub_turn=None,shroud_turn=None):
     result=[]
     for name in ('hub','shroud'):
         definition=deepcopy(getattr(parameters,name));parent_definition=getattr(upstream,name)
@@ -22,7 +22,9 @@ def connect_curves(parameters, identifier, upstream, upstream_id):
         inlet,_=wall_domain_indices(definition,identifier)
         _,outlet=wall_domain_indices(parent_definition,upstream_id)
         source=geometry.segments[inlet];target=parent.segments[outlet]
-        angle=float(np.arctan2(target.end_tangent[1],target.end_tangent[0])-
+        inlet_turn=join_turn_radians(hub_turn if name=='hub' else shroud_turn)
+        wanted=_rotate(target.end_tangent,inlet_turn) if inlet_turn else target.end_tangent
+        angle=float(np.arctan2(wanted[1],wanted[0])-
                     np.arctan2(source.start_tangent[1],source.start_tangent[0]))
         c,s=np.cos(angle),np.sin(angle);rotation=np.array([[c,-s],[s,c]])
         start=target.end.zr+rotation@(geometry.segments[0].start.zr-source.start.zr)
@@ -30,8 +32,8 @@ def connect_curves(parameters, identifier, upstream, upstream_id):
         definition.start_angle_deg+=float(np.rad2deg(angle))
         checked=generate_meridional(definition).segments[inlet]
         if (not np.allclose(checked.start.zr,target.end.zr,rtol=0,atol=1e-8) or
-                not np.allclose(checked.start_tangent,target.end_tangent,rtol=0,atol=1e-10)):
-            raise ValueError('Element G0/G1 connection could not be established.')
+                not np.allclose(checked.start_tangent,wanted,rtol=0,atol=1e-10)):
+            raise ValueError('Element endpoint/direction connection could not be established.')
         result.append(definition)
     return tuple(result)
 

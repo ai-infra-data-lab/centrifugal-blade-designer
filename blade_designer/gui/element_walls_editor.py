@@ -1,6 +1,7 @@
 """Independent meridional definitions and upstream G1 selection."""
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QWidget,QFormLayout,QCheckBox,QComboBox,QLabel
+from .meridional_join_control import MeridionalJoinControl
 
 
 class ElementWallsEditor(QWidget):
@@ -10,9 +11,13 @@ class ElementWallsEditor(QWidget):
         super().__init__();layout=QFormLayout(self)
         self.independent=QCheckBox('独立したHub/Shroud / Independent walls')
         self.upstream=QComboBox()
-        self.note=QLabel('接続すると、上流出口のR/Zと接線を引き継ぎます。線/円弧の寸法はこの要素の定義を保持します。')
+        self.note=QLabel('接点のR/Zを引き継ぎ、正接または指定した折れ角で接続します。線/円弧の寸法はこの要素が保持します。')
         self.note.setWordWrap(True)
-        layout.addRow(self.independent);layout.addRow('上流要素 / Upstream G1',self.upstream);layout.addRow(self.note)
+        layout.addRow(self.independent);layout.addRow('上流要素 / Upstream',self.upstream)
+        self.joins={side:MeridionalJoinControl() for side in ('hub','shroud')}
+        for side,control in self.joins.items():
+            layout.addRow(side.title()+' 接続',control);control.changed.connect(self.settingsChanged.emit)
+        layout.addRow(self.note)
         self.independent.toggled.connect(self.settingsChanged.emit)
         self.upstream.currentIndexChanged.connect(lambda *_:self.settingsChanged.emit())
 
@@ -31,5 +36,8 @@ class ElementWallsEditor(QWidget):
                 self.upstream.addItem(row.name,row.identifier)
             self.upstream.setCurrentIndex(max(0,self.upstream.findData(active.upstream_row)))
             self.upstream.setEnabled(active.independent_meridional)
+            for side,control in self.joins.items():
+                control.set_value(getattr(active,side+'_inlet_turn_deg'))
+                control.setEnabled(active.independent_meridional and active.upstream_row is not None)
         finally:
             self.independent.blockSignals(False);self.upstream.blockSignals(False)

@@ -1,0 +1,2 @@
+# Keep frozen compatibility snapshots byte-identical on every checkout.
+tests/fixtures/pre_corner_*.json -text

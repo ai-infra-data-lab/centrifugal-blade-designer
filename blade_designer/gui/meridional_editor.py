@@ -5,6 +5,7 @@ from PySide6.QtCore import Signal,Qt
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QComboBox,QFormLayout,
     QTableWidget,QPushButton,QLabel,QTableWidgetItem,QAbstractItemView)
 from .control_point_editor import CompactDoubleSpinBox
+from .meridional_join_control import MeridionalJoinControl
 from .context_meridional import ContextMeridional
 from ..models.flow_path import FlowPathParameters
 from ..geometry.flow_path import validate_component_stations
@@ -31,6 +32,7 @@ class MeridionalEditor(QWidget):
         self.curves=[MeridionalCurveParameters(),default_shroud()]
         self.blade_rows = []
         self.additional_edges = lambda: []
+        self.connection_inlets=[None,None]
         self.ownership_items = []
         layout=QVBoxLayout(self)
         self.selector=QComboBox();self.selector.addItems(["Hub","Shroud"])
@@ -42,9 +44,10 @@ class MeridionalEditor(QWidget):
             box.setKeyboardTracking(False)
             self.start_controls[name]=box;form.addRow(label,box)
             box.valueChanged.connect(lambda value,key=name:self._start_changed(key,value))
-        self.table=QTableWidget(0,7);self.table.setHorizontalHeaderLabels(["Type","Length","Radius","Sweep [deg]","Direction","所属翼列 / Blade Row","翼列距離 s 始→終"])
+        self.table=QTableWidget(0,8);self.table.setHorizontalHeaderLabels(["Type","Length","Radius","Sweep [deg]","Direction","所属翼列 / Blade Row","翼列距離 s 始→終",'入口接続 / Inlet join'])
         self.table.horizontalHeader().moveSection(5, 1)
         self.table.horizontalHeader().moveSection(6, 2)
+        self.table.horizontalHeader().moveSection(7, 3)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setMinimumHeight(170);layout.addWidget(self.table)
@@ -109,6 +112,18 @@ class MeridionalEditor(QWidget):
 
     def get_curves(self): return deepcopy(self.curves)
 
+    def set_connection_inlets(self,indices):
+        self.connection_inlets=list(indices)
+        self._update_connection_inlet_controls()
+
+    def _update_connection_inlet_controls(self):
+        locked=self.connection_inlets[self.selector.currentIndex()]
+        for row in range(self.table.rowCount()):
+            control=self.table.cellWidget(row,7)
+            if control is not None:
+                control.setEnabled(row!=locked)
+                control.setToolTip('入口方向は上部のHub/Shroud要素接続で指定します。' if row==locked else control.direction_help)
+
     def set_blade_rows(self, rows):
         choices = [(row.identifier, row.name) for row in rows]
         if choices == self.blade_rows: return
@@ -156,6 +171,9 @@ class MeridionalEditor(QWidget):
             kind.setCurrentIndex(int(arc))
             kind.currentIndexChanged.connect(lambda index,i=row:self._type_changed(i,bool(index)))
             self.table.setCellWidget(row,0,kind)
+            join=MeridionalJoinControl(seg.inlet_turn_deg,first=row==0)
+            join.changed.connect(lambda i=row,control=join:self._segment_changed(i,'inlet_turn_deg',control.value()))
+            self.table.setCellWidget(row,7,join)
             for col,key in ((1,"length"),(2,"radius"),(3,"sweep_deg")):
                 self.table.removeCellWidget(row,col)
                 self.table.setItem(row,col,QTableWidgetItem(""))
@@ -176,6 +194,7 @@ class MeridionalEditor(QWidget):
             owner.currentIndexChanged.connect(lambda index,i=row,box=owner:self._ownership_changed(i,box.currentData()))
             self.table.setCellWidget(row,5,owner)
         self.table.resizeColumnsToContents();self._loading=False
+        self._update_connection_inlet_controls()
         self._update_segment_coordinates()
         self._update_row_positions()
 
@@ -312,7 +331,8 @@ class MeridionalEditor(QWidget):
                 item.setData(g.z,g.r)
                 points=np.array([g.segments[0].start.zr]+[s.end.zr for s in g.segments])
                 joins.setData(points[:,0],points[:,1])
-            self.message.setText("G1 continuous • angle measured from +Z toward +R")
+            corners=any(s.inlet_turn_deg is not None for curve in self.curves for s in curve.segments)
+            self.message.setText(('G0 connected • specified inlet turns' if corners else 'G1 continuous')+' • angle measured from +Z toward +R')
         except (ValueError,ArithmeticError) as exc:
             self.message.setText(f"ERROR: {exc} — showing last valid curves")
             self.blade_edges.clear_coordinate_map(str(exc))

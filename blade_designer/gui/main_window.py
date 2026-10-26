@@ -639,10 +639,19 @@ class MainWindow(QMainWindow):
         if local is None:return
         effective=row_parameters(project,local)
         curves=[effective.hub,effective.shroud]
+        self._set_connection_inlet_controls(local,curves)
         if self.meridional_editor.curves==curves:return
         previous=self._restoring;self._restoring=True
         try:self.meridional_editor.set_curves(*curves)
         finally:self._restoring=previous
+
+    def _set_connection_inlet_controls(self,local,curves):
+        indices=[None,None]
+        if local is not None and local.upstream_row is not None:
+            from ..geometry.element_walls import wall_domain_indices
+            try:indices=[wall_domain_indices(curve,local.identifier)[0] for curve in curves]
+            except ValueError:pass
+        self.meridional_editor.set_connection_inlets(indices)
 
     def _element_walls_changed(self):
         if self._restoring or not self._blade_rows:return
@@ -651,6 +660,8 @@ class MainWindow(QMainWindow):
         current=row_parameters(project,row)
         row.independent_meridional=self.element_walls_editor.independent.isChecked()
         row.upstream_row=self.element_walls_editor.upstream.currentData() if row.independent_meridional else None
+        for side,control in self.element_walls_editor.joins.items():
+            setattr(row,side+'_inlet_turn_deg',control.value() if row.independent_meridional else None)
         row.parameters.hub,row.parameters.shroud=deepcopy((current.hub,current.shroud))
         from ..models.blade_rows import validate_rows
         try:
@@ -874,6 +885,7 @@ class MainWindow(QMainWindow):
         if active is not None:self.element_walls_editor.set_rows(rows,active)
         self.meridional_editor.blade_edges.setVisible(not (local is not None and local.kind=='meridional'))
         for box in self.meridional_editor.start_controls.values():box.setEnabled(not(local is not None and local.upstream_row is not None))
+        self._set_connection_inlet_controls(local,self.meridional_editor.curves)
         self.meridional_editor.table.setColumnHidden(5,local is not None and local.kind=='meridional')
 
     def _ensure_blade_rows(self):
@@ -1256,7 +1268,7 @@ class MainWindow(QMainWindow):
         self._displaying_geometry=True
         try:self._refresh_model_view()
         finally:self._displaying_geometry=False
-        self.messages.setPlainText('翼なし子午面：独立Hub/Shroudを表示。上流接続時は出口位置・接線へ自動追従します。')
+        self.messages.setPlainText('翼なし子午面：独立Hub/Shroudを表示。上流接続時は出口位置・指定した接続方向へ自動追従します。')
         self.statusBar().showMessage('Meridional only • no blade / LE / TE')
 
     def _display_legacy_geometry(self, geometry, params, legacy_error=None):

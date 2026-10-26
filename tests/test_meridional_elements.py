@@ -131,7 +131,8 @@ def test_invalid_connection_graph_is_rejected(problem):
 
 
 def test_old_snapshot_bytes_preserved_and_explicit_connections_roundtrip(tmp_path):
-    p=project();old=asdict(p)
+    from tests.legacy_corner_schema import pre_corner_schema
+    p=project();old=pre_corner_schema(asdict(p))
     for row in old['blade_rows']:
         row.pop('independent_meridional');row.pop('upstream_row')
         # The older boundary-option compatibility is already part of snapshot_text.

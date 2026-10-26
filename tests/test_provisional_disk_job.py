@@ -103,5 +103,6 @@ def test_actual_selected_python_child_needs_no_qt_or_cad(tmp_path):
     code="from blade_designer.cad.provisional_disk_job import calculate_disk;import sys;calculate_disk(sys.argv[1]);assert not any(k.startswith(('PySide6','OCP')) for k in sys.modules)"
     result=subprocess.run([sys.executable,'-X','utf8','-c',code,str(job)],capture_output=True,timeout=60)
     assert result.returncode==0,result.stderr.decode('utf-8','replace')
-    assert asdict(read_disk_result(job,params))==json.loads((job/'result.json').read_text())['disk']
+    from tests.legacy_corner_schema import pre_corner_schema
+    assert pre_corner_schema(asdict(read_disk_result(job,params)))==json.loads((job/'result.json').read_text())['disk']
     assert (job/'geometry_snapshot.json').read_bytes()==source

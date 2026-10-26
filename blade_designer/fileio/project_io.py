@@ -131,6 +131,8 @@ def save_project(path: str | Path, params: BladeParameters) -> None:
             if {'identifier','kind','parameters'}<=value.keys():
                 if value.get('independent_meridional') is False:value.pop('independent_meridional')
                 if value.get('upstream_row',False) is None:value.pop('upstream_row')
+            for key in ('inlet_turn_deg','hub_inlet_turn_deg','shroud_inlet_turn_deg'):
+                if value.get(key,False) is None:value.pop(key)
             if value.get('shroud_downstream_mode') == 'cut':value.pop('shroud_downstream_mode')
             for key in ('analysis_le_mm','analysis_te_mm'):
                 if value.get(key,False) is None:value.pop(key)
@@ -191,7 +193,7 @@ def _curve(values):
     for segment in values['segments']:
         if segment.get('blade_row') is not None and (not isinstance(segment['blade_row'], str) or not segment['blade_row']):
             raise ValueError("Invalid meridional blade row identifier.")
-        keys=set(segment)-{'blade_row'}
+        keys=set(segment)-{'blade_row','inlet_turn_deg'}
         if keys=={'length'}:curve.segments.append(LineSegmentParameters(**segment))
         elif keys=={'radius','sweep_deg','clockwise'}:curve.segments.append(ArcSegmentParameters(**segment))
         else:raise ValueError("Invalid meridional segment fields.")
@@ -318,13 +320,15 @@ def _decode_v03(data, row_snapshot=False):
             params.blade_rows = []
             for row in data["blade_rows"]:
                 if (not isinstance(row, dict) or not {"identifier", "name", "kind", "parameters"}<=set(row)
-                        or set(row)-{"identifier", "name", "kind", "parameters",'independent_meridional','upstream_row'}):
+                        or set(row)-{"identifier", "name", "kind", "parameters",'independent_meridional','upstream_row',
+                                     'hub_inlet_turn_deg','shroud_inlet_turn_deg'}):
                     raise ValueError("Invalid blade row fields.")
                 values = row["parameters"]
                 if not isinstance(values, dict) or values.get("blade_rows") is not None or values.get("active_blade_row") is not None:
                     raise ValueError("Nested blade row lists are forbidden.")
                 params.blade_rows.append(BladeRow(row["identifier"], row["name"], row["kind"],
-                    _decode_v03(values, row_snapshot=True),row.get('independent_meridional',False),row.get('upstream_row')))
+                    _decode_v03(values, row_snapshot=True),row.get('independent_meridional',False),row.get('upstream_row'),
+                    row.get('hub_inlet_turn_deg'),row.get('shroud_inlet_turn_deg')))
         params.active_blade_row = data.get("active_blade_row")
         if params.blade_rows and "tip_clearance" not in data:
             active=next((r for r in params.blade_rows if r.identifier==params.active_blade_row),None)

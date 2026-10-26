@@ -1,5 +1,10 @@
 # アプリ構造（2026-10-08 調査）
 
+子午面の区間は任意の`inlet_turn_deg`を持ち、`None`で従来の接線継承、数値でG0の指定角接続を行う。
+要素間は`BladeRow`のHub/Shroud別入口角を`element_walls`へ渡し、端点と指定した方向を拘束する。
+Qtの入力欄と計算を分離し、保存/snapshotでは追加した既定`None`だけを省略する。
+[形状を決めるパラメータと制限](MERIDIONAL_CORNERS.md)。
+
 独立子午面要素は`BladeRow`の任意フィールドで追加し、旧行は共有壁のまま維持する。
 `geometry/element_walls.py`がQt/IO非依存でG0/G1配置を計算し、`row_parameters`が接続DAGを解決する。
 保存定義を移動させずに有効姿勢を導出し、GUIは共有壁と私有壁を分離して編集する。

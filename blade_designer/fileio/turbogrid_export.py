@@ -8,7 +8,7 @@ from dataclasses import replace
 import os
 import numpy as np
 from .csv_export import format_number
-from ..geometry.meridional_segments import sample_meridional
+from ..geometry.meridional_segments import sample_meridional,corner_distances
 from ..geometry.geometry_3d import generate_impeller, generate_diffuser_3d
 from ..geometry.row_domain import export_wall_intervals
 from ..models.parameters import EdgeType
@@ -124,7 +124,10 @@ def prepare_turbogrid_export(params):
     if splitter and analysis_intervals is None:
         export_wall_intervals(project,replace(geometry,sections=geometry.splitter_sections),edges)
     for (wall,p,name),(start,end) in zip(((geometry.hub,params.hub,filenames[0]),(geometry.shroud,params.shroud,filenames[1])), intervals):
-        zr=sample_meridional(wall,np.linspace(start,end,p.export_points))
+        distances=np.linspace(start,end,p.export_points)
+        corners=corner_distances(p,wall)
+        if len(corners):distances=np.unique(np.r_[distances,corners[(corners>start)&(corners<end)]])
+        zr=sample_meridional(wall,distances)
         xyz=np.column_stack((zr[:,1],np.zeros(len(zr)),zr[:,0]))
         contents[name]=_coordinates(_external_xyz(xyz,settings),digits)
     profiles=[]

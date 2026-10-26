@@ -21,6 +21,7 @@
 | 機能 | 現行対応 | 残る条件・対象外 | 根拠・試験例 |
 | --- | --- | --- | --- |
 | 子午面Hub/Shroud | 直線/円弧、G1接続、型変更、R/Z表示、所属翼列、LE/TE位置編集 | 翼列距離の整数区間表示と、内部の全壁fraction・翼LE–TE座標を区別する | [子午面座標](MERIDIONAL_COORDINATES.md)、[翼列距離](MERIDIONAL_ROW_COORDINATES.md)、`tests/test_meridional_gui.py` |
+| 非正接の子午面接続 | 区間/要素のG1継承または指定角G0、個別Hub/Shroud角、追従・保存・Undo/Redo | 折れ点の法線は不連続。派生壁のTurboGrid折れ点対応は未対応。非正接形状の実CAD/ANSYS全体品質は未検証 | [入力と制限](MERIDIONAL_CORNERS.md)、`tests/test_meridional_corners.py`、`tests/test_meridional_corners_gui.py` |
 | 翼なし独立子午面要素 | 独立Hub/Shroud、上流G0/G1接続、自動追従、2D/3D、壁CSV/TXT、保存とUndo/Redo | 翼なしのCAD/TurboGridプロフィール、独立要素の座標最適化は未対応。G2・全面非干渉は保証しない | [操作・仕様](MERIDIONAL_ELEMENTS.md)、`tests/test_meridional_elements.py`、`tests/test_meridional_elements_gui.py` |
 | Impeller | Hub/TipとSpan方向の形状生成、回転方向、2D/3D、全周表示 | 任意の強いねじれや高翼数で常に成立する保証はない | `geometry/geometry_3d.py`、`tests/test_blade_edge_span_interpolation.py` |
 | Diffuser/RC | 所属Hub/Shroud上の2断面をSpan方向に結ぶ。RCは外径側LE→内径側TE | 静翼中間Spanの独立設計は対象外。旧radial 2D Metrics/CSVと実3D座標は別経路 | [RC表示](RETURN_CHANNEL_DISPLAY.md)、`tests/test_return_channel.py`、`tests/test_stator_turbogrid_export.py` |

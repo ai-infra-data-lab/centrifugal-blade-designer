@@ -1,4 +1,5 @@
-"""Analytic G1 chains in (Z,R); positive angle rotates +Z toward +R."""
+"""Analytic G0/G1 chains in (Z,R); positive angle rotates +Z toward +R."""
+from numbers import Real
 import numpy as np
 from ..models.meridional import (Point2D, LineSegmentParameters, ArcSegmentParameters,
     MeridionalCurveParameters, LineSegmentGeometry, ArcSegmentGeometry, MeridionalGeometry)
@@ -9,6 +10,23 @@ def _rotate(vector, angle):
     return np.array([[c,-s],[s,c]]) @ vector
 
 
+def join_turn_radians(value):
+    if value is None:return 0.
+    if isinstance(value,bool) or not isinstance(value,Real) or not np.isfinite(value) or not -180<value<180:
+        raise ValueError('Join turn must be finite and strictly between -180 and 180 degrees, or None for G1.')
+    return float(np.deg2rad(value))
+
+
+def corner_distances(definition,geometry):
+    """Exact internal crease locations; default G1 curves retain legacy sampling."""
+    indices=[i for i,s in enumerate(definition.segments) if i and s.inlet_turn_deg not in (None,0)]
+    if not indices:return np.empty(0)
+    if hasattr(geometry,'source_m') or len(definition.segments)!=len(geometry.segments):
+        raise ValueError('Corner-point export on a derived wall is not supported.')
+    boundaries=np.r_[0.,np.cumsum([s.length for s in geometry.segments])]
+    return boundaries[indices]
+
+
 def convert_segment_type(segment,arc):
     """Change primitive type, retaining physical length and row ownership."""
     length=(segment.radius*abs(np.deg2rad(segment.sweep_deg))
@@ -16,10 +34,10 @@ def convert_segment_type(segment,arc):
     if not np.isfinite(length) or length<=0:
         raise ValueError("Segment conversion requires a positive finite length.")
     if arc:
-        result=ArcSegmentParameters(blade_row=segment.blade_row)
+        result=ArcSegmentParameters(blade_row=segment.blade_row,inlet_turn_deg=segment.inlet_turn_deg)
         result.radius=float(length/np.deg2rad(result.sweep_deg))
         return result
-    return LineSegmentParameters(length=float(length),blade_row=segment.blade_row)
+    return LineSegmentParameters(length=float(length),blade_row=segment.blade_row,inlet_turn_deg=segment.inlet_turn_deg)
 
 
 def evaluate_segment(segment, distance):
@@ -102,6 +120,8 @@ def generate_meridional(params: MeridionalCurveParameters, points_per_segment=20
     angle=np.deg2rad(params.start_angle_deg); t=np.array([np.cos(angle),np.sin(angle)])
     segments=[]; samples=[]; distances=[]; total=0.
     for definition in params.segments:
+        turn_at_inlet=join_turn_radians(definition.inlet_turn_deg)
+        if turn_at_inlet:t=_rotate(t,turn_at_inlet)
         if isinstance(definition,ArcSegmentParameters):
             r,sweep=definition.radius,definition.sweep_deg
             if not np.all(np.isfinite([r,sweep])) or r<=0 or not 0<sweep<360 or not isinstance(definition.clockwise,bool):

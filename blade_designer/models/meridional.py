@@ -20,6 +20,7 @@ class SegmentType(str, Enum):
 class LineSegmentParameters:
     length: float = 25.0
     blade_row: str | None = None
+    inlet_turn_deg: float | None = None
 
 
 @dataclass
@@ -28,6 +29,7 @@ class ArcSegmentParameters:
     sweep_deg: float = 35.0
     clockwise: bool = False
     blade_row: str | None = None
+    inlet_turn_deg: float | None = None
 
 
 @dataclass
