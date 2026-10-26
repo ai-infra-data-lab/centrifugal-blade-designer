@@ -13,8 +13,11 @@ Windows実画面。境界設定を選んだ例であり、画面のR8で生成�
 2. `Mechanical Model Scope`を`periodic_sector`にする。
 3. `周期境界 / Sector boundary`を`翼追従曲面 / Blade-following`にする。
 4. `Hub Fillet`を有効、`Fillet Mode`を`true_cad`にし、根元Rを設定する。
-5. ディスクを設定し、`Generate CAD`または`Export Mechanical`を実行する。
+5. ディスクを設定し、`Export Mechanical`で保存先caseを選ぶ。表示用の`Generate CAD`とは区別する。
 6. レポートの`checks.following_sector`、Mechanical artifact、STEP roundtripを確認する。
+
+現在の対応判定は[最新対応表](CURRENT_STATUS.md)、GUIでの一連の実行結果は
+[受入れ記録](GUI_FOLLOWING_SECTOR_ACCEPTANCE.md)を参照。
 
 主翼3枚以上に対応。1ピッチは360°/主翼枚数で、Splitter数は分母へ加えない。
 現対応は、全周フィレット生成時の翼別face識別を持つモデルである。
@@ -120,5 +123,10 @@ requestの差はScope・境界方式・snapshot hashのみ。
 初期のほぼ一致する全周Boolean差分の試行は途中中止として残し、成功件数へ含めない。
 
 Windowsの別processで設定欄・翼列切替・Undo/Redo・保存/再読込みをプログラム操作し、元JSON不変を確認した。
-GUIからの新方式の通し生成と時間上限内完了、人手/F5、ANSYS Import/Mesh・周期拘束・周期meshは未検証。
+このcheckpoint試験ではGUIからの通し生成と時間上限内完了は未確認だった。
+後続の[Windows GUI受入れ](GUI_FOLLOWING_SECTOR_ACCEPTANCE.md)では、Export Mechanicalから
+最初から生成し、取消/再実行、公開、preview、保存/再読込みまで成功した。
+既定22配置・仮ディスク・R0.1 mmのボタン→結果照合は約45分9秒で、既存の準備/本体の時間上限内に完了した。
+この1ケースの結果を他形状/他Rの成立へ一般化しない。
+人手/F5、ANSYS Import/Mesh・周期拘束・周期meshは未検証。
 STEPのface名によるNamed Selection保持も保証しない。実機性能・強度の検証ではない。

@@ -1,6 +1,8 @@
 # Centrifugal Compressor Blade Designer 利用者マニュアル
 
-更新日：2026-10-25。Windows版の現在の設計画面と、座標最適化画面を対象とします。
+更新日：2026-10-26。Windows版の設計画面と座標最適化画面を対象とします。
+機能・出力の対応条件は[最新対応表](CURRENT_STATUS.md)、翼追従の実操作検証は
+[GUI受入れ記録](GUI_FOLLOWING_SECTOR_ACCEPTANCE.md)を参照してください。
 Impeller、Diffuser、Return Channel（RC）の子午面・翼断面を設計し、形状を確認・保存・出力するための手順です。
 画面の機能名は英語／日本語の実際の表記に合わせています。
 

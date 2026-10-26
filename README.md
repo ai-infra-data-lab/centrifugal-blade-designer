@@ -1,4 +1,8 @@
-# Centrifugal Compressor Blade Designer v0.3
+# Centrifugal Compressor Blade Designer
+
+**現行開発版の対応状況：[最新の機能・出力対応表](docs/CURRENT_STATUS.md)**。
+実装状態と、Python自動試験・実CAD・Windows操作・ANSYSの検証状態を分けて掲載しています。
+v0.3.0は既存の履歴タグ、CAD v0.4は機能仕様の呼称です。タグを移動せず、現在の開発状態は対応表で確認してください。
 
 **初めて使う方へ：[日本語利用者マニュアル](docs/USER_MANUAL.md)**。画面例付きで、起動・保存、子午面と翼列、Splitter、クリアランス、派生カット、座標/TurboGrid/CAD出力、2目的最適化まで説明しています。
 
@@ -16,7 +20,7 @@ Impellerの`LE / TE → 派生設計 / Shroud・外径カット`で、元の基�
 
 専用スプリッターの角度・厚さは、表示中のLE〜TEの点だけで主翼と同じPCHIP補間を行います。2点なら直線です。既存の専用分布・コピー直後にも適用するため、以前の形状から変わる場合があります。主翼連動モードは従来どおりです。詳細は[専用分布の補間](docs/SPLITTER_INTERPOLATION.md)。
 
-保存先: [アプリ専用のGitHubリポジトリ](https://github.com/ai-infra-data-lab/centrifugal-blade-designer)。最新の静翼TurboGrid出力対応は全回帰490件成功。v0.3.0タグの記録は318件成功で、タグは維持します。実ディスプレイの変更後操作とTurboGrid実機Importは未確認です。
+保存先: [アプリ専用のGitHubリポジトリ](https://github.com/ai-infra-data-lab/centrifugal-blade-designer)。静翼TurboGrid出力追加当時の全回帰は490件、v0.3.0タグ当時は318件成功という履歴です。現在の試験件数・Windows操作・外部実機の確認範囲は[最新対応表](docs/CURRENT_STATUS.md)を参照してください。既存タグは維持します。
 
 2026-10-11のローカル整理では、角度・厚さEditorの不要な一時グラフ、重複する表示更新、未使用importを削除しました。操作・数値計算・既定値・保存形式は維持します。検証記録は[FEATURES.md](FEATURES.md)を参照。GitHubのv0.3.0タグは変更していません。
 
