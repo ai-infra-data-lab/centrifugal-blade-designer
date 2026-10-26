@@ -75,7 +75,7 @@ class ContextMeridional(QWidget):
 
     def update_blade_edges(self,geometry,parameters):
         from ..geometry.blade_edge import edge_endpoints
-        groups=([(row.identifier,row.name,getattr(row.parameters,row.kind+"_edges")) for row in parameters.blade_rows]
+        groups=([(row.identifier,row.name,getattr(row.parameters,row.kind+"_edges")) for row in parameters.blade_rows if row.kind!='meridional']
                 if parameters.blade_rows is not None else [(key,name,getattr(parameters,key))
                 for key,name in (("impeller_edges","Impeller"),("diffuser_edges","Diffuser"))])
         from ..geometry.row_coordinates import build_row_coordinates

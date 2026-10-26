@@ -1,6 +1,6 @@
 """Physical wall intervals selected by blade-row segment ownership (no Qt/I/O)."""
 import numpy as np
-from types import SimpleNamespace
+from ..models.meridional import SampledWallCurve
 from .meridional_segments import sample_meridional
 
 
@@ -10,6 +10,8 @@ def preview_wall_chunks(params,geometry,identifier):
     Legacy projects with no ownership use the full walls. Unlike export, a
     preview can display disconnected or partially assigned wall segments.
     """
+    from .element_walls import effective_wall_parameters
+    params=effective_wall_parameters(params)
     assigned=any(s.blade_row is not None for c in (params.hub,params.shroud) for s in c.segments)
     result={}
     for name in ("hub","shroud"):
@@ -30,7 +32,7 @@ def preview_wall_chunks(params,geometry,identifier):
             # Include joins exactly so a short line/arc never disappears.
             distances=np.unique(np.r_[np.linspace(start,end,49),boundaries[run[0]:run[-1]+2]])
             zr=sample_meridional(wall,distances)
-            chunks.append(SimpleNamespace(z=zr[:,0],r=zr[:,1]))
+            chunks.append(SampledWallCurve(z=zr[:,0],r=zr[:,1]))
         result[name]=chunks
     if getattr(geometry,'analysis_shroud',None) is not None:
         from dataclasses import replace
@@ -50,6 +52,8 @@ def wall_interval(curve, geometry, identifier):
 
 
 def export_wall_intervals(params, geometry, edges=None):
+    from .element_walls import effective_wall_parameters
+    params=effective_wall_parameters(params)
     edges = params.impeller_edges if edges is None else edges
     if not any(segment.blade_row is not None for curve in (params.hub, params.shroud) for segment in curve.segments):
         return [(0., geometry.hub.length), (0., geometry.shroud.length)]

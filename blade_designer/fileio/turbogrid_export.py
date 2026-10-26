@@ -71,6 +71,8 @@ def prepare_turbogrid_export(params):
     project=params
     row=(next(row for row in params.blade_rows if row.identifier == params.active_blade_row)
          if params.blade_rows is not None else None)
+    if row is not None and row.kind=='meridional':
+        raise ValueError('TurboGrid blade export requires a bladed element; meridional-only elements have no profiles.')
     stator=row is not None and row.kind == "diffuser"
     if stator:params=row_parameters(project,row)
     elif row is not None:
@@ -80,6 +82,7 @@ def prepare_turbogrid_export(params):
             raise ValueError('Active Impeller Tip clearance disagrees with its row snapshot. Reselect the row before export.')
         if params.splitter!=row.parameters.splitter:
             raise ValueError('Active Impeller Splitter disagrees with its row snapshot. Reselect the row before export.')
+        if row.independent_meridional:params=row_parameters(project,row)
     if not stator:
         from ..fileio.trim_export_guard import guard_trim_export
         guard_trim_export(params)

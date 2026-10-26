@@ -99,7 +99,9 @@ def _check_stored_row(params):
 def _check_row_project(params):
     from ..models.blade_rows import row_parameters
     from ..geometry.geometry_3d import generate_impeller, generate_diffuser_3d
-    generators = {"impeller": generate_impeller, "diffuser": generate_diffuser_3d}
+    from ..geometry.element_walls import generate_wall_element
+    generators = {"impeller": generate_impeller, "diffuser": generate_diffuser_3d,
+                  'meridional':generate_wall_element}
     _check_stored_row(params)
     for row in params.blade_rows:
         try:
@@ -110,7 +112,13 @@ def _check_row_project(params):
     # The top-level editing snapshot is stored independently. Validate it in
     # the active row's context as well; do not silently overwrite either copy.
     active = next(row for row in params.blade_rows if row.identifier == params.active_blade_row)
-    generators[active.kind](params)
+    if active.independent_meridional:
+        from copy import deepcopy
+        context=deepcopy(params);context.blade_rows=None;context.active_blade_row=None
+        resolved=row_parameters(params,active)
+        context.hub,context.shroud=resolved.hub,resolved.shroud
+        generators[active.kind](context)
+    else:generators[active.kind](params)
 
 
 def save_project(path: str | Path, params: BladeParameters) -> None:
@@ -120,6 +128,9 @@ def save_project(path: str | Path, params: BladeParameters) -> None:
     default_cad=asdict(CadExportParameters())
     def omit_unassigned(value):
         if isinstance(value, dict):
+            if {'identifier','kind','parameters'}<=value.keys():
+                if value.get('independent_meridional') is False:value.pop('independent_meridional')
+                if value.get('upstream_row',False) is None:value.pop('upstream_row')
             if value.get('shroud_downstream_mode') == 'cut':value.pop('shroud_downstream_mode')
             for key in ('analysis_le_mm','analysis_te_mm'):
                 if value.get(key,False) is None:value.pop(key)
@@ -306,12 +317,14 @@ def _decode_v03(data, row_snapshot=False):
                 raise ValueError("Invalid blade row list.")
             params.blade_rows = []
             for row in data["blade_rows"]:
-                if not isinstance(row, dict) or set(row) != {"identifier", "name", "kind", "parameters"}:
+                if (not isinstance(row, dict) or not {"identifier", "name", "kind", "parameters"}<=set(row)
+                        or set(row)-{"identifier", "name", "kind", "parameters",'independent_meridional','upstream_row'}):
                     raise ValueError("Invalid blade row fields.")
                 values = row["parameters"]
                 if not isinstance(values, dict) or values.get("blade_rows") is not None or values.get("active_blade_row") is not None:
                     raise ValueError("Nested blade row lists are forbidden.")
-                params.blade_rows.append(BladeRow(row["identifier"], row["name"], row["kind"], _decode_v03(values, row_snapshot=True)))
+                params.blade_rows.append(BladeRow(row["identifier"], row["name"], row["kind"],
+                    _decode_v03(values, row_snapshot=True),row.get('independent_meridional',False),row.get('upstream_row')))
         params.active_blade_row = data.get("active_blade_row")
         if params.blade_rows and "tip_clearance" not in data:
             active=next((r for r in params.blade_rows if r.identifier==params.active_blade_row),None)

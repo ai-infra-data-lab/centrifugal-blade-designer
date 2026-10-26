@@ -130,6 +130,7 @@ class Preview3D(QWidget):
 
     @staticmethod
     def _section_lines(sections):
+        if not sections:return {},[]
         spanwise=build_spanwise_wireframe(sections)
         lines={}
         for section in sections:
@@ -145,7 +146,7 @@ class Preview3D(QWidget):
         self.update_geometry(geometry,wall_chunks)
         self.model_label = "3D • Diffuser"
 
-    def update_rows(self,rows,walls,analysis_chunks=None):
+    def update_rows(self,rows,walls,analysis_chunks=None,wall_chunks=None):
         """Compose independent rows; each row retains its own annulus count."""
         self._invalidate_surface_scene()
         self._reference_mode=False
@@ -159,6 +160,7 @@ class Preview3D(QWidget):
             spanwise.extend(row_spanwise)
         reference=walls.source_geometry or walls
         chunks={name:[getattr(reference,name)] for name in ("hub","shroud")}
+        if wall_chunks is not None:chunks={key:list(value) for key,value in wall_chunks.items()}
         chunks['shroud'].extend(g.shroud for _,_,g,_ in rows if g.trim_report is not None and hasattr(g.shroud,'source_m'))
         lines.update(self._wall_lines(chunks));counts.update(Hub=1,Shroud=1)
         self.surfaces=self._wall_surfaces(walls,chunks)
@@ -166,7 +168,7 @@ class Preview3D(QWidget):
             [g.analysis_shroud.wall for _,_,g,_ in rows if g.analysis_shroud is not None])
         self._tip_surfaces([geometry for _,_,geometry,_ in rows])
         self.base_lines=lines;self.spanwise_lines=spanwise;self._line_blade_counts=counts
-        self.model_label=f"3D • All blade rows ({len(rows)})"
+        self.model_label=f"3D • All {'elements' if any(not g.sections for _,_,g,_ in rows) else 'blade rows'} ({len(rows)})"
         self._rebuild_lines()
 
     @staticmethod

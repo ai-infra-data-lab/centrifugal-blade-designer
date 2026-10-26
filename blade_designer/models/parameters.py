@@ -214,3 +214,5 @@ class BladeRow:
     name: str
     kind: str
     parameters: BladeParameters
+    independent_meridional: bool = False
+    upstream_row: str | None = None

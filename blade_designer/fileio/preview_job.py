@@ -34,7 +34,7 @@ def _bounded(path,limit):
 
 
 def queue_preview(params,kind,include_rows=False,job_directory=None):
-    if kind not in ("impeller","diffuser") or type(include_rows) is not bool:
+    if kind not in ("impeller","diffuser",'meridional') or type(include_rows) is not bool:
         raise ValueError("Invalid preview request.")
     data=snapshot_text(params).encode("utf-8")
     if len(data)>4*1024*1024:raise ValueError("Preview snapshot limit exceeded.")
@@ -50,7 +50,7 @@ def _input(job):
     job=Path(job)
     request_bytes=_bounded(job/"request.json",32768);request=json.loads(request_bytes)
     if (not isinstance(request,dict) or set(request)!={"snapshot_hash","kind","include_rows"}
-            or request["kind"] not in ("impeller","diffuser") or type(request["include_rows"]) is not bool):
+            or request["kind"] not in ("impeller","diffuser",'meridional') or type(request["include_rows"]) is not bool):
         raise ValueError("Invalid preview request.")
     data=_bounded(job/"snapshot.json",4*1024*1024)
     if _digest(data)!=request["snapshot_hash"]:
@@ -96,7 +96,7 @@ def read_preview(job,params,kind,include_rows):
             or (selected.legacy is not None and not isinstance(selected.legacy,BladeGeometry))):
         raise ValueError("Invalid preview diagnostics.")
     if selected.selected_error is None:
-        wall=selected.impeller if kind=='impeller' else selected.diffuser
+        wall=selected.meridional if kind=='meridional' else selected.impeller if kind=='impeller' else selected.diffuser
         if not isinstance(wall,ImpellerGeometry) or not isinstance(selected.area,FlowAreaResult):
             raise ValueError("Incomplete selected preview geometry.")
     return value

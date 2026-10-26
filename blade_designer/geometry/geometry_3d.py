@@ -11,6 +11,7 @@ from .tip_clearance import make_tip_geometry,row_wall_parameters,blade_span_wall
 
 
 def generate_impeller(params):
+    params=_blade_parameters(params)
     geometry=_generate_row(params,params.sections,params.impeller_edges,impeller_cutoff=True)
     if params.impeller_te_rake_deg is not None:
         from .impeller_parameter_mapper import ImpellerParameterMapper
@@ -27,12 +28,21 @@ def generate_impeller(params):
 
 def generate_diffuser_3d(params):
     """Use the shared diffuser distribution on Hub and Shroud walls."""
+    params=_blade_parameters(params)
     if not isinstance(params.diffuser_profile,BladeSection) or params.diffuser_profile.span!=0:
         raise ValueError("A diffuser profile with span 0 is required.")
     sections=[]
     for span in (0.,1.):
         section=deepcopy(params.diffuser_profile);section.span=span;sections.append(section)
     return _generate_row(params,sections,params.diffuser_edges)
+
+
+def _blade_parameters(params):
+    active=next((row for row in params.blade_rows or [] if row.identifier==params.active_blade_row),None)
+    if active is not None and active.kind=='meridional':
+        raise ValueError('A meridional-only element has no blade geometry.')
+    from .element_walls import effective_wall_parameters
+    return effective_wall_parameters(params)
 
 
 def _generate_row(params,profiles,edges,*,impeller_cutoff=False):

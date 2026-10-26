@@ -51,6 +51,7 @@ class DesignNavigator(QWidget):
         dialog.kind_combo = QComboBox()
         dialog.kind_combo.addItem("インペラ / Impeller", "impeller")
         dialog.kind_combo.addItem("静翼 / Diffuser", "diffuser")
+        dialog.kind_combo.addItem('翼なし子午面 / Meridional only','meridional')
         form.addRow("名前 / Name", dialog.name_edit)
         form.addRow("種類 / Type", dialog.kind_combo)
         dialog.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -92,6 +93,7 @@ class DesignNavigator(QWidget):
         dialog.name_edit.setFocus()
 
     def set_rows(self, rows, identifier, select_row=False):
+        self.rows_item.setText(0,'要素 / Elements' if any(row.kind=='meridional' for row in rows) else '翼 / Blade Rows')
         self.active_identifier = identifier
         meridional = self.tree.currentItem() is self.meridional_item and not select_row
         self.tree.blockSignals(True)

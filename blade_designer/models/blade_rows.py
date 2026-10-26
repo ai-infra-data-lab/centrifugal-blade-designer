@@ -34,15 +34,28 @@ def reconcile_visible_row_edges(parameters):
     other rows of the same kind retain their independent edge settings.
     """
     result=deepcopy(parameters)
+    active=next((row for row in result.blade_rows or [] if row.identifier==result.active_blade_row),None)
+    if active is not None and active.independent_meridional:
+        return result  # New independent rows own their edges; the shared editor is a different domain.
     for key,row in visible_edge_rows(result.blade_rows,result.active_blade_row).items():
         setattr(row.parameters,key,deepcopy(getattr(result,key)))
     return result
 
 
-def row_parameters(project, row):
+def row_parameters(project, row, _trail=()):
+    if row.identifier in _trail:
+        raise ValueError('Meridional connections contain a cycle.')
     result = row_snapshot(row.parameters)
     for name in SHARED_FIELDS:
+        if row.independent_meridional and name in ('hub','shroud'):
+            continue
         setattr(result, name, deepcopy(getattr(project, name)))
+    if row.upstream_row is not None:
+        parent=next((item for item in project.blade_rows or [] if item.identifier==row.upstream_row),None)
+        if parent is None:raise ValueError('Upstream element is missing.')
+        upstream=row_parameters(project,parent,_trail+ (row.identifier,))
+        from ..geometry.element_walls import connect_curves
+        result.hub,result.shroud=connect_curves(result,row.identifier,upstream,parent.identifier)
     return result
 
 
@@ -56,8 +69,14 @@ def validate_rows(project):
         raise ValueError("At least one blade row is required.")
     identifiers = []
     for row in rows:
-        if not isinstance(row, BladeRow) or row.kind not in ("impeller", "diffuser"):
+        if not isinstance(row, BladeRow) or row.kind not in ("impeller", "diffuser", "meridional"):
             raise ValueError("Unknown blade row type.")
+        if type(row.independent_meridional) is not bool:
+            raise ValueError('Independent meridional flag must be boolean.')
+        if row.kind=='meridional' and not row.independent_meridional:
+            raise ValueError('A meridional-only element requires independent Hub/Shroud.')
+        if row.upstream_row is not None and (not isinstance(row.upstream_row,str) or not row.independent_meridional):
+            raise ValueError('An upstream connection requires independent Hub/Shroud.')
         if not isinstance(row.identifier, str) or not row.identifier or row.identifier in identifiers:
             raise ValueError("Blade row identifiers must be unique nonempty strings.")
         if not isinstance(row.name, str) or not row.name.strip():
@@ -69,7 +88,19 @@ def validate_rows(project):
         identifiers.append(row.identifier)
     if project.active_blade_row not in identifiers:
         raise ValueError("Active blade row is missing from the row list.")
+    links={row.identifier:row.upstream_row for row in rows}
+    for identifier in identifiers:
+        seen=set();current=identifier
+        while current is not None:
+            if current not in links:raise ValueError('Upstream element is missing.')
+            if current in seen:raise ValueError('Meridional connections contain a cycle.')
+            seen.add(current);current=links[current]
     for curve in (project.hub, project.shroud):
         for segment in curve.segments:
             if segment.blade_row is not None and segment.blade_row not in identifiers:
                 raise ValueError("Meridional segment references an unknown blade row.")
+    for row in rows:
+        if row.independent_meridional:
+            for curve in (row.parameters.hub,row.parameters.shroud):
+                if any(segment.blade_row is not None and segment.blade_row not in identifiers for segment in curve.segments):
+                    raise ValueError('Independent wall references an unknown element.')

@@ -26,6 +26,7 @@ class PreviewComputation:
     reference_error: str | None = None
     area: FlowAreaResult | None = None
     selected_error: str | None = None
+    meridional: ImpellerGeometry | None = None
 
 
 @dataclass
@@ -33,6 +34,7 @@ class RowPreviews:
     entries: list[tuple[str, str, ImpellerGeometry, int]] = field(default_factory=list)
     analysis_chunks: list[MeridionalGeometry] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    wall_chunks: dict | None = None
 
 
 def prepare_preview(params: BladeParameters, kind: str, *,
@@ -45,11 +47,24 @@ def prepare_preview(params: BladeParameters, kind: str, *,
     legacy result so the controller can retain its existing recovery policy.
     Programming errors deliberately propagate. Precomputed Impellers are reused.
     """
-    if kind not in ("impeller", "diffuser"):
+    if kind not in ("impeller", "diffuser",'meridional'):
         raise ValueError("Unknown preview row type.")
     params = deepcopy(params)
     designer = designer if designer is not None else BladeDesigner()
     result = PreviewComputation(impeller=impeller)
+    active=next((row for row in params.blade_rows or [] if row.identifier==params.active_blade_row),None)
+    if active is not None and active.independent_meridional:
+        try:params=row_parameters(params,active)
+        except (ValueError,ArithmeticError) as exc:
+            result.selected_error=str(exc);return result
+    if kind=='meridional':
+        from .element_walls import generate_wall_element
+        try:
+            result.meridional=generate_wall_element(params)
+            result.area=calculate_flow_area(result.meridional.hub,result.meridional.shroud,params.flow_path,
+                points=params.resolution.area_points,strict=False,mean_points=params.resolution.mean_points)
+        except (ValueError,ArithmeticError) as exc:result.selected_error=str(exc)
+        return result
     if include_legacy:
         try:
             result.legacy = designer.generate_diffuser(params)
@@ -85,13 +100,20 @@ def prepare_row_previews(params: BladeParameters, *,
     params = deepcopy(params)
     designer = designer if designer is not None else BladeDesigner()
     result = RowPreviews()
+    independent=any(row.independent_meridional for row in params.blade_rows or [])
+    if independent:result.wall_chunks={'hub':[],'shroud':[]}
     for row in params.blade_rows or initial_rows(params):
-        p = row_parameters(params, row)
         try:
-            geometry = (designer.generate_3d(p) if row.kind == "impeller"
-                        else designer.generate_diffuser_3d(p))
+            p = row_parameters(params, row)
+            if row.kind=='meridional':
+                from .element_walls import generate_wall_element
+                geometry=generate_wall_element(p)
+            else:geometry = (designer.generate_3d(p) if row.kind == "impeller" else designer.generate_diffuser_3d(p))
             chunks = preview_wall_chunks(p, geometry, row.identifier).get("analysis_shroud", [])
-            result.entries.append((row.identifier, row.name, geometry, p.geometry.vane_count))
+            result.entries.append((row.identifier, row.name, geometry, 1 if row.kind=='meridional' else p.geometry.vane_count))
+            if independent:
+                walls=preview_wall_chunks(p,geometry,row.identifier)
+                for key in ('hub','shroud'):result.wall_chunks[key].extend(walls[key])
             result.analysis_chunks.extend(chunks)
         except (ValueError, ArithmeticError) as exc:
             result.errors.append(f"ERROR — 3D {row.name}: {exc} (row omitted)")

@@ -5,6 +5,12 @@ from numpy.typing import NDArray
 FloatArray = NDArray[np.float64]
 
 
+@dataclass
+class SampledWallCurve:
+    z: FloatArray
+    r: FloatArray
+
+
 class SegmentType(str, Enum):
     LINE = "line"
     ARC = "arc"

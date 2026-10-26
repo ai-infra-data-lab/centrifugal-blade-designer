@@ -1,5 +1,11 @@
 # アプリ構造（2026-10-08 調査）
 
+独立子午面要素は`BladeRow`の任意フィールドで追加し、旧行は共有壁のまま維持する。
+`geometry/element_walls.py`がQt/IO非依存でG0/G1配置を計算し、`row_parameters`が接続DAGを解決する。
+保存定義を移動させずに有効姿勢を導出し、GUIは共有壁と私有壁を分離して編集する。
+数値previewの壁断片は`SampledWallCurve`で安全なdataclass転送を行う。
+[仕様・対応外](MERIDIONAL_ELEMENTS.md)。
+
 Mechanicalの翼追従セクターは、Qt/OCP非依存の`geometry/sector_boundary.py`でR/Z位相の候補を作り、
 `cad/following_sector.py`で周期工具・完成翼/fillet非干渉・面保持・全周再構成を検査する。
 既存workerの全周フィレット後に明示選択時だけ接続し、固定平面とTurboGridは維持する。

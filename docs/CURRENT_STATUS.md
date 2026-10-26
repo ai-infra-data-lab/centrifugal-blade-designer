@@ -1,7 +1,7 @@
 # 現行機能・出力の対応表
 
 更新日：2026-10-26。対象は`centrifugal_blade_designer`のみ。
-計算コードの基準はローカル`af2ddba`／GitHubアプリ専用履歴`660e20f`。
+公開済み計算コードの基準はGitHubアプリ専用履歴`660e20f`。ローカルの追加は下表を参照。
 これは対応状況の整理であり、新しいリリースタグや実機認定ではない。
 
 **現在の判断は本表を入口とし、過去の監査・段階別テスト件数は開発履歴として読む。**
@@ -21,6 +21,7 @@
 | 機能 | 現行対応 | 残る条件・対象外 | 根拠・試験例 |
 | --- | --- | --- | --- |
 | 子午面Hub/Shroud | 直線/円弧、G1接続、型変更、R/Z表示、所属翼列、LE/TE位置編集 | 翼列距離の整数区間表示と、内部の全壁fraction・翼LE–TE座標を区別する | [子午面座標](MERIDIONAL_COORDINATES.md)、[翼列距離](MERIDIONAL_ROW_COORDINATES.md)、`tests/test_meridional_gui.py` |
+| 翼なし独立子午面要素 | 独立Hub/Shroud、上流G0/G1接続、自動追従、2D/3D、壁CSV/TXT、保存とUndo/Redo | 翼なしのCAD/TurboGridプロフィール、独立要素の座標最適化は未対応。G2・全面非干渉は保証しない | [操作・仕様](MERIDIONAL_ELEMENTS.md)、`tests/test_meridional_elements.py`、`tests/test_meridional_elements_gui.py` |
 | Impeller | Hub/TipとSpan方向の形状生成、回転方向、2D/3D、全周表示 | 任意の強いねじれや高翼数で常に成立する保証はない | `geometry/geometry_3d.py`、`tests/test_blade_edge_span_interpolation.py` |
 | Diffuser/RC | 所属Hub/Shroud上の2断面をSpan方向に結ぶ。RCは外径側LE→内径側TE | 静翼中間Spanの独立設計は対象外。旧radial 2D Metrics/CSVと実3D座標は別経路 | [RC表示](RETURN_CHANNEL_DISPLAY.md)、`tests/test_return_channel.py`、`tests/test_stator_turbogrid_export.py` |
 | 角度・厚さ・Splitter | PCHIP、共有編集グラフ、主翼連動/専用Splitter分布、開始位置・周方向配置 | 1主翼ピッチにSplitter1枚。専用分布は表示LE–TE内で補間 | [共有グラフ](SHARED_GRAPHS.md)、[Splitter補間](SPLITTER_INTERPOLATION.md)、`tests/test_splitter_local_interpolation.py` |

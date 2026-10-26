@@ -55,6 +55,9 @@ class BladeEdgeEditor(QWidget):
                 row+=1
 
     def set_parameters(self,params):
+        self._has_row_list=params.blade_rows is not None
+        params=deepcopy(params)
+        if params.blade_rows is not None:params.blade_rows=[row for row in params.blade_rows if row.kind!='meridional']
         previous=list(self._group_order)
         self._legacy_edges={k:deepcopy(getattr(params,k)) for k in ("impeller_edges","diffuser_edges")}
         self._active_row=params.active_blade_row
@@ -75,6 +78,7 @@ class BladeEdgeEditor(QWidget):
         self.walls=(hub,shroud);self._sync_controls()
 
     def set_row_names(self,rows,identifier):
+        rows=[row for row in rows if row.kind!='meridional']
         self._active_row=identifier
         if self.row_edges:
             order=[row.identifier for row in rows]
@@ -137,11 +141,12 @@ class BladeEdgeEditor(QWidget):
         except (ValueError,KeyError) as exc:
             item.setText('—');item.setToolTip(str(exc))
 
-    def _primary_edges(self):return self.row_edges if self.row_edges else self._legacy_edges
+    def _primary_edges(self):return self.row_edges if self._has_row_list else self._legacy_edges
 
     def edge_groups(self):return [(key,self._names[key],self._primary_edges()[key]) for key in self._group_order]
 
     def all_edges(self):
+        if self._has_row_list and not self._group_order:return []
         result=list(self._primary_edges().values())
         for edges in self.edges.values():
             if all(edges is not item for item in result):result.append(edges)

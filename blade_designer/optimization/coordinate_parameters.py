@@ -50,6 +50,8 @@ class CoordinateStudy:
         validate_rows(project)
         if not project.blade_rows:
             raise ValueError('Coordinate studies require a project with blade rows.')
+        if any(row.independent_meridional for row in project.blade_rows):
+            raise ValueError('Coordinate optimization of independent connected meridional elements is not supported yet.')
         self._baseline = deepcopy(project)
         known = [row.identifier for row in project.blade_rows]
         self.row_ids = tuple(known if row_ids is None else row_ids)

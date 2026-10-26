@@ -54,6 +54,9 @@ def assess_exports(project,prepare_profiles=None):
         return Readiness('Unavailable','unknown',digest,tuple(Route(name,(check,)) for name in ('Profile Points','Mechanical STEP','TurboGrid CAD')))
     kind=selected.kind if selected is not None else 'impeller'
     name=selected.name if selected is not None else 'Impeller'
+    if kind=='meridional':
+        item=Check('kind','BLOCKED','Meridional-only elements have no blades. Use wall coordinate CSV/TXT output.')
+        return Readiness(name,kind,digest,tuple(Route(route,(item,)) for route in ('Profile Points','Mechanical STEP','TurboGrid CAD')))
     checks={route:[] for route in ('Profile Points','Mechanical STEP','TurboGrid CAD')}
     def check(routes,code,operation,success):
         try:operation();item=Check(code,'PASS',success)
